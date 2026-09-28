@@ -14,6 +14,7 @@
     "seed": "node scripts/seed.mjs",
     "seed:reset": "node scripts/seed.mjs",
     "demo:answers": "node scripts/seed-answers.mjs",
+    "demo:prepare": "node scripts/prepare-demo.mjs",
     "test:main-flow": "node scripts/day6-main-flow.mjs",
     "test:ui-audit": "node scripts/day6-ui-audit.mjs"
   },

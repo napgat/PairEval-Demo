@@ -7,3 +7,4 @@ data/*.sqlite-*
 !.env.example
 *.log
 tsconfig.tsbuildinfo
+delivery/*.zip
