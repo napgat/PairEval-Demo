@@ -16,11 +16,15 @@
     "demo:answers": "node scripts/seed-answers.mjs",
     "demo:prepare": "node scripts/prepare-demo.mjs",
     "test:main-flow": "node scripts/day6-main-flow.mjs",
-    "test:ui-audit": "node scripts/day6-ui-audit.mjs"
+    "test:ui-audit": "node scripts/day6-ui-audit.mjs",
+    "db:migrate": "node scripts/full-system-db.mjs migrate",
+    "db:seed": "node scripts/full-system-db.mjs seed",
+    "db:smoke": "node scripts/full-system-db.mjs smoke"
   },
   "dependencies": {
     "lucide-react": "^1.25.0",
     "next": "16.2.10",
+    "pg": "^8.23.0",
     "react": "19.2.4",
     "react-dom": "19.2.4"
   },
@@ -28,6 +32,7 @@
     "@playwright/test": "^1.63.0",
     "@tailwindcss/postcss": "^4",
     "@types/node": "^24.13.3",
+    "@types/pg": "^8.23.1",
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "@vitest/coverage-v8": "^5.0.0",

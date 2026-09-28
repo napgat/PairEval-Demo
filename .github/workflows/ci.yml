@@ -1,0 +1,43 @@
+name: PairEval CI
+
+on:
+  push:
+    branches: [main, staging]
+  pull_request:
+    branches: [main, staging]
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+      - run: npm ci
+      - run: npm test
+      - run: npm run typecheck
+      - run: npm run lint
+      - run: npm run build
+      - run: node scripts/build-prd-execution-matrix.mjs
+      - name: Check execution matrix was generated deterministically
+        run: git diff --exit-code -- docs/full-system/prd-v2.1-execution-matrix.md
+      - run: npx playwright install --with-deps chromium
+      - run: npm run seed:reset
+      - name: Start synthetic Demo server
+        run: npm run start -- -p 3100 > server.log 2>&1 &
+      - name: Wait for health
+        run: |
+          for i in $(seq 1 30); do
+            if curl -fsS http://localhost:3100/api/health > /dev/null; then exit 0; fi
+            sleep 1
+          done
+          cat server.log
+          exit 1
+      - run: npm run test:main-flow
+      - run: npm run test:ui-audit

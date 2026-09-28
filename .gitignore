@@ -8,3 +8,4 @@ data/*.sqlite-*
 *.log
 tsconfig.tsbuildinfo
 delivery/*.zip
+.verification/

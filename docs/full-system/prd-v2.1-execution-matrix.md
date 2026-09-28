@@ -1,0 +1,200 @@
+# PRD v2.1 execution matrix — Day 1
+
+Source: [PRD v2.1](../design%20document/pairwise_evaluation_prd%201.md) and [Traceability Matrix](../design%20document/12_Traceability%20Matrix.md). Exactly 188 IDs in PRD section 1–19. `M/S/C` comes from PRD MoSCoW tables; `unranked in PRD` is deliberate, not an inferred priority. Owner is the Day 1 workstream assignment (A platform/data, B domain, C UI/API, D verification), not an institutional approver.
+
+`not started` means the Full System implementation has no qualifying evidence. `in progress` below means an initial DDL artifact exists, but has **not** been run on Neon. No ID is marked implemented or tested. Working SQLite Demo behavior and its tests are baseline evidence only, never automatic PRD v2.1 passage. `planned:` paths are targets, not existing files. Decision references are from the traceability matrix; `—` means no explicit dependency recorded there.
+
+| PRD ID | PRD line | Owner | Priority | Status | Implementation location | Test evidence | Dependent decisions / gates |
+|---|---:|---|---|---|---|---|---|
+| `A1` | [123](../design%20document/pairwise_evaluation_prd%201.md#L123) | A — architecture | unranked in PRD | not started | planned: full-system architecture and data access | none for Full System | — |
+| `A2` | [124](../design%20document/pairwise_evaluation_prd%201.md#L124) | A — architecture | unranked in PRD | not started | planned: full-system architecture and data access | none for Full System | — |
+| `A3` | [125](../design%20document/pairwise_evaluation_prd%201.md#L125) | A — architecture | unranked in PRD | not started | planned: full-system architecture and data access | none for Full System | — |
+| `A4` | [126](../design%20document/pairwise_evaluation_prd%201.md#L126) | A — architecture | unranked in PRD | not started | planned: full-system architecture and data access | none for Full System | — |
+| `A5` | [127](../design%20document/pairwise_evaluation_prd%201.md#L127) | A — architecture | unranked in PRD | not started | planned: full-system architecture and data access | none for Full System | DQ-14 |
+| `C1` | [134](../design%20document/pairwise_evaluation_prd%201.md#L134) | A — architecture | unranked in PRD | not started | planned: full-system architecture and data access | none for Full System | — |
+| `C2` | [135](../design%20document/pairwise_evaluation_prd%201.md#L135) | A — architecture | unranked in PRD | not started | planned: full-system architecture and data access | none for Full System | — |
+| `C3` | [136](../design%20document/pairwise_evaluation_prd%201.md#L136) | A — architecture | unranked in PRD | not started | planned: full-system architecture and data access | none for Full System | — |
+| `D1` | [195](../design%20document/pairwise_evaluation_prd%201.md#L195) | A — architecture | unranked in PRD | not started | planned: full-system architecture and data access | none for Full System | — |
+| `D2` | [196](../design%20document/pairwise_evaluation_prd%201.md#L196) | A — architecture | unranked in PRD | not started | planned: full-system architecture and data access | none for Full System | — |
+| `D3` | [197](../design%20document/pairwise_evaluation_prd%201.md#L197) | A — architecture | unranked in PRD | not started | planned: full-system architecture and data access | none for Full System | — |
+| `D4` | [198](../design%20document/pairwise_evaluation_prd%201.md#L198) | A — architecture | unranked in PRD | not started | planned: full-system architecture and data access | none for Full System | — |
+| `D5` | [199](../design%20document/pairwise_evaluation_prd%201.md#L199) | A — architecture | unranked in PRD | not started | planned: full-system architecture and data access | none for Full System | — |
+| `D6` | [200](../design%20document/pairwise_evaluation_prd%201.md#L200) | A — architecture | unranked in PRD | not started | planned: full-system architecture and data access | none for Full System | — |
+| `D7` | [201](../design%20document/pairwise_evaluation_prd%201.md#L201) | A — architecture | unranked in PRD | not started | planned: full-system architecture and data access | none for Full System | — |
+| `D8` | [202](../design%20document/pairwise_evaluation_prd%201.md#L202) | A — architecture | unranked in PRD | not started | planned: full-system architecture and data access | none for Full System | — |
+| `D9` | [203](../design%20document/pairwise_evaluation_prd%201.md#L203) | A — architecture | unranked in PRD | not started | planned: full-system architecture and data access | none for Full System | — |
+| `D10` | [204](../design%20document/pairwise_evaluation_prd%201.md#L204) | A — architecture | unranked in PRD | not started | planned: full-system architecture and data access | none for Full System | — |
+| `AR-01` | [232](../design%20document/pairwise_evaluation_prd%201.md#L232) | A — architecture | unranked in PRD | not started | planned: full-system architecture and data access | none for Full System | — |
+| `AR-02` | [234](../design%20document/pairwise_evaluation_prd%201.md#L234) | A — architecture | unranked in PRD | not started | planned: full-system architecture and data access | none for Full System | — |
+| `AR-03` | [235](../design%20document/pairwise_evaluation_prd%201.md#L235) | A — architecture | unranked in PRD | not started | planned: full-system architecture and data access | none for Full System | — |
+| `FR-AUTH-01` | [247](../design%20document/pairwise_evaluation_prd%201.md#L247) | A — platform / security | M | not started | planned: src/lib/full-system/auth, access, audit | none for Full System | — |
+| `FR-AUTH-02` | [248](../design%20document/pairwise_evaluation_prd%201.md#L248) | A — platform / security | M | not started | planned: src/lib/full-system/auth, access, audit | none for Full System | — |
+| `FR-AUTH-03` | [249](../design%20document/pairwise_evaluation_prd%201.md#L249) | A — platform / security | M | not started | planned: src/lib/full-system/auth, access, audit | none for Full System | — |
+| `FR-AUTH-04` | [250](../design%20document/pairwise_evaluation_prd%201.md#L250) | A — platform / security | M | not started | planned: src/lib/full-system/auth, access, audit | none for Full System | — |
+| `FR-AUTHZ-01` | [251](../design%20document/pairwise_evaluation_prd%201.md#L251) | A — platform / security | M | not started | planned: src/lib/full-system/auth, access, audit | none for Full System | — |
+| `FR-AUTHZ-02` | [252](../design%20document/pairwise_evaluation_prd%201.md#L252) | A — platform / security | M | not started | planned: src/lib/full-system/auth, access, audit | none for Full System | — |
+| `FR-AUTHZ-03` | [253](../design%20document/pairwise_evaluation_prd%201.md#L253) | A — platform / security | S | not started | planned: src/lib/full-system/auth, access, audit | none for Full System | — |
+| `FR-AUTHZ-04` | [254](../design%20document/pairwise_evaluation_prd%201.md#L254) | A — platform / security | M | not started | planned: src/lib/full-system/auth, access, audit | none for Full System | — |
+| `FR-CLASS-01` | [260](../design%20document/pairwise_evaluation_prd%201.md#L260) | C — UI / API | M | not started | planned: src/app/full-system and src/app/api | none for Full System | — |
+| `FR-CLASS-02` | [261](../design%20document/pairwise_evaluation_prd%201.md#L261) | C — UI / API | M | not started | planned: src/app/full-system and src/app/api | none for Full System | — |
+| `FR-CLASS-03` | [262](../design%20document/pairwise_evaluation_prd%201.md#L262) | C — UI / API | M | not started | planned: src/app/full-system and src/app/api | none for Full System | — |
+| `FR-CLASS-04` | [263](../design%20document/pairwise_evaluation_prd%201.md#L263) | C — UI / API | M | not started | planned: src/app/full-system and src/app/api | none for Full System | — |
+| `FR-CLASS-05` | [264](../design%20document/pairwise_evaluation_prd%201.md#L264) | C — UI / API | S | not started | planned: src/app/full-system and src/app/api | none for Full System | — |
+| `FR-CLASS-06` | [265](../design%20document/pairwise_evaluation_prd%201.md#L265) | C — UI / API | M | not started | planned: src/app/full-system and src/app/api | none for Full System | — |
+| `FR-CLASS-07` | [266](../design%20document/pairwise_evaluation_prd%201.md#L266) | C — UI / API | S | not started | planned: src/app/full-system and src/app/api | none for Full System | — |
+| `FR-ASSIGN-01` | [285](../design%20document/pairwise_evaluation_prd%201.md#L285) | C — UI / API | M | not started | planned: src/app/full-system and src/app/api | none for Full System | DQ-13 |
+| `FR-ASSIGN-02` | [286](../design%20document/pairwise_evaluation_prd%201.md#L286) | C — UI / API | M | not started | planned: src/app/full-system and src/app/api | none for Full System | — |
+| `FR-ASSIGN-03` | [287](../design%20document/pairwise_evaluation_prd%201.md#L287) | C — UI / API | M | not started | planned: src/app/full-system and src/app/api | none for Full System | DQ-09, DQ-13 |
+| `FR-ASSIGN-04` | [288](../design%20document/pairwise_evaluation_prd%201.md#L288) | C — UI / API | M | not started | planned: src/app/full-system and src/app/api | none for Full System | DQ-13 |
+| `FR-ASSIGN-05` | [289](../design%20document/pairwise_evaluation_prd%201.md#L289) | C — UI / API | M | not started | planned: src/app/full-system and src/app/api | none for Full System | DQ-13 |
+| `FR-ASSIGN-06` | [290](../design%20document/pairwise_evaluation_prd%201.md#L290) | C — UI / API | S | not started | planned: src/app/full-system and src/app/api | none for Full System | — |
+| `FR-ASSIGN-07` | [291](../design%20document/pairwise_evaluation_prd%201.md#L291) | C — UI / API | M | not started | planned: src/app/full-system and src/app/api | none for Full System | DQ-12 |
+| `FR-ASSIGN-08` | [292](../design%20document/pairwise_evaluation_prd%201.md#L292) | C — UI / API | M | not started | planned: src/app/full-system and src/app/api | none for Full System | DQ-14 |
+| `FR-PAIR-01` | [300](../design%20document/pairwise_evaluation_prd%201.md#L300) | B — domain rules | M | not started | planned: src/lib/full-system/domain | none for Full System | — |
+| `FR-PAIR-02` | [301](../design%20document/pairwise_evaluation_prd%201.md#L301) | B — domain rules | M | not started | planned: src/lib/full-system/domain | none for Full System | OQ-8, DQ-10 |
+| `FR-PAIR-03` | [302](../design%20document/pairwise_evaluation_prd%201.md#L302) | B — domain rules | M | not started | planned: src/lib/full-system/domain | none for Full System | — |
+| `FR-PAIR-04` | [303](../design%20document/pairwise_evaluation_prd%201.md#L303) | B — domain rules | M | not started | planned: src/lib/full-system/domain | none for Full System | — |
+| `FR-PAIR-05` | [304](../design%20document/pairwise_evaluation_prd%201.md#L304) | B — domain rules | M | not started | planned: src/lib/full-system/domain | none for Full System | OQ-8, DQ-10 |
+| `FR-PAIR-06` | [305](../design%20document/pairwise_evaluation_prd%201.md#L305) | B — domain rules | M | not started | planned: src/lib/full-system/domain | none for Full System | — |
+| `FR-PAIR-07` | [306](../design%20document/pairwise_evaluation_prd%201.md#L306) | B — domain rules | M | not started | planned: src/lib/full-system/domain | none for Full System | — |
+| `FR-PAIR-08` | [307](../design%20document/pairwise_evaluation_prd%201.md#L307) | B — domain rules | M | not started | planned: src/lib/full-system/domain | none for Full System | — |
+| `FR-PAIR-09` | [308](../design%20document/pairwise_evaluation_prd%201.md#L308) | B — domain rules | M | not started | planned: src/lib/full-system/domain | none for Full System | — |
+| `FR-PAIR-10` | [309](../design%20document/pairwise_evaluation_prd%201.md#L309) | B — domain rules | M | not started | planned: src/lib/full-system/domain | none for Full System | — |
+| `FR-PAIR-11` | [310](../design%20document/pairwise_evaluation_prd%201.md#L310) | B — domain rules | M | not started | planned: src/lib/full-system/domain | none for Full System | OQ-4, DQ-09 |
+| `FR-EVAL-01` | [316](../design%20document/pairwise_evaluation_prd%201.md#L316) | B — domain rules | M | not started | planned: src/lib/full-system/domain | none for Full System | — |
+| `FR-EVAL-02` | [317](../design%20document/pairwise_evaluation_prd%201.md#L317) | B — domain rules | M | not started | planned: src/lib/full-system/domain | none for Full System | DQ-14 |
+| `FR-EVAL-03` | [318](../design%20document/pairwise_evaluation_prd%201.md#L318) | B — domain rules | M | not started | planned: src/lib/full-system/domain | none for Full System | — |
+| `FR-EVAL-04` | [319](../design%20document/pairwise_evaluation_prd%201.md#L319) | B — domain rules | M | not started | planned: src/lib/full-system/domain | none for Full System | — |
+| `FR-EVAL-05` | [320](../design%20document/pairwise_evaluation_prd%201.md#L320) | B — domain rules | M | not started | planned: src/lib/full-system/domain | none for Full System | — |
+| `FR-EVAL-06` | [321](../design%20document/pairwise_evaluation_prd%201.md#L321) | B — domain rules | M | not started | planned: src/lib/full-system/domain | none for Full System | — |
+| `FR-EVAL-07` | [322](../design%20document/pairwise_evaluation_prd%201.md#L322) | B — domain rules | M | not started | planned: src/lib/full-system/domain | none for Full System | — |
+| `FR-EVAL-08` | [323](../design%20document/pairwise_evaluation_prd%201.md#L323) | B — domain rules | M | not started | planned: src/lib/full-system/domain | none for Full System | — |
+| `FR-EVAL-09` | [324](../design%20document/pairwise_evaluation_prd%201.md#L324) | B — domain rules | M | not started | planned: src/lib/full-system/domain | none for Full System | — |
+| `FR-EVAL-10` | [325](../design%20document/pairwise_evaluation_prd%201.md#L325) | B — domain rules | S | not started | planned: src/lib/full-system/domain | none for Full System | — |
+| `FR-EVAL-11` | [326](../design%20document/pairwise_evaluation_prd%201.md#L326) | B — domain rules | M | not started | planned: src/lib/full-system/domain | none for Full System | — |
+| `FR-EVAL-12` | [327](../design%20document/pairwise_evaluation_prd%201.md#L327) | B — domain rules | M | not started | planned: src/lib/full-system/domain | none for Full System | — |
+| `FR-EVAL-13` | [328](../design%20document/pairwise_evaluation_prd%201.md#L328) | B — domain rules | S | not started | planned: src/lib/full-system/domain | none for Full System | — |
+| `FR-SCORE-01` | [355](../design%20document/pairwise_evaluation_prd%201.md#L355) | B — domain rules | M | not started | planned: src/lib/full-system/domain | none for Full System | — |
+| `FR-SCORE-02` | [356](../design%20document/pairwise_evaluation_prd%201.md#L356) | B — domain rules | M | not started | planned: src/lib/full-system/domain | none for Full System | OQ-1 |
+| `FR-SCORE-03` | [357](../design%20document/pairwise_evaluation_prd%201.md#L357) | B — domain rules | M | not started | planned: src/lib/full-system/domain | none for Full System | — |
+| `FR-SCORE-04` | [358](../design%20document/pairwise_evaluation_prd%201.md#L358) | B — domain rules | M | not started | planned: src/lib/full-system/domain | none for Full System | OQ-2, DQ-12 |
+| `FR-SCORE-05` | [359](../design%20document/pairwise_evaluation_prd%201.md#L359) | B — domain rules | M | not started | planned: src/lib/full-system/domain | none for Full System | — |
+| `FR-SCORE-06` | [360](../design%20document/pairwise_evaluation_prd%201.md#L360) | B — domain rules | M | not started | planned: src/lib/full-system/domain | none for Full System | — |
+| `FR-SCORE-07` | [361](../design%20document/pairwise_evaluation_prd%201.md#L361) | B — domain rules | M | not started | planned: src/lib/full-system/domain | none for Full System | — |
+| `FR-SCORE-08` | [362](../design%20document/pairwise_evaluation_prd%201.md#L362) | B — domain rules | M | not started | planned: src/lib/full-system/domain | none for Full System | — |
+| `FR-SCORE-09` | [363](../design%20document/pairwise_evaluation_prd%201.md#L363) | B — domain rules | M | not started | planned: src/lib/full-system/domain | none for Full System | OQ-3 |
+| `FR-SCORE-10` | [364](../design%20document/pairwise_evaluation_prd%201.md#L364) | B — domain rules | M | not started | planned: src/lib/full-system/domain | none for Full System | — |
+| `FR-REPORT-01` | [370](../design%20document/pairwise_evaluation_prd%201.md#L370) | C — UI / API | M | not started | planned: src/app/full-system and src/app/api | none for Full System | — |
+| `FR-REPORT-02` | [371](../design%20document/pairwise_evaluation_prd%201.md#L371) | C — UI / API | M | not started | planned: src/app/full-system and src/app/api | none for Full System | — |
+| `FR-REPORT-03` | [372](../design%20document/pairwise_evaluation_prd%201.md#L372) | C — UI / API | M | not started | planned: src/app/full-system and src/app/api | none for Full System | — |
+| `FR-REPORT-04` | [373](../design%20document/pairwise_evaluation_prd%201.md#L373) | C — UI / API | M | not started | planned: src/app/full-system and src/app/api | none for Full System | — |
+| `FR-REPORT-05` | [374](../design%20document/pairwise_evaluation_prd%201.md#L374) | C — UI / API | S | not started | planned: src/app/full-system and src/app/api | none for Full System | — |
+| `FR-REPORT-06` | [375](../design%20document/pairwise_evaluation_prd%201.md#L375) | C — UI / API | M | not started | planned: src/app/full-system and src/app/api | none for Full System | — |
+| `FR-EXPORT-01` | [381](../design%20document/pairwise_evaluation_prd%201.md#L381) | C — UI / API | M | not started | planned: src/app/full-system and src/app/api | none for Full System | DQ-11 |
+| `FR-EXPORT-02` | [382](../design%20document/pairwise_evaluation_prd%201.md#L382) | C — UI / API | M | not started | planned: src/app/full-system and src/app/api | none for Full System | DQ-11 |
+| `FR-EXPORT-03` | [383](../design%20document/pairwise_evaluation_prd%201.md#L383) | C — UI / API | M | not started | planned: src/app/full-system and src/app/api | none for Full System | DQ-11 |
+| `FR-EXPORT-04` | [384](../design%20document/pairwise_evaluation_prd%201.md#L384) | C — UI / API | M | not started | planned: src/app/full-system and src/app/api | none for Full System | OQ-7 |
+| `FR-EXPORT-05` | [385](../design%20document/pairwise_evaluation_prd%201.md#L385) | C — UI / API | M | not started | planned: src/app/full-system and src/app/api | none for Full System | DQ-11 |
+| `FR-EXPORT-06` | [386](../design%20document/pairwise_evaluation_prd%201.md#L386) | C — UI / API | S | not started | planned: src/app/full-system and src/app/api | none for Full System | DQ-11 |
+| `FR-NOTIF-01` | [392](../design%20document/pairwise_evaluation_prd%201.md#L392) | C — UI / API | M | not started | planned: src/app/full-system and src/app/api | none for Full System | — |
+| `FR-NOTIF-02` | [393](../design%20document/pairwise_evaluation_prd%201.md#L393) | C — UI / API | M | not started | planned: src/app/full-system and src/app/api | none for Full System | — |
+| `FR-NOTIF-03` | [394](../design%20document/pairwise_evaluation_prd%201.md#L394) | C — UI / API | M | not started | planned: src/app/full-system and src/app/api | none for Full System | — |
+| `FR-NOTIF-04` | [395](../design%20document/pairwise_evaluation_prd%201.md#L395) | C — UI / API | M | not started | planned: src/app/full-system and src/app/api | none for Full System | — |
+| `FR-NOTIF-05` | [396](../design%20document/pairwise_evaluation_prd%201.md#L396) | C — UI / API | S | not started | planned: src/app/full-system and src/app/api | none for Full System | — |
+| `FR-NOTIF-06` | [397](../design%20document/pairwise_evaluation_prd%201.md#L397) | C — UI / API | M | not started | planned: src/app/full-system and src/app/api | none for Full System | — |
+| `FR-APPEAL-01` | [403](../design%20document/pairwise_evaluation_prd%201.md#L403) | C — UI / API | S | not started | planned: src/app/full-system and src/app/api | none for Full System | — |
+| `FR-APPEAL-02` | [404](../design%20document/pairwise_evaluation_prd%201.md#L404) | C — UI / API | S | not started | planned: src/app/full-system and src/app/api | none for Full System | — |
+| `FR-AUDIT-01` | [405](../design%20document/pairwise_evaluation_prd%201.md#L405) | A — platform / security | M | not started | planned: src/lib/full-system/auth, access, audit | none for Full System | — |
+| `FR-AUDIT-02` | [406](../design%20document/pairwise_evaluation_prd%201.md#L406) | A — platform / security | M | not started | planned: src/lib/full-system/auth, access, audit | none for Full System | — |
+| `FR-AUDIT-03` | [407](../design%20document/pairwise_evaluation_prd%201.md#L407) | A — platform / security | M | not started | planned: src/lib/full-system/auth, access, audit | none for Full System | — |
+| `FR-PAIR-12` | [505](../design%20document/pairwise_evaluation_prd%201.md#L505) | B — domain rules | unranked in PRD | not started | planned: src/lib/full-system/domain | none for Full System | DQ-12 |
+| `FR-PAIR-13` | [506](../design%20document/pairwise_evaluation_prd%201.md#L506) | B — domain rules | unranked in PRD | not started | planned: src/lib/full-system/domain | none for Full System | — |
+| `FR-PAIR-14` | [507](../design%20document/pairwise_evaluation_prd%201.md#L507) | B — domain rules | unranked in PRD | not started | planned: src/lib/full-system/domain | none for Full System | — |
+| `FR-PAIR-15` | [509](../design%20document/pairwise_evaluation_prd%201.md#L509) | B — domain rules | unranked in PRD | not started | planned: src/lib/full-system/domain | none for Full System | — |
+| `INV-G1` | [553](../design%20document/pairwise_evaluation_prd%201.md#L553) | B — domain rules | unranked in PRD | not started | planned: src/lib/full-system/domain | none for Full System | OQ-8, DQ-10 |
+| `INV-I1` | [554](../design%20document/pairwise_evaluation_prd%201.md#L554) | B — domain rules | unranked in PRD | not started | planned: src/lib/full-system/domain | none for Full System | — |
+| `INV-2` | [555](../design%20document/pairwise_evaluation_prd%201.md#L555) | B — domain rules | unranked in PRD | not started | planned: src/lib/full-system/domain | none for Full System | — |
+| `INV-3` | [556](../design%20document/pairwise_evaluation_prd%201.md#L556) | B — domain rules | unranked in PRD | not started | planned: src/lib/full-system/domain | none for Full System | — |
+| `INV-4` | [557](../design%20document/pairwise_evaluation_prd%201.md#L557) | B — domain rules | unranked in PRD | not started | planned: src/lib/full-system/domain | none for Full System | — |
+| `INV-5` | [558](../design%20document/pairwise_evaluation_prd%201.md#L558) | B — domain rules | unranked in PRD | not started | planned: src/lib/full-system/domain | none for Full System | — |
+| `INV-6` | [559](../design%20document/pairwise_evaluation_prd%201.md#L559) | B — domain rules | unranked in PRD | not started | planned: src/lib/full-system/domain | none for Full System | — |
+| `FR-SCORE-11` | [652](../design%20document/pairwise_evaluation_prd%201.md#L652) | B — domain rules | unranked in PRD | not started | planned: src/lib/full-system/domain | none for Full System | OQ-2, DQ-12 |
+| `FR-SCORE-12` | [654](../design%20document/pairwise_evaluation_prd%201.md#L654) | B — domain rules | unranked in PRD | not started | planned: src/lib/full-system/domain | none for Full System | OQ-2 |
+| `FR-SCORE-13` | [655](../design%20document/pairwise_evaluation_prd%201.md#L655) | B — domain rules | unranked in PRD | not started | planned: src/lib/full-system/domain | none for Full System | OQ-2, DQ-12 |
+| `QS-01` | [726](../design%20document/pairwise_evaluation_prd%201.md#L726) | B — domain rules | unranked in PRD | not started | planned: src/lib/full-system/domain | none for Full System | — |
+| `QS-02` | [727](../design%20document/pairwise_evaluation_prd%201.md#L727) | B — domain rules | unranked in PRD | not started | planned: src/lib/full-system/domain | none for Full System | — |
+| `QS-03` | [728](../design%20document/pairwise_evaluation_prd%201.md#L728) | B — domain rules | unranked in PRD | not started | planned: src/lib/full-system/domain | none for Full System | — |
+| `QS-04` | [729](../design%20document/pairwise_evaluation_prd%201.md#L729) | B — domain rules | unranked in PRD | not started | planned: src/lib/full-system/domain | none for Full System | — |
+| `QS-05` | [730](../design%20document/pairwise_evaluation_prd%201.md#L730) | B — domain rules | unranked in PRD | not started | planned: src/lib/full-system/domain | none for Full System | OQ-6 |
+| `QS-06` | [731](../design%20document/pairwise_evaluation_prd%201.md#L731) | B — domain rules | unranked in PRD | not started | planned: src/lib/full-system/domain | none for Full System | — |
+| `QS-07` | [732](../design%20document/pairwise_evaluation_prd%201.md#L732) | B — domain rules | unranked in PRD | not started | planned: src/lib/full-system/domain | none for Full System | — |
+| `FR-QS-01` | [734](../design%20document/pairwise_evaluation_prd%201.md#L734) | B — domain rules | unranked in PRD | not started | planned: src/lib/full-system/domain | none for Full System | — |
+| `FR-QS-02` | [735](../design%20document/pairwise_evaluation_prd%201.md#L735) | B — domain rules | unranked in PRD | not started | planned: src/lib/full-system/domain | none for Full System | — |
+| `FR-QS-03` | [736](../design%20document/pairwise_evaluation_prd%201.md#L736) | B — domain rules | unranked in PRD | not started | planned: src/lib/full-system/domain | none for Full System | — |
+| `DR-01` | [906](../design%20document/pairwise_evaluation_prd%201.md#L906) | A — data | unranked in PRD | not started | planned: db/migrations and src/lib/full-system | none for Full System | — |
+| `DR-02` | [907](../design%20document/pairwise_evaluation_prd%201.md#L907) | A — data | unranked in PRD | not started | planned: db/migrations and src/lib/full-system | none for Full System | DQ-09 |
+| `DR-03` | [908](../design%20document/pairwise_evaluation_prd%201.md#L908) | A — data | unranked in PRD | not started | planned: db/migrations and src/lib/full-system | none for Full System | DQ-09 |
+| `DR-04` | [909](../design%20document/pairwise_evaluation_prd%201.md#L909) | A — data | unranked in PRD | in progress | db/migrations/001_initial.sql (partial) | DDL review only; Neon migration/test pending | — |
+| `DR-05` | [910](../design%20document/pairwise_evaluation_prd%201.md#L910) | A — data | unranked in PRD | in progress | db/migrations/001_initial.sql (partial) | DDL review only; Neon migration/test pending | — |
+| `DR-06` | [911](../design%20document/pairwise_evaluation_prd%201.md#L911) | A — data | unranked in PRD | not started | planned: db/migrations and src/lib/full-system | none for Full System | — |
+| `DR-07` | [912](../design%20document/pairwise_evaluation_prd%201.md#L912) | A — data | unranked in PRD | not started | planned: db/migrations and src/lib/full-system | none for Full System | — |
+| `DR-08` | [913](../design%20document/pairwise_evaluation_prd%201.md#L913) | A — data | unranked in PRD | not started | planned: db/migrations and src/lib/full-system | none for Full System | DQ-14 |
+| `DR-09` | [914](../design%20document/pairwise_evaluation_prd%201.md#L914) | A — data | unranked in PRD | in progress | db/audit/001_audit.sql (proposal only) | DDL review only; Neon migration/test pending | — |
+| `FR-API-01` | [977](../design%20document/pairwise_evaluation_prd%201.md#L977) | A — platform / security | M | not started | planned: src/lib/full-system/auth, access, audit | none for Full System | DQ-11 |
+| `FR-API-02` | [978](../design%20document/pairwise_evaluation_prd%201.md#L978) | A — platform / security | M | not started | planned: src/lib/full-system/auth, access, audit | none for Full System | DQ-11 |
+| `FR-API-03` | [979](../design%20document/pairwise_evaluation_prd%201.md#L979) | A — platform / security | M | not started | planned: src/lib/full-system/auth, access, audit | none for Full System | DQ-11 |
+| `FR-API-04` | [980](../design%20document/pairwise_evaluation_prd%201.md#L980) | A — platform / security | M | not started | planned: src/lib/full-system/auth, access, audit | none for Full System | DQ-11 |
+| `FR-API-05` | [981](../design%20document/pairwise_evaluation_prd%201.md#L981) | A — platform / security | S | not started | planned: src/lib/full-system/auth, access, audit | none for Full System | DQ-11 |
+| `FR-API-06` | [982](../design%20document/pairwise_evaluation_prd%201.md#L982) | A — platform / security | M | not started | planned: src/lib/full-system/auth, access, audit | none for Full System | DQ-11 |
+| `FR-API-07` | [983](../design%20document/pairwise_evaluation_prd%201.md#L983) | A — platform / security | M | not started | planned: src/lib/full-system/auth, access, audit | none for Full System | DQ-11 |
+| `NFR-PERF-01` | [991](../design%20document/pairwise_evaluation_prd%201.md#L991) | A — platform; D — verification | unranked in PRD | not started | planned: infrastructure and full-system tests | none for Full System | — |
+| `NFR-PERF-02` | [992](../design%20document/pairwise_evaluation_prd%201.md#L992) | A — platform; D — verification | unranked in PRD | not started | planned: infrastructure and full-system tests | none for Full System | — |
+| `NFR-PERF-03` | [993](../design%20document/pairwise_evaluation_prd%201.md#L993) | A — platform; D — verification | unranked in PRD | not started | planned: infrastructure and full-system tests | none for Full System | — |
+| `NFR-PERF-04` | [994](../design%20document/pairwise_evaluation_prd%201.md#L994) | A — platform; D — verification | unranked in PRD | not started | planned: infrastructure and full-system tests | none for Full System | — |
+| `NFR-PERF-05` | [995](../design%20document/pairwise_evaluation_prd%201.md#L995) | A — platform; D — verification | unranked in PRD | not started | planned: infrastructure and full-system tests | none for Full System | — |
+| `NFR-AVAIL-01` | [996](../design%20document/pairwise_evaluation_prd%201.md#L996) | A — platform; D — verification | unranked in PRD | not started | planned: infrastructure and full-system tests | none for Full System | — |
+| `NFR-AVAIL-02` | [997](../design%20document/pairwise_evaluation_prd%201.md#L997) | A — platform; D — verification | unranked in PRD | not started | planned: infrastructure and full-system tests | none for Full System | — |
+| `NFR-SCALE-01` | [998](../design%20document/pairwise_evaluation_prd%201.md#L998) | A — platform; D — verification | unranked in PRD | not started | planned: infrastructure and full-system tests | none for Full System | — |
+| `NFR-SCALE-02` | [999](../design%20document/pairwise_evaluation_prd%201.md#L999) | A — platform; D — verification | unranked in PRD | not started | planned: infrastructure and full-system tests | none for Full System | — |
+| `NFR-COMPAT-01` | [1000](../design%20document/pairwise_evaluation_prd%201.md#L1000) | A — platform; D — verification | unranked in PRD | not started | planned: infrastructure and full-system tests | none for Full System | — |
+| `NFR-COMPAT-02` | [1001](../design%20document/pairwise_evaluation_prd%201.md#L1001) | A — platform; D — verification | unranked in PRD | not started | planned: infrastructure and full-system tests | none for Full System | — |
+| `NFR-OBS-01` | [1002](../design%20document/pairwise_evaluation_prd%201.md#L1002) | A — platform; D — verification | unranked in PRD | not started | planned: infrastructure and full-system tests | none for Full System | — |
+| `NFR-OBS-02` | [1003](../design%20document/pairwise_evaluation_prd%201.md#L1003) | A — platform; D — verification | unranked in PRD | not started | planned: infrastructure and full-system tests | none for Full System | — |
+| `NFR-MAINT-01` | [1004](../design%20document/pairwise_evaluation_prd%201.md#L1004) | A — platform; D — verification | unranked in PRD | not started | planned: infrastructure and full-system tests | none for Full System | — |
+| `NFR-MAINT-02` | [1005](../design%20document/pairwise_evaluation_prd%201.md#L1005) | A — platform; D — verification | unranked in PRD | not started | planned: infrastructure and full-system tests | none for Full System | — |
+| `NFR-I18N-01` | [1006](../design%20document/pairwise_evaluation_prd%201.md#L1006) | A — platform; D — verification | unranked in PRD | not started | planned: infrastructure and full-system tests | none for Full System | — |
+| `FR-PRIV-01` | [1026](../design%20document/pairwise_evaluation_prd%201.md#L1026) | A — platform / security | M | not started | planned: src/lib/full-system/auth, access, audit | none for Full System | OQ-6 |
+| `FR-PRIV-02` | [1027](../design%20document/pairwise_evaluation_prd%201.md#L1027) | A — platform / security | M | not started | planned: src/lib/full-system/auth, access, audit | none for Full System | OQ-6 |
+| `FR-PRIV-03` | [1028](../design%20document/pairwise_evaluation_prd%201.md#L1028) | A — platform / security | M | not started | planned: src/lib/full-system/auth, access, audit | none for Full System | — |
+| `FR-PRIV-04` | [1029](../design%20document/pairwise_evaluation_prd%201.md#L1029) | A — platform / security | M | not started | planned: src/lib/full-system/auth, access, audit | none for Full System | — |
+| `FR-ANON-01` | [1044](../design%20document/pairwise_evaluation_prd%201.md#L1044) | A — platform / security | M | not started | planned: src/lib/full-system/auth, access, audit | none for Full System | — |
+| `FR-ANON-02` | [1045](../design%20document/pairwise_evaluation_prd%201.md#L1045) | A — platform / security | M | not started | planned: src/lib/full-system/auth, access, audit | none for Full System | — |
+| `FR-ANON-03` | [1046](../design%20document/pairwise_evaluation_prd%201.md#L1046) | A — platform / security | M | not started | planned: src/lib/full-system/auth, access, audit | none for Full System | — |
+| `FR-ANON-04` | [1047](../design%20document/pairwise_evaluation_prd%201.md#L1047) | A — platform / security | M | not started | planned: src/lib/full-system/auth, access, audit | none for Full System | — |
+| `FR-ANON-05` | [1048](../design%20document/pairwise_evaluation_prd%201.md#L1048) | A — platform / security | M | not started | planned: src/lib/full-system/auth, access, audit | none for Full System | OQ-7 |
+| `FR-SEC-01` | [1061](../design%20document/pairwise_evaluation_prd%201.md#L1061) | A — platform / security | M | not started | planned: src/lib/full-system/auth, access, audit | none for Full System | — |
+| `FR-SEC-02` | [1062](../design%20document/pairwise_evaluation_prd%201.md#L1062) | A — platform / security | M | not started | planned: src/lib/full-system/auth, access, audit | none for Full System | — |
+| `FR-SEC-03` | [1063](../design%20document/pairwise_evaluation_prd%201.md#L1063) | A — platform / security | M | not started | planned: src/lib/full-system/auth, access, audit | none for Full System | — |
+| `FR-SEC-04` | [1064](../design%20document/pairwise_evaluation_prd%201.md#L1064) | A — platform / security | M | not started | planned: src/lib/full-system/auth, access, audit | none for Full System | — |
+| `FR-SEC-05` | [1065](../design%20document/pairwise_evaluation_prd%201.md#L1065) | A — platform / security | M | not started | planned: src/lib/full-system/auth, access, audit | none for Full System | — |
+| `FR-SEC-06` | [1066](../design%20document/pairwise_evaluation_prd%201.md#L1066) | A — platform / security | M | not started | planned: src/lib/full-system/auth, access, audit | none for Full System | — |
+| `FR-SEC-07` | [1067](../design%20document/pairwise_evaluation_prd%201.md#L1067) | A — platform / security | S | not started | planned: src/lib/full-system/auth, access, audit | none for Full System | — |
+| `FR-A11Y-01` | [1077](../design%20document/pairwise_evaluation_prd%201.md#L1077) | C — UI / API | M | not started | planned: src/app/full-system and src/app/api | none for Full System | — |
+| `FR-A11Y-02` | [1078](../design%20document/pairwise_evaluation_prd%201.md#L1078) | C — UI / API | M | not started | planned: src/app/full-system and src/app/api | none for Full System | — |
+| `FR-A11Y-03` | [1079](../design%20document/pairwise_evaluation_prd%201.md#L1079) | C — UI / API | M | not started | planned: src/app/full-system and src/app/api | none for Full System | — |
+| `FR-A11Y-04` | [1080](../design%20document/pairwise_evaluation_prd%201.md#L1080) | C — UI / API | M | not started | planned: src/app/full-system and src/app/api | none for Full System | — |
+| `FR-A11Y-05` | [1081](../design%20document/pairwise_evaluation_prd%201.md#L1081) | C — UI / API | M | not started | planned: src/app/full-system and src/app/api | none for Full System | — |
+| `FR-A11Y-06` | [1082](../design%20document/pairwise_evaluation_prd%201.md#L1082) | C — UI / API | M | not started | planned: src/app/full-system and src/app/api | none for Full System | — |
+| `FR-A11Y-07` | [1083](../design%20document/pairwise_evaluation_prd%201.md#L1083) | C — UI / API | S | not started | planned: src/app/full-system and src/app/api | none for Full System | — |
+| `OQ-1` | [1110](../design%20document/pairwise_evaluation_prd%201.md#L1110) | Product / policy owner | policy gate | not started | docs/design document/13_Decisions Needed.md | none for Full System | รอ Instructor รับรองคะแนนจริง |
+| `OQ-2` | [1111](../design%20document/pairwise_evaluation_prd%201.md#L1111) | Product / policy owner | policy gate | not started | docs/design document/13_Decisions Needed.md | none for Full System | รอ Instructor/Academic affairs รับรอง |
+| `OQ-3` | [1112](../design%20document/pairwise_evaluation_prd%201.md#L1112) | Product / policy owner | policy gate | not started | docs/design document/13_Decisions Needed.md | none for Full System | ยังไม่ใช่ผลทดสอบ |
+| `OQ-4` | [1113](../design%20document/pairwise_evaluation_prd%201.md#L1113) | Product / policy owner | policy gate | not started | docs/design document/13_Decisions Needed.md | none for Full System | รอ Registrar รับรองกระบวนการถอน |
+| `OQ-5` | [1114](../design%20document/pairwise_evaluation_prd%201.md#L1114) | Product / policy owner | policy gate | not started | docs/design document/13_Decisions Needed.md | none for Full System | v1.0 ใช้ Export |
+| `OQ-6` | [1115](../design%20document/pairwise_evaluation_prd%201.md#L1115) | Product / policy owner | policy gate | not started | docs/design document/13_Decisions Needed.md | none for Full System | รอ Privacy Officer ก่อนเก็บข้อมูลจริง |
+| `OQ-7` | [1116](../design%20document/pairwise_evaluation_prd%201.md#L1116) | Product / policy owner | policy gate | not started | docs/design document/13_Decisions Needed.md | none for Full System | รอ Instructor รับรอง |
+| `OQ-8` | [1117](../design%20document/pairwise_evaluation_prd%201.md#L1117) | Product / policy owner | policy gate | not started | docs/design document/13_Decisions Needed.md | none for Full System | ต้องแก้ PRD ร่วม DQ-10 |
+
+## Day 1 gate
+
+Full System test evidence remains absent until the staging database migration, authenticated deployment smoke, OAuth flow and requirement-specific tests run. The separate Day 1 log records the SQLite Demo regression results and external blockers.
