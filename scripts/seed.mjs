@@ -51,6 +51,8 @@ db.exec(`
     evaluator_id TEXT NOT NULL REFERENCES users(id),
     item_a_id TEXT NOT NULL, item_b_id TEXT NOT NULL
   );
+  CREATE UNIQUE INDEX pair_assignment_unique_evaluator
+    ON pair_assignments (assignment_id, criterion_id, evaluator_id, item_a_id, item_b_id);
   CREATE TABLE evaluation_drafts (
     pair_assignment_id TEXT PRIMARY KEY REFERENCES pair_assignments(id),
     evaluator_id TEXT NOT NULL REFERENCES users(id), choice INTEGER CHECK (choice BETWEEN 1 AND 6),

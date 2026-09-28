@@ -1,6 +1,6 @@
 # PairEval Demo
 
-แอปปลายเทอมแยกเป็น Git repository ใหม่จาก SDPX Lab 07 ใช้ข้อมูลสังเคราะห์เท่านั้น ขณะนี้ทำงานถึง **วันที่ 2** ตาม `SPDX-Lab/Project Plan/Plan.md`: ผู้สอนสร้างห้องจาก CSV และสร้างงานประเมินได้ การจับคู่ ประเมิน และคิดคะแนนจะทำในวันถัดไป
+แอปปลายเทอมแยกเป็น Git repository ใหม่จาก SDPX Lab 07 ใช้ข้อมูลสังเคราะห์เท่านั้น ขณะนี้ทำงานถึง **วันที่ 3** ตาม `SPDX-Lab/Project Plan/Plan.md`: ผู้สอนสร้างห้อง งาน และคู่ประเมินได้ การตอบแบบประเมินและคิดคะแนนจะทำในวันถัดไป
 
 ## ความต้องการ
 
@@ -27,7 +27,7 @@ npm run seed:reset
 
 ## บัญชีตัวอย่าง
 
-| บทบาท | อีเมลสังเคราะห์ | การเข้าหน้าวันที่ 1 |
+| บทบาท | อีเมลสังเคราะห์ | วิธีเข้า Demo |
 |---|---|---|
 | ผู้สอน | `instructor@demo.invalid` | กด “เข้า Demo ผู้สอน” ที่หน้าแรก |
 | นักศึกษา | `student-01@demo.invalid` | กด “เข้า Demo นักศึกษา” ที่หน้าแรก |
@@ -45,19 +45,28 @@ CSV ต้องมีหัวตาราง `email,groupname` ตามลำ
 
 ## ชุดข้อมูล
 
-- **จัดคู่ได้ตามขนาดข้อมูล**: 3 กลุ่ม × 7 คน แต่ละคู่กลุ่มมี evaluator ที่ไม่อยู่ในคู่ 7 คน และแต่ละคู่บุคคลมีเพื่อนอีก 5 คนในกลุ่ม กฎจับคู่จริงและการยืนยัน coverage จะทำวันที่ 3
+- **จัดคู่ได้**: 3 กลุ่ม × 7 คน แต่ละคู่กลุ่มมี evaluator ที่ไม่อยู่ในคู่ 7 คน และแต่ละคู่บุคคลมีเพื่อนอีก 5 คนในกลุ่ม Pairing Engine ตรวจแล้วว่า target 5 ครบทุกคู่ของทุกเกณฑ์
 - **จัดคู่ไม่ได้**: 2 กลุ่ม × 2 คน ไม่มี evaluator ที่อยู่นอกคู่กลุ่ม และแต่ละคู่บุคคลไม่มี evaluator คนที่สาม
 - กำหนดส่งตั้งไว้ปี 2030 เพื่อให้ demo อยู่ในช่วงก่อน deadline จนถึงวันที่สาธิต
 
+## งานวันที่ 3: Pairing preview และสร้างคู่
+
+1. เข้า Demo ผู้สอน → “สร้างคู่” สำหรับงานในห้องที่จัดคู่ได้ หน้า preview แสดงผู้ประเมินที่มีสิทธิ์, target 5, จำนวนที่จะสร้าง (Preview) และจำนวนที่บันทึกจริง (Actual) ต่อคู่/เกณฑ์ รวมถึงจำนวนงานต่อผู้ประเมิน
+2. กด “บันทึกคู่ทั้งหมดของงาน” ระบบตรวจทั้ง Group และ Individual อีกครั้ง แล้วบันทึกทั้งหมดใน transaction เดียว กลับมาเปิดหน้าเดิมจะเห็น Actual 5 ทุกคู่ และสร้างซ้ำไม่ได้
+3. เปิดงานใน “ห้องที่จัดคู่ไม่ได้” ผ่านห้องเรียน → งานประเมิน → “ตรวจและสร้างคู่” หน้า preview แสดงเหตุผลพร้อมจำนวนผู้ประเมินที่มีสิทธิ์ และไม่มีปุ่มบันทึก
+
+อัลกอริทึมเลือกผู้ประเมินที่มีสิทธิ์ 5 คนที่ไม่ซ้ำกันต่อคู่ โดยเรียงตามภาระงานปัจจุบันและใช้ค่าผสมจาก ID เป็นตัวตัดสินลำดับแบบทำซ้ำได้ หาก **คู่ใดในเกณฑ์ใด** มีผู้ประเมินที่มีสิทธิ์ไม่ครบ 5 คน ระบบไม่บันทึกคู่ของงานนั้นเลย ผู้ประเมิน Group ต้องไม่อยู่ในสองกลุ่มที่เทียบ; ผู้ประเมิน Individual ต้องอยู่กลุ่มเดียวกับคู่ แต่ไม่ใช่หนึ่งในสองคนที่ถูกเทียบ
+
 ## โครงข้อมูล
 
-SQLite ใน `data/demo.sqlite` มี users, classrooms, groups, memberships, assignments, criteria และตารางเตรียมสำหรับ pair assignments, drafts, submission revisions, answers การ seed สร้างโครงและข้อมูลเริ่มต้น ตารางคู่และคำตอบยังว่าง ไม่มีคะแนนที่ฝังไว้
+SQLite ใน `data/demo.sqlite` มี users, classrooms, groups, memberships, assignments, criteria, pair assignments และตารางเตรียมสำหรับ drafts, submission revisions, answers การ seed สร้างโครงและข้อมูลเริ่มต้น ตารางคู่และคำตอบยังว่างจนกว่าผู้สอนจะกดสร้าง ไม่มีคะแนนที่ฝังไว้
 
 ## ที่มาของโค้ด
 
 อ่าน Lab repository จาก `main` commit `c1f0573` แบบอ่านอย่างเดียว และคัดลอกเฉพาะ `package.json`, lockfile, TypeScript/Next/ESLint/PostCSS config กับ health route มาเป็นฐาน จากนั้นเปลี่ยนชื่อ package, เพิ่ม seed และสร้างหน้าจอใหม่ ไม่คัดลอกหน้า landing ที่แสดงคะแนนคงที่, pairing service ที่ยังแจกเพียงหนึ่ง evaluator ต่อคู่, โค้ด Lab 07, `.env`, การตั้งค่า deployment, ข้อมูลจริง หรือไฟล์ `.git` ของ Lab
 
 Git repository นี้อยู่ที่ `SDPX/PairEval-Demo/.git` แยกจาก `SPDX-Lab/koencontrol-sdpx_lab/.git` ไม่มี remote, PR หรือ deployment ที่เชื่อม Lab
+งานวันที่ 1–2 ถูกบันทึกเป็น baseline commit `eefd123` ในรีโปนี้เท่านั้น
 
 ## ตรวจงานวันที่ 2
 
@@ -74,6 +83,20 @@ node scripts/day2-browser.mjs
 
 `day2-smoke` และ `day2-browser` จะสร้างข้อมูลทดสอบใน SQLite หลังทดสอบให้หยุด server และรัน `npm run seed:reset` เพื่อกลับสู่ชุดเริ่มต้น ผลรันและข้อจำกัดอยู่ใน [บันทึกวันที่ 2](./docs/day-02.md)
 
+## ตรวจงานวันที่ 3
+
+```powershell
+npm test
+npm run lint
+npm run build
+npm run seed:reset
+npm run start -- -p 3100
+# เปิด terminal อีกหน้าต่างใน repo เดียวกัน
+node scripts/day3-smoke.mjs
+```
+
+`day3-smoke` สร้างคู่จริง 345 รายการใน SQLite สำหรับชุด feasible; หากจะรัน `day3-browser.mjs` ให้หยุด server, `npm run seed:reset`, เปิด server ใหม่ แล้วรัน browser test หลังเสร็จให้รีเซ็ตอีกครั้ง ผลรันอยู่ใน [บันทึกวันที่ 3](./docs/day-03.md)
+
 ## สถานะถัดไป
 
-วันที่ 3: Pairing engine และ feasibility วันที่ 4–5: Evaluation, scoring, report และ CSV ตามแผน
+วันที่ 4: Evaluation, Save/Submit/Re-submit และ deadline วันที่ 5: Scoring, report และ CSV ตามแผน
