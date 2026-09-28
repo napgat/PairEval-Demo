@@ -1,6 +1,6 @@
 # PairEval Demo
 
-แอปปลายเทอมแยกเป็น Git repository ใหม่จาก SDPX Lab 07 ใช้ข้อมูลสังเคราะห์เท่านั้น ขณะนี้ทำงานถึง **วันที่ 3** ตาม `SPDX-Lab/Project Plan/Plan.md`: ผู้สอนสร้างห้อง งาน และคู่ประเมินได้ การตอบแบบประเมินและคิดคะแนนจะทำในวันถัดไป
+แอปปลายเทอมแยกเป็น Git repository ใหม่จาก SDPX Lab 07 ใช้ข้อมูลสังเคราะห์เท่านั้น ขณะนี้ทำงานถึง **วันที่ 4** ตาม `SPDX-Lab/Project Plan/Plan.md`: ผู้สอนสร้างห้อง งาน และคู่ประเมินได้; นักศึกษา Save draft, Submit และ Re-submit สำหรับ Group/Individual ได้ คะแนนและรายงานจะทำวันที่ 5
 
 ## ความต้องการ
 
@@ -57,9 +57,18 @@ CSV ต้องมีหัวตาราง `email,groupname` ตามลำ
 
 อัลกอริทึมเลือกผู้ประเมินที่มีสิทธิ์ 5 คนที่ไม่ซ้ำกันต่อคู่ โดยเรียงตามภาระงานปัจจุบันและใช้ค่าผสมจาก ID เป็นตัวตัดสินลำดับแบบทำซ้ำได้ หาก **คู่ใดในเกณฑ์ใด** มีผู้ประเมินที่มีสิทธิ์ไม่ครบ 5 คน ระบบไม่บันทึกคู่ของงานนั้นเลย ผู้ประเมิน Group ต้องไม่อยู่ในสองกลุ่มที่เทียบ; ผู้ประเมิน Individual ต้องอยู่กลุ่มเดียวกับคู่ แต่ไม่ใช่หนึ่งในสองคนที่ถูกเทียบ
 
+## งานวันที่ 4: Evaluation
+
+1. จากชุด seed เข้า Demo ผู้สอนและกด “บันทึกคู่ทั้งหมดของงาน” ในห้องที่จัดคู่ได้
+2. กลับหน้าแรกและเข้า Demo นักศึกษา เปิด “ประเมินกลุ่ม” หรือ “ประเมินบุคคล” จะเห็นเฉพาะคู่ที่มอบหมายให้ `student-01@demo.invalid` พร้อมเกณฑ์, ตัวเลือก 1–6, progress และเวลาที่เหลือ
+3. เลือกคำตอบบางคู่แล้วกด **Save draft** จากนั้น refresh หน้าหรือสลับไปอีกชนิดและกลับมา คำตอบที่บันทึกยังอยู่ Draft ยังไม่นับเป็น submission
+4. กด **Submit** เพื่อสร้าง revision 1; แก้คำตอบแล้วกด **Re-submit** เพื่อสร้าง revision 2 โดยเก็บคำตอบของ revision 1 ไว้ Group และ Individual มี revision กับ deadline แยกกัน
+
+Submit บางส่วนได้เมื่อมีอย่างน้อยหนึ่งคำตอบ หน้าแสดงคำเตือนจำนวนคู่ที่ยังไม่ตอบ หลัง deadline เปิดดูคำตอบได้แต่ Save/Submit ถูกปิดทั้งใน UI และฝั่ง server หน้านักศึกษาและ API ไม่ส่งคู่ของผู้ประเมินคนอื่น
+
 ## โครงข้อมูล
 
-SQLite ใน `data/demo.sqlite` มี users, classrooms, groups, memberships, assignments, criteria, pair assignments และตารางเตรียมสำหรับ drafts, submission revisions, answers การ seed สร้างโครงและข้อมูลเริ่มต้น ตารางคู่และคำตอบยังว่างจนกว่าผู้สอนจะกดสร้าง ไม่มีคะแนนที่ฝังไว้
+SQLite ใน `data/demo.sqlite` มี users, classrooms, groups, memberships, assignments, criteria, pair assignments, drafts, submission revisions และ answers การ seed สร้างโครงและข้อมูลเริ่มต้น ตารางคู่และคำตอบยังว่างจนกว่าจะมีการกดสร้าง/บันทึก/ส่ง ไม่มีคะแนนที่ฝังไว้
 
 ## ที่มาของโค้ด
 
@@ -67,6 +76,7 @@ SQLite ใน `data/demo.sqlite` มี users, classrooms, groups, memberships, 
 
 Git repository นี้อยู่ที่ `SDPX/PairEval-Demo/.git` แยกจาก `SPDX-Lab/koencontrol-sdpx_lab/.git` ไม่มี remote, PR หรือ deployment ที่เชื่อม Lab
 งานวันที่ 1–2 ถูกบันทึกเป็น baseline commit `eefd123` ในรีโปนี้เท่านั้น
+งานวันที่ 3 ถูกบันทึกเป็น commit `496ff96` ในรีโปนี้ก่อนเริ่มวันที่ 4
 
 ## ตรวจงานวันที่ 2
 
@@ -97,6 +107,20 @@ node scripts/day3-smoke.mjs
 
 `day3-smoke` สร้างคู่จริง 345 รายการใน SQLite สำหรับชุด feasible; หากจะรัน `day3-browser.mjs` ให้หยุด server, `npm run seed:reset`, เปิด server ใหม่ แล้วรัน browser test หลังเสร็จให้รีเซ็ตอีกครั้ง ผลรันอยู่ใน [บันทึกวันที่ 3](./docs/day-03.md)
 
+## ตรวจงานวันที่ 4
+
+```powershell
+npm test
+npm run lint
+npm run build
+npm run seed:reset
+npm run start -- -p 3100
+# เปิด terminal อีกหน้าต่างใน repo เดียวกัน
+node scripts/day4-smoke.mjs
+```
+
+`day4-smoke` สร้างคู่, draft และ revisions แล้วแก้ deadline ในฐานข้อมูลเพื่อทดสอบการปิดรับ หลังรันให้หยุด server, `npm run seed:reset`, เปิด server ใหม่ แล้วรัน `node scripts/day4-browser.mjs` เพื่อตรวจ draft หลัง refresh และการสลับหน้า ท้ายสุดหยุด server และ reset อีกครั้ง ผลจริงอยู่ใน [บันทึกวันที่ 4](./docs/day-04.md)
+
 ## สถานะถัดไป
 
-วันที่ 4: Evaluation, Save/Submit/Re-submit และ deadline วันที่ 5: Scoring, report และ CSV ตามแผน
+วันที่ 5: Scoring จาก submission revision ล่าสุด, Instructor report, My score และ CSV ตามแผน

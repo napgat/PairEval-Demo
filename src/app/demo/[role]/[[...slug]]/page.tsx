@@ -7,6 +7,8 @@ import AssignmentForm from "../../components/assignment-form";
 import PairingPanel from "../../components/pairing-panel";
 import { openDemoDb } from "@/lib/demo-data";
 import { getPairingPreview } from "@/lib/pairing-store";
+import { getEvaluationView } from "@/lib/evaluation-store";
+import EvaluationPanel from "../../components/evaluation-panel";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -74,7 +76,7 @@ function MainContent({ role, slug, data, classId, actorId }: { role: Role; slug:
   }
   if (section === "assignment" && assignment && (role === "instructor" || assignment.classroom_id === classId)) {
     const criteria = data.criteria.filter(c => c.assignment_id === assignment.id);
-    return <><h1>{assignment.name}</h1><p className="intro">คะแนนรวม {assignment.group_max + assignment.individual_max} · Group {assignment.group_max} · Individual {assignment.individual_max}</p><div className="cards"><Panel title="เกณฑ์กลุ่ม">{criteria.filter(c => c.kind === "group").map(c => <p key={c.id}>{c.name} <strong>{c.weight_percent}%</strong></p>)}</Panel><Panel title="เกณฑ์บุคคล">{criteria.filter(c => c.kind === "individual").map(c => <p key={c.id}>{c.name} <strong>{c.weight_percent}%</strong></p>)}</Panel></div><Panel title="กำหนดส่ง"><p>Group: {new Date(assignment.group_deadline).toLocaleString("th-TH", { timeZone: "Asia/Bangkok" })}</p><p>Individual: {new Date(assignment.individual_deadline).toLocaleString("th-TH", { timeZone: "Asia/Bangkok" })}</p></Panel>{role === "instructor" ? <Link className="primary-button inline-button" href={href(role, "pairing", assignment.id)}>ตรวจและสร้างคู่ →</Link> : <Status>คู่ประเมินจะเปิดให้นักศึกษาใช้งานในวันที่ 4</Status>}</>;
+    return <><h1>{assignment.name}</h1><p className="intro">คะแนนรวม {assignment.group_max + assignment.individual_max} · Group {assignment.group_max} · Individual {assignment.individual_max}</p><div className="cards"><Panel title="เกณฑ์กลุ่ม">{criteria.filter(c => c.kind === "group").map(c => <p key={c.id}>{c.name} <strong>{c.weight_percent}%</strong></p>)}</Panel><Panel title="เกณฑ์บุคคล">{criteria.filter(c => c.kind === "individual").map(c => <p key={c.id}>{c.name} <strong>{c.weight_percent}%</strong></p>)}</Panel></div><Panel title="กำหนดส่ง"><p>Group: {new Date(assignment.group_deadline).toLocaleString("th-TH", { timeZone: "Asia/Bangkok" })}</p><p>Individual: {new Date(assignment.individual_deadline).toLocaleString("th-TH", { timeZone: "Asia/Bangkok" })}</p></Panel>{role === "instructor" ? <Link className="primary-button inline-button" href={href(role, "pairing", assignment.id)}>ตรวจและสร้างคู่ →</Link> : <div className="actions"><Link className="primary-button" href={href(role, "evaluation", "group", assignment.id)}>ประเมินกลุ่ม</Link><Link className="secondary-button" href={href(role, "evaluation", "individual", assignment.id)}>ประเมินบุคคล</Link></div>}</>;
   }
   if (section === "pairing" && role === "instructor" && assignment) {
     const db = openDemoDb({ readOnly: true });
@@ -87,9 +89,10 @@ function MainContent({ role, slug, data, classId, actorId }: { role: Role; slug:
   if (section === "export" && role === "instructor" && assignment) return <><h1>ส่งออกคะแนน</h1><Panel title="CSV summary"><p>ยังไม่มีคะแนนสำหรับส่งออก</p><Status>ฟังก์ชันดาวน์โหลด CSV จะทำในวันที่ 5</Status></Panel></>;
   if (section === "evaluation" && role === "student" && ["group", "individual"].includes(id) && assignment?.classroom_id === classId) {
     const db = openDemoDb({ readOnly: true });
-    const assigned = (db.prepare("SELECT COUNT(*) AS count FROM pair_assignments JOIN criteria ON criteria.id = pair_assignments.criterion_id WHERE pair_assignments.assignment_id = ? AND pair_assignments.evaluator_id = ? AND criteria.kind = ?").get(assignment.id, actorId, id) as { count: number }).count;
+    const view = getEvaluationView(db, assignment.id, id as "group" | "individual", actorId);
     db.close();
-    return <><h1>{id === "group" ? "ประเมินกลุ่ม" : "ประเมินบุคคล"}</h1><p className="intro">{assignment.name} · นักศึกษาตัวอย่าง 01</p><Panel title="คู่ของฉัน"><p>{assigned ? `ได้รับมอบหมาย ${assigned} คู่` : "ยังไม่มีคู่ที่ได้รับมอบหมาย"}</p><Status>การเลือก 1–6, Save, Submit และ Re-submit จะทำในวันที่ 4 · ตอนนี้ยังส่งคำตอบไม่ได้</Status></Panel></>;
+    if (!view) notFound();
+    return <><h1>{id === "group" ? "ประเมินกลุ่ม" : "ประเมินบุคคล"}</h1><p className="intro">{assignment.name} · {data.users.find(user => user.id === actorId)?.display_name}</p><EvaluationPanel initial={view} /></>;
   }
   if (section === "score" && role === "student" && assignment?.classroom_id === classId) return <><h1>คะแนนของฉัน</h1><Panel title="นักศึกษาตัวอย่าง 01"><p>ยังไม่มีคะแนนจาก submission</p><Status>คะแนนชั่วคราวและคะแนนสุดท้ายจะคำนวณจากคำตอบจริงในวันที่ 5</Status></Panel></>;
   if (section === "extras" && role === "instructor") return <><h1>หน้าจอฟีเจอร์รอง</h1><div className="cards">{["อาจารย์ร่วม", "ส่งคู่ให้ผู้ประเมินเพิ่ม", "อาจารย์ประเมินเอง", "เปลี่ยนกลุ่มและสร้างคู่ใหม่", "Raw Pairs report", "Excel export"].map(name => <Panel key={name} title={name}><Status>ยังไม่เปิดใช้งานใน Demo · P1</Status></Panel>)}</div></>;
@@ -106,5 +109,5 @@ export default async function DemoPage({ params }: Props) {
   if (!actor || actor.role !== role) redirect("/");
   const classId = role === "student" ? data.memberships.find(m => m.user_id === actor.id)?.classroom_id ?? "" : "class-feasible";
   const assignmentId = data.assignments.find(a => a.classroom_id === classId)?.id ?? "";
-  return <div className="app-shell"><header className="topbar"><Link className="brand" href="/">Pair<span>Eval</span><small>Demo</small></Link><div><span className="pill">{actor.display_name}</span><Link className="switch-link" href="/">เปลี่ยนบทบาท</Link></div></header><div className="app-layout"><Nav role={role} classId={classId} assignmentId={assignmentId} /><main className="content"><div className="day-banner">วันที่ 3 · ตรวจและสร้างคู่ Group/Individual ได้ · การประเมินและคะแนนจะทำในวันถัดไป</div><MainContent role={role} slug={slug} data={data} classId={classId} actorId={actor.id} /></main></div></div>;
+  return <div className="app-shell"><header className="topbar"><Link className="brand" href="/">Pair<span>Eval</span><small>Demo</small></Link><div><span className="pill">{actor.display_name}</span><Link className="switch-link" href="/">เปลี่ยนบทบาท</Link></div></header><div className="app-layout"><Nav role={role} classId={classId} assignmentId={assignmentId} /><main className="content"><div className="day-banner">วันที่ 4 · ประเมิน Group/Individual, Save draft และ Submit/Re-submit ได้ · คะแนนจะทำวันที่ 5</div><MainContent role={role} slug={slug} data={data} classId={classId} actorId={actor.id} /></main></div></div>;
 }

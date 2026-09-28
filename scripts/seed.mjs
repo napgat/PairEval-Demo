@@ -61,7 +61,8 @@ db.exec(`
   CREATE TABLE submission_revisions (
     id TEXT PRIMARY KEY, assignment_id TEXT NOT NULL REFERENCES assignments(id),
     evaluator_id TEXT NOT NULL REFERENCES users(id), kind TEXT NOT NULL,
-    submitted_at TEXT NOT NULL
+    revision_number INTEGER NOT NULL, submitted_at TEXT NOT NULL,
+    UNIQUE (assignment_id, evaluator_id, kind, revision_number)
   );
   CREATE TABLE submission_answers (
     revision_id TEXT NOT NULL REFERENCES submission_revisions(id),

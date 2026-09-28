@@ -1,0 +1,46 @@
+import assert from "node:assert/strict";
+import { chromium } from "@playwright/test";
+
+const base = process.env.DEMO_BASE_URL ?? "http://localhost:3100";
+const browser = await chromium.launch({ headless: true });
+try {
+  const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
+  await page.goto(base);
+  await page.getByRole("button", { name: /เข้า Demo ผู้สอน/ }).click();
+  await page.goto(`${base}/demo/instructor/pairing/class-feasible-assignment`);
+  await page.getByRole("button", { name: "บันทึกคู่ทั้งหมดของงาน" }).click();
+  await page.getByText("สร้างคู่ครบแล้ว", { exact: true }).waitFor();
+  await page.getByRole("link", { name: "เปลี่ยนบทบาท" }).click();
+  await page.getByRole("button", { name: /เข้า Demo นักศึกษา/ }).click();
+  await page.getByRole("link", { name: /ประเมินกลุ่ม/ }).click();
+  await page.getByRole("heading", { name: "ประเมินกลุ่ม", exact: true }).waitFor();
+  await page.locator(".evaluation-pair").first().locator('input[type="radio"][value="2"]').check();
+  await page.getByRole("button", { name: "Save draft" }).click();
+  await page.getByRole("status").getByText(/บันทึกร่างแล้ว/).waitFor();
+  await page.reload();
+  assert.equal(await page.locator(".evaluation-pair").first().locator('input[type="radio"][value="2"]').isChecked(), true);
+  assert.ok((await page.getByText(/ร่างล่าสุด/).count()) > 0);
+  await page.getByRole("link", { name: /ประเมินบุคคล/ }).click();
+  await page.getByRole("heading", { name: "ประเมินบุคคล", exact: true }).waitFor();
+  await page.locator(".evaluation-pair").first().locator('input[type="radio"][value="5"]').check();
+  await page.getByRole("button", { name: "Save draft" }).click();
+  await page.getByRole("status").getByText(/บันทึกร่างแล้ว/).waitFor();
+  await page.reload();
+  assert.equal(await page.locator(".evaluation-pair").first().locator('input[type="radio"][value="5"]').isChecked(), true);
+  await page.getByRole("link", { name: /ประเมินกลุ่ม/ }).click();
+  await page.getByRole("heading", { name: "ประเมินกลุ่ม", exact: true }).waitFor();
+  assert.equal(await page.locator(".evaluation-pair").first().locator('input[type="radio"][value="2"]').isChecked(), true);
+  await page.getByRole("button", { name: "Submit", exact: true }).click();
+  await page.getByText(/ส่งล่าสุด revision 1/).waitFor();
+  await page.locator(".evaluation-pair").first().locator('input[type="radio"][value="6"]').check();
+  await page.getByRole("button", { name: "Re-submit" }).click();
+  await page.getByText(/ส่งล่าสุด revision 2/).waitFor();
+  await page.reload();
+  assert.equal(await page.locator(".evaluation-pair").first().locator('input[type="radio"][value="6"]').isChecked(), true);
+  await page.getByRole("link", { name: /ประเมินบุคคล/ }).click();
+  await page.getByRole("heading", { name: "ประเมินบุคคล", exact: true }).waitFor();
+  assert.ok((await page.getByText("ยังไม่เคย Submit").count()) > 0);
+  await page.getByRole("button", { name: "Submit", exact: true }).click();
+  await page.getByText(/ส่งล่าสุด revision 1/).waitFor();
+  console.log("Day 4 browser: 1 Group/Individual draft-refresh-submit-resubmit flow passed, 0 failed.");
+} finally { await browser.close(); }
