@@ -9,10 +9,12 @@ export async function POST(request: NextRequest) {
   const form = await request.formData();
   const role = form.get("role");
   if (role !== "instructor" && role !== "student") return NextResponse.json({ error: "บทบาทไม่ถูกต้อง" }, { status: 400 });
-  const userId = role === "instructor" ? "instructor-01" : "student-01";
+  const selectedId = form.get("userId");
+  const userId = role === "instructor" ? "instructor-01" : typeof selectedId === "string" && selectedId ? selectedId : "student-01";
   const token = randomBytes(32).toString("hex");
   const db = openDemoDb();
   try {
+    if (!db.prepare("SELECT 1 FROM users WHERE id = ? AND role = ?").get(userId, role)) return NextResponse.json({ error: "ไม่พบบัญชีตัวอย่างสำหรับบทบาทนี้" }, { status: 400 });
     db.prepare("INSERT INTO demo_sessions VALUES (?, ?, ?)").run(token, userId, new Date().toISOString());
   } finally { db.close(); }
   const response = NextResponse.redirect(new URL(`/demo/${role}`, request.url), { status: 303 });

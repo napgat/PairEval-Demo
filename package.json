@@ -13,7 +13,9 @@
     "test:coverage": "vitest run --coverage",
     "seed": "node scripts/seed.mjs",
     "seed:reset": "node scripts/seed.mjs",
-    "demo:answers": "node scripts/seed-answers.mjs"
+    "demo:answers": "node scripts/seed-answers.mjs",
+    "test:main-flow": "node scripts/day6-main-flow.mjs",
+    "test:ui-audit": "node scripts/day6-ui-audit.mjs"
   },
   "dependencies": {
     "lucide-react": "^1.25.0",

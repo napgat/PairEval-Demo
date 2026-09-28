@@ -4,13 +4,18 @@ import { join } from "node:path";
 
 const db = new DatabaseSync(join(process.cwd(), "data", "demo.sqlite"));
 db.exec("PRAGMA foreign_keys = ON");
-const assignmentId = "class-feasible-assignment";
+const assignmentId = process.argv[2] ?? "class-feasible-assignment";
+const demoStudentId = process.argv[3] ?? "student-01";
+const assignment = db.prepare("SELECT classroom_id AS classroomId FROM assignments WHERE id = ?").get(assignmentId);
+if (!assignment || !db.prepare("SELECT 1 FROM memberships WHERE classroom_id = ? AND user_id = ?").get(assignment.classroomId, demoStudentId)) {
+  db.close(); throw new Error("ไม่พบงานหรือบัญชีนักศึกษาที่จะเว้นไว้ให้ประเมินเอง");
+}
 const pairRows = db.prepare(`SELECT pair_assignments.id, pair_assignments.evaluator_id AS evaluatorId, criteria.kind,
   pair_assignments.item_a_id AS itemAId, pair_assignments.item_b_id AS itemBId
   FROM pair_assignments JOIN criteria ON criteria.id = pair_assignments.criterion_id
-  WHERE pair_assignments.assignment_id = ? AND pair_assignments.evaluator_id <> 'student-01'
-  ORDER BY pair_assignments.evaluator_id, criteria.kind, pair_assignments.id`).all(assignmentId);
-if (!pairRows.length) { db.close(); throw new Error("ยังไม่มีคู่ในห้อง feasible: ให้ผู้สอนกดสร้างคู่ก่อนรัน npm run demo:answers"); }
+  WHERE pair_assignments.assignment_id = ? AND pair_assignments.evaluator_id <> ?
+  ORDER BY pair_assignments.evaluator_id, criteria.kind, pair_assignments.id`).all(assignmentId, demoStudentId);
+if (!pairRows.length) { db.close(); throw new Error("ยังไม่มีคู่สำหรับงานนี้: ให้ผู้สอนกดสร้างคู่ก่อนรัน npm run demo:answers"); }
 const groups = new Map();
 for (const pair of pairRows) {
   const key = `${pair.evaluatorId}/${pair.kind}`;

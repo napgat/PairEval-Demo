@@ -4,16 +4,20 @@ import { choicePoints, calculateScores, applyCompletion, type ScoreInput } from 
 const example: ScoreInput = {
   assignment: { id: "a", groupMax: 15, individualMax: 5, groupDeadline: "2030-01-01", individualDeadline: "2030-01-01" },
   groups: [{ id: "gA", name: "A" }, { id: "gB", name: "B" }],
-  students: [{ id: "a1", name: "A1", groupId: "gA" }, { id: "a2", name: "A2", groupId: "gA" }],
+  students: [{ id: "a1", name: "A1", groupId: "gA" }, { id: "a2", name: "A2", groupId: "gA" }, { id: "a3", name: "A3", groupId: "gA" }],
   criteria: [{ id: "quality", name: "คุณภาพ", kind: "group", weightPercent: 60 }, { id: "presentation", name: "นำเสนอ", kind: "group", weightPercent: 40 }, { id: "team", name: "ร่วมมือ", kind: "individual", weightPercent: 100 }],
   pairs: [
     { id: "q", criterionId: "quality", evaluatorId: "a1", itemAId: "gA", itemBId: "gB" },
     { id: "p", criterionId: "presentation", evaluatorId: "a1", itemAId: "gA", itemBId: "gB" },
-    { id: "i", criterionId: "team", evaluatorId: "a2", itemAId: "a1", itemBId: "a2" },
+    { id: "i12", criterionId: "team", evaluatorId: "a3", itemAId: "a1", itemBId: "a2" },
+    { id: "i13", criterionId: "team", evaluatorId: "a2", itemAId: "a1", itemBId: "a3" },
+    { id: "i23", criterionId: "team", evaluatorId: "a1", itemAId: "a2", itemBId: "a3" },
   ],
   revisions: [
     { id: "rq", evaluatorId: "a1", kind: "group", number: 1, submitted: true, answers: [{ pairId: "q", choice: 2 }, { pairId: "p", choice: 4 }] },
-    { id: "ri", evaluatorId: "a2", kind: "individual", number: 1, submitted: true, answers: [{ pairId: "i", choice: 3 }] },
+    { id: "ri12", evaluatorId: "a3", kind: "individual", number: 1, submitted: true, answers: [{ pairId: "i12", choice: 2 }] },
+    { id: "ri13", evaluatorId: "a2", kind: "individual", number: 1, submitted: true, answers: [{ pairId: "i13", choice: 1 }] },
+    { id: "ri23", evaluatorId: "a1", kind: "individual", number: 1, submitted: true, answers: [{ pairId: "i23", choice: 3 }] },
   ],
 };
 
@@ -26,10 +30,14 @@ describe("demo scoring formula", () => {
     expect(result.groups.find(row => row.id === "gA")?.baseScore).toBeCloseTo(9.6);
     expect(result.groups.find(row => row.id === "gB")?.baseScore).toBeCloseTo(5.4);
     expect(result.students.find(row => row.id === "a1")?.individualBase).toBeCloseTo(3);
-    expect(result.students.find(row => row.id === "a2")?.individualBase).toBeCloseTo(2);
+    expect(result.students.find(row => row.id === "a2")?.individualBase).toBeCloseTo(4 / 3);
+    expect(result.students.find(row => row.id === "a3")?.individualBase).toBeCloseTo(2 / 3);
     expect(applyCompletion(9.6, 2, 1, true)).toBeCloseTo(4.8);
-    expect(applyCompletion(3, 2, 1, true)).toBeCloseTo(1.5);
-    expect(applyCompletion(9.6, 2, 1, true)! + applyCompletion(3, 2, 1, true)!).toBeCloseTo(6.3);
+    expect(applyCompletion(3, 1, 1, true)).toBeCloseTo(3);
+    expect(applyCompletion(9.6, 2, 1, true)! + applyCompletion(3, 1, 1, true)!).toBeCloseTo(7.8);
+    for (const pair of example.pairs.filter(pair => pair.criterionId === "team")) {
+      expect([pair.itemAId, pair.itemBId]).not.toContain(pair.evaluatorId);
+    }
   });
   it("ignores draft and old revision, and re-submit changes score", () => {
     const revisions: ScoreInput["revisions"] = [...example.revisions,
@@ -43,7 +51,7 @@ describe("demo scoring formula", () => {
   it("sets missing submission to zero and scales only the submitter's section", () => {
     const input: ScoreInput = { ...example,
       pairs: [...example.pairs, { id: "q2", criterionId: "quality", evaluatorId: "a1", itemAId: "gA", itemBId: "gB" }, { id: "q3", criterionId: "quality", evaluatorId: "a2", itemAId: "gA", itemBId: "gB" }],
-      revisions: [example.revisions[0], example.revisions[1], { id: "self", evaluatorId: "a1", kind: "individual", number: 1, submitted: true, answers: [{ pairId: "i", choice: 3 }] }],
+      revisions: example.revisions,
     };
     const result = calculateScores(input);
     const a1 = result.students.find(row => row.id === "a1")!;
@@ -57,7 +65,7 @@ describe("demo scoring formula", () => {
     const result = calculateScores({ ...example, revisions: [] });
     expect(result.groups.every(row => row.baseScore === null)).toBe(true);
     expect(result.students.find(row => row.id === "a1")?.groupScore).toBe(0);
-    expect(result.students.find(row => row.id === "a1")?.individualScore).toBeNull();
+    expect(result.students.find(row => row.id === "a1")?.individualScore).toBe(0);
   });
   it("normalizes Individual separately inside each group", () => {
     const students = ["a", "b"].flatMap(groupId => [1, 2, 3].map(n => ({ id: `${groupId}${n}`, name: `${groupId}${n}`, groupId })));
