@@ -11,6 +11,9 @@ if (!process.env.DATABASE_URL) throw new Error("DATABASE_URL is not configured")
 if (!process.env.PAIR_EVAL_ENV || !["development", "staging"].includes(process.env.PAIR_EVAL_ENV)) {
   throw new Error("PAIR_EVAL_ENV must be development or staging");
 }
+if (!process.env.PAIR_EVAL_EXPECTED_DB_HOST || new URL(process.env.DATABASE_URL).hostname !== process.env.PAIR_EVAL_EXPECTED_DB_HOST) {
+  throw new Error("DATABASE_URL host does not match PAIR_EVAL_EXPECTED_DB_HOST");
+}
 const pool = new Pool({ connectionString: process.env.DATABASE_URL, max: 2, connectionTimeoutMillis: 5000 });
 
 async function migrate() {

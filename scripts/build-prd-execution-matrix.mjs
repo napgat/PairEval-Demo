@@ -45,7 +45,8 @@ for (const row of rows) {
   const hasDdl = migrationIds.has(id);
   const location = hasDdl ? (id === "DR-09" ? "db/audit/001_audit.sql (proposal only)" : "db/migrations/001_initial.sql (partial)") : planned;
   const decision = decisionText.trim().replace(/\|/g, "\\|");
-  lines.push(`| \`${id}\` | [${lineNo}](../design%20document/pairwise_evaluation_prd%201.md#L${lineNo}) | ${owner} | ${priority(id, prd[lineNo - 1])} | ${hasDdl ? "in progress" : "not started"} | ${location} | ${hasDdl ? "DDL review only; Neon migration/test pending" : "none for Full System"} | ${decision} |`);
+  const evidence = !hasDdl ? "none for Full System" : id === "DR-09" ? "DDL proposal only; separate audit store pending" : "initial DDL applied to Neon staging; requirement-specific test pending";
+  lines.push(`| \`${id}\` | [${lineNo}](../design%20document/pairwise_evaluation_prd%201.md#L${lineNo}) | ${owner} | ${priority(id, prd[lineNo - 1])} | ${hasDdl ? "in progress" : "not started"} | ${location} | ${evidence} | ${decision} |`);
 }
 lines.push("", "## Day 1 gate", "", "Full System test evidence remains absent until the staging database migration, authenticated deployment smoke, OAuth flow and requirement-specific tests run. The separate Day 1 log records the SQLite Demo regression results and external blockers.", "");
 writeFileSync(join(root, "docs/full-system/prd-v2.1-execution-matrix.md"), lines.join("\n"));
