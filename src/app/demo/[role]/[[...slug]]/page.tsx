@@ -9,6 +9,7 @@ import { openDemoDb } from "@/lib/demo-data";
 import { getPairingPreview } from "@/lib/pairing-store";
 import { getEvaluationView } from "@/lib/evaluation-store";
 import EvaluationPanel from "../../components/evaluation-panel";
+import { formatScore, getAssignmentScore, getPairAnswerCoverage, mayViewOwnScore, mayViewReport, scoreStatus } from "@/lib/score-store";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -85,8 +86,28 @@ function MainContent({ role, slug, data, classId, actorId }: { role: Role; slug:
     if (!preview) notFound();
     return <><h1>สร้างคู่และตรวจความเป็นไปได้</h1><p className="intro">{assignment.name} · preview ตรวจทุกเกณฑ์ก่อนบันทึก</p><PairingPanel initial={preview} /></>;
   }
-  if (section === "report" && role === "instructor" && assignment) return <><h1>รายงานผู้สอน</h1><p className="intro">{assignment.name}</p><Panel title="คะแนนและ coverage"><p>ยังไม่มี submission หรือผลคะแนน</p><Status>จะเชื่อมผลคะแนนจากคำตอบจริงในวันที่ 5</Status></Panel></>;
-  if (section === "export" && role === "instructor" && assignment) return <><h1>ส่งออกคะแนน</h1><Panel title="CSV summary"><p>ยังไม่มีคะแนนสำหรับส่งออก</p><Status>ฟังก์ชันดาวน์โหลด CSV จะทำในวันที่ 5</Status></Panel></>;
+  if (section === "report" && role === "instructor" && assignment) {
+    const db = openDemoDb({ readOnly: true });
+    try {
+      if (!mayViewReport(db, assignment.id, actorId)) notFound();
+      const score = getAssignmentScore(db, assignment.id);
+      if (!score) notFound();
+      const groupNames = new Map(score.result.groups.map(group => [group.id, group.name]));
+      return <><h1>รายงานผู้สอน</h1><p className="intro">{assignment.name} · {scoreStatus(score)} · คะแนนคำนวณจาก submission ล่าสุด</p>
+        {score.result.hasNoData && <div className="evaluation-warning">NO_DATA/คะแนนชั่วคราว: ยังมี item ที่ไม่มีคำตอบหรือไม่สามารถ normalize ได้</div>}
+        <div className="actions"><Link className="secondary-button" href={href(role, "pairing", assignment.id)}>ดูคู่และ coverage</Link><Link className="primary-button" href={href(role, "export", assignment.id)}>ส่งออก CSV</Link></div>
+        <Panel title="คะแนนตั้งต้นของกลุ่ม"><div className="table-wrap"><table className="score-table"><thead><tr><th>กลุ่ม</th><th>คะแนน Group</th></tr></thead><tbody>{score.result.groups.map(group => <tr key={group.id}><td>{group.name}</td><td>{formatScore(group.baseScore)}</td></tr>)}</tbody></table></div></Panel>
+        <Panel title="คะแนนรายคน"><div className="table-wrap"><table className="score-table"><thead><tr><th>นักศึกษา</th><th>กลุ่ม</th><th>Group</th><th>Individual</th><th>รวม</th><th>ส่ง Group</th><th>ส่ง Individual</th></tr></thead><tbody>{score.result.students.map(student => <tr key={student.id}><td>{student.name}</td><td>{groupNames.get(student.groupId)}</td><td>{formatScore(student.groupScore)}</td><td>{formatScore(student.individualScore)}</td><td>{formatScore(student.total)}</td><td>{student.groupAnswered}/{student.groupAssigned}</td><td>{student.individualAnswered}/{student.individualAssigned}</td></tr>)}</tbody></table></div></Panel>
+        <Panel title="เกณฑ์และจำนวนผลประเมินต่อ item"><div className="table-wrap"><table className="score-table"><thead><tr><th>ชนิด</th><th>เกณฑ์</th><th>item</th><th>คำตอบ / มอบหมาย</th><th>คะแนนเกณฑ์</th></tr></thead><tbody>{score.result.items.map(item => <tr key={`${item.criterionId}/${item.itemId}`}><td>{item.kind}</td><td>{item.criterionName}</td><td>{item.itemName}</td><td>{item.answerCount}/{item.assignedCount}</td><td>{formatScore(item.points)}</td></tr>)}</tbody></table></div></Panel>
+        <Panel title="จำนวนคำตอบต่อคู่"><div className="table-wrap"><table className="score-table"><thead><tr><th>ชนิด</th><th>เกณฑ์</th><th>คู่</th><th>ตอบ / มอบหมาย</th><th>สถานะ</th></tr></thead><tbody>{getPairAnswerCoverage(db, assignment.id).map((pair, index) => <tr key={index}><td>{pair.kind}</td><td>{pair.criterionName}</td><td>{pair.itemAName} ↔ {pair.itemBName}</td><td>{pair.answered}/{pair.assigned}</td><td>{pair.answered === pair.assigned ? "ครบ" : "รอคำตอบ"}</td></tr>)}</tbody></table></div></Panel>
+      </>;
+    } finally { db.close(); }
+  }
+  if (section === "export" && role === "instructor" && assignment) {
+    const db = openDemoDb({ readOnly: true });
+    try { if (!mayViewReport(db, assignment.id, actorId)) notFound(); } finally { db.close(); }
+    return <><h1>ส่งออกคะแนน</h1><Panel title="CSV summary"><p>สรุปคะแนน Group/Individual/รวม พร้อมจำนวนคู่ที่ตอบจาก submission ล่าสุด ค่าที่คำนวณไม่ได้แสดง NO_DATA</p><a className="primary-button inline-button" href={`/api/assignments/${encodeURIComponent(assignment.id)}/export`}>ดาวน์โหลด CSV</a></Panel></>;
+  }
   if (section === "evaluation" && role === "student" && ["group", "individual"].includes(id) && assignment?.classroom_id === classId) {
     const db = openDemoDb({ readOnly: true });
     const view = getEvaluationView(db, assignment.id, id as "group" | "individual", actorId);
@@ -94,7 +115,20 @@ function MainContent({ role, slug, data, classId, actorId }: { role: Role; slug:
     if (!view) notFound();
     return <><h1>{id === "group" ? "ประเมินกลุ่ม" : "ประเมินบุคคล"}</h1><p className="intro">{assignment.name} · {data.users.find(user => user.id === actorId)?.display_name}</p><EvaluationPanel initial={view} /></>;
   }
-  if (section === "score" && role === "student" && assignment?.classroom_id === classId) return <><h1>คะแนนของฉัน</h1><Panel title="นักศึกษาตัวอย่าง 01"><p>ยังไม่มีคะแนนจาก submission</p><Status>คะแนนชั่วคราวและคะแนนสุดท้ายจะคำนวณจากคำตอบจริงในวันที่ 5</Status></Panel></>;
+  if (section === "score" && role === "student" && assignment?.classroom_id === classId) {
+    const db = openDemoDb({ readOnly: true });
+    try {
+      if (!mayViewOwnScore(db, assignment.id, actorId)) notFound();
+      const score = getAssignmentScore(db, assignment.id);
+      const own = score?.result.students.find(student => student.id === actorId);
+      if (!score || !own) notFound();
+      return <><h1>คะแนนของฉัน</h1><p className="intro">{assignment.name} · {scoreStatus(score)} — {scoreStatus(score) === "Interim" ? "อาจเปลี่ยนแปลงได้" : "สิ้นสุดกำหนดส่ง"}</p>
+        {(own.groupScore === null || own.individualScore === null) && <div className="evaluation-warning">NO_DATA/คะแนนชั่วคราว: ยังมีผลประเมินไม่พอสำหรับคำนวณบางส่วน</div>}
+        <div className="score-cards"><div><span>Group</span><strong>{formatScore(own.groupScore)}</strong><small>ส่ง {own.groupAnswered}/{own.groupAssigned} คู่</small></div><div><span>Individual</span><strong>{formatScore(own.individualScore)}</strong><small>ส่ง {own.individualAnswered}/{own.individualAssigned} คู่</small></div><div><span>รวม</span><strong>{formatScore(own.total)}</strong><small>จากคะแนนสูงสุด {assignment.group_max + assignment.individual_max}</small></div></div>
+        <Panel title="สถานะการส่งของฉัน"><p>Group: {own.groupSubmitted ? "ส่งแล้ว" : "ยังไม่ส่ง"}</p><p>Individual: {own.individualSubmitted ? "ส่งแล้ว" : "ยังไม่ส่ง"}</p><Status>คะแนนจากคำตอบที่กด Submit ล่าสุดเท่านั้น Draft ไม่ถูกนับ</Status></Panel>
+      </>;
+    } finally { db.close(); }
+  }
   if (section === "extras" && role === "instructor") return <><h1>หน้าจอฟีเจอร์รอง</h1><div className="cards">{["อาจารย์ร่วม", "ส่งคู่ให้ผู้ประเมินเพิ่ม", "อาจารย์ประเมินเอง", "เปลี่ยนกลุ่มและสร้างคู่ใหม่", "Raw Pairs report", "Excel export"].map(name => <Panel key={name} title={name}><Status>ยังไม่เปิดใช้งานใน Demo · P1</Status></Panel>)}</div></>;
   notFound();
 }
@@ -109,5 +143,5 @@ export default async function DemoPage({ params }: Props) {
   if (!actor || actor.role !== role) redirect("/");
   const classId = role === "student" ? data.memberships.find(m => m.user_id === actor.id)?.classroom_id ?? "" : "class-feasible";
   const assignmentId = data.assignments.find(a => a.classroom_id === classId)?.id ?? "";
-  return <div className="app-shell"><header className="topbar"><Link className="brand" href="/">Pair<span>Eval</span><small>Demo</small></Link><div><span className="pill">{actor.display_name}</span><Link className="switch-link" href="/">เปลี่ยนบทบาท</Link></div></header><div className="app-layout"><Nav role={role} classId={classId} assignmentId={assignmentId} /><main className="content"><div className="day-banner">วันที่ 4 · ประเมิน Group/Individual, Save draft และ Submit/Re-submit ได้ · คะแนนจะทำวันที่ 5</div><MainContent role={role} slug={slug} data={data} classId={classId} actorId={actor.id} /></main></div></div>;
+  return <div className="app-shell"><header className="topbar"><Link className="brand" href="/">Pair<span>Eval</span><small>Demo</small></Link><div><span className="pill">{actor.display_name}</span><Link className="switch-link" href="/">เปลี่ยนบทบาท</Link></div></header><div className="app-layout"><Nav role={role} classId={classId} assignmentId={assignmentId} /><main className="content"><div className="day-banner">วันที่ 5 · คะแนนจาก submission ล่าสุด · รายงานผู้สอน, คะแนนของฉัน และ CSV</div><MainContent role={role} slug={slug} data={data} classId={classId} actorId={actor.id} /></main></div></div>;
 }

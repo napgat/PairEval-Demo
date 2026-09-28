@@ -1,6 +1,6 @@
 # PairEval Demo
 
-แอปปลายเทอมแยกเป็น Git repository ใหม่จาก SDPX Lab 07 ใช้ข้อมูลสังเคราะห์เท่านั้น ขณะนี้ทำงานถึง **วันที่ 4** ตาม `SPDX-Lab/Project Plan/Plan.md`: ผู้สอนสร้างห้อง งาน และคู่ประเมินได้; นักศึกษา Save draft, Submit และ Re-submit สำหรับ Group/Individual ได้ คะแนนและรายงานจะทำวันที่ 5
+แอปปลายเทอมแยกเป็น Git repository ใหม่จาก SDPX Lab 07 ใช้ข้อมูลสังเคราะห์เท่านั้น ขณะนี้ทำงานถึง **วันที่ 5** ตาม `SPDX-Lab/Project Plan/Plan.md`: ผู้สอนสร้างห้อง งาน คู่ประเมิน และดูรายงาน/CSV ได้; นักศึกษา Save draft, Submit/Re-submit และดูคะแนนเฉพาะตนได้
 
 ## ความต้องการ
 
@@ -121,6 +121,31 @@ node scripts/day4-smoke.mjs
 
 `day4-smoke` สร้างคู่, draft และ revisions แล้วแก้ deadline ในฐานข้อมูลเพื่อทดสอบการปิดรับ หลังรันให้หยุด server, `npm run seed:reset`, เปิด server ใหม่ แล้วรัน `node scripts/day4-browser.mjs` เพื่อตรวจ draft หลัง refresh และการสลับหน้า ท้ายสุดหยุด server และ reset อีกครั้ง ผลจริงอยู่ใน [บันทึกวันที่ 4](./docs/day-04.md)
 
+## เดโมคะแนนวันที่ 5
+
+1. ถ้าเพิ่ง reset ให้เข้า Demo ผู้สอน → “สร้างคู่” → กด “บันทึกคู่ทั้งหมดของงาน” สำหรับห้องที่จัดคู่ได้
+2. ใน terminal ของ Repo นี้รัน `npm run demo:answers` เพื่อสร้าง **submission revision และคำตอบจริงใน SQLite** ของผู้ประเมินสังเคราะห์คนอื่น (ไม่รวม student-01) คำสั่งรันซ้ำจะไม่แก้ submission ที่มีอยู่
+3. เข้า Demo นักศึกษา ส่งคำตอบ Group/Individual บางส่วนหรือทั้งหมด แล้วดู “คะแนนของฉัน” คะแนนจะคำนวณใหม่จาก revision ล่าสุดที่กด Submit เท่านั้น
+4. กลับเข้า Demo ผู้สอน → “รายงาน” ดูคะแนนตามเกณฑ์ จำนวนคำตอบต่อคู่ และสถานะ coverage → “ส่งออก CSV” ดาวน์โหลดสรุปคะแนน
+
+ข้อมูลที่เตรียมไว้ในฐานข้อมูลหลังตรวจวันที่ 5 มี 345 คู่, 42 submitted revisions และ 332 answers จากข้อมูลสังเคราะห์ ไม่มีตัวเลขคะแนนฝังใน seed หรือ UI. `npm run seed:reset` ล้างข้อมูลนี้ทั้งหมด แล้วทำข้อ 1–2 เพื่อเตรียมใหม่
+
+## ตรวจงานวันที่ 5
+
+```powershell
+npm test
+npm run typecheck
+npm run lint
+npm run build
+npm run seed:reset
+npm run start -- -p 3100
+# อีก terminal ใน repo เดียวกัน
+node scripts/day5-smoke.mjs
+node scripts/day5-browser.mjs
+```
+
+`day5-smoke` สร้างคู่, เพิ่มคำตอบสังเคราะห์, ทดสอบ draft/Submit/Re-submit/API/CSV; `day5-browser` ตรวจหน้ารายงาน ดาวน์โหลด CSV และ My Score. ผลจริงและตัวอย่างคำนวณอยู่ใน [บันทึกวันที่ 5](./docs/day-05.md)
+
 ## สถานะถัดไป
 
-วันที่ 5: Scoring จาก submission revision ล่าสุด, Instructor report, My score และ CSV ตามแผน
+วันที่ 6: ขัดเกลา P1 ที่เลือกทำ, responsive/empty states และ Main Flow ตามแผน
