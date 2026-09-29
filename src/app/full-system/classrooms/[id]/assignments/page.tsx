@@ -7,23 +7,29 @@ type Criterion = { side: "GROUP" | "INDIVIDUAL"; name: string; weightPct: number
 type Artifact = { side: "GROUP" | "INDIVIDUAL"; itemId: string; url: string };
 type Input = { name: string; description: string; artifactOverviewUrl: string; groupMaxScore: number;
   individualMaxScore: number; groupDeadline: string | null; individualDeadline: string | null;
-  targetCoverage: number; maxWorkload: number; criteria: Criterion[]; artifacts: Artifact[] };
+  targetCoverage: number; maxWorkload: number; instructorWeight: number;
+  criteria: Criterion[]; artifacts: Artifact[] };
 type Assignment = Input & { id: string; status: string; generation: number;
   generations: Array<{ generation: number; status: string; invalidated_reason: string | null }>;
-  persistedAssignments: Array<{ generation: number; side: string; n: number }> };
+  persistedAssignments: Array<{ generation: number; side: string; n: number }>;
+  currentPairs: Array<{ id: string; side: string; criterion_name: string;
+    group_a_id: string | null; group_b_id: string | null;
+    student_a_id: string | null; student_b_id: string | null; evaluator_count: string }> };
 type Plan = { feasible: boolean; parts: Array<{ side: string; groupId?: string; pairCount: number;
   coverage: number; requested: number; assignmentCount: number; reason: string | null; lowConfidence: boolean }> };
 type RosterRow = { id: string; displayName: string; groupId: string; groupName: string };
 const empty: Input = { name: "", description: "", artifactOverviewUrl: "", groupMaxScore: 10,
   individualMaxScore: 0, groupDeadline: null, individualDeadline: null, targetCoverage: 5,
-  maxWorkload: 8, criteria: [{ side: "GROUP", name: "", weightPct: 100 }], artifacts: [] };
+  maxWorkload: 8, instructorWeight: 1,
+  criteria: [{ side: "GROUP", name: "", weightPct: 100 }], artifacts: [] };
 const url = (id: string) => `/api/full-system/assignments/${id}`;
 const displayDate = (value: string | null, timeZone: string) => value ? new Date(value).toLocaleString("th-TH", { timeZone }) : "ยังไม่กำหนด";
 const toInput = (assignment: Assignment): Input => ({ name: assignment.name, description: assignment.description ?? "",
   artifactOverviewUrl: assignment.artifactOverviewUrl ?? "", groupMaxScore: assignment.groupMaxScore,
   individualMaxScore: assignment.individualMaxScore, groupDeadline: assignment.groupDeadline,
   individualDeadline: assignment.individualDeadline, targetCoverage: assignment.targetCoverage,
-  maxWorkload: assignment.maxWorkload, criteria: assignment.criteria, artifacts: assignment.artifacts });
+  maxWorkload: assignment.maxWorkload, instructorWeight: assignment.instructorWeight,
+  criteria: assignment.criteria, artifacts: assignment.artifacts });
 
 export default function AssignmentsPage({ params }: { params: Promise<{ id: string }> }) {
   const { id: classroomId } = use(params);
@@ -34,6 +40,8 @@ export default function AssignmentsPage({ params }: { params: Promise<{ id: stri
   const [form, setForm] = useState<Input>(empty);
   const [plan, setPlan] = useState<Plan | null>(null);
   const [seed, setSeed] = useState("1");
+  const [extraPairId, setExtraPairId] = useState("");
+  const [extraCount, setExtraCount] = useState(1);
   const [message, setMessage] = useState("");
   const [busy, setBusy] = useState(false);
   const request = useCallback(async (path: string, method = "GET", body?: unknown) => {
@@ -108,6 +116,13 @@ export default function AssignmentsPage({ params }: { params: Promise<{ id: stri
     const result = await request(`${url(selected.id)}/clone`, "POST", { name }); await open(result.id);
     setMessage("คัดลอกเฉพาะการตั้งค่าเป็น DRAFT; ตรวจวันครบกำหนดและไฟล์ก่อนเผยแพร่");
   });
+  const addEvaluators = (mode: "STUDENT" | "INSTRUCTOR") => action(async () => {
+    if (!selected || !extraPairId) throw new Error("เลือกคู่ก่อนเพิ่มผู้ประเมิน");
+    await request(`${url(selected.id)}/evaluators`, "POST", {
+      pairId: extraPairId, mode, count: mode === "INSTRUCTOR" ? 1 : extraCount });
+    await open(selected.id);
+    setMessage(mode === "INSTRUCTOR" ? "เพิ่มคู่ประเมินของผู้สอนแล้ว" : "เพิ่มผู้ประเมินและแจ้งเตือนแล้ว");
+  });
   const change = <K extends keyof Input>(key: K, value: Input[K]) => { setForm(current => ({ ...current, [key]: value })); setPlan(null); };
   const groups = [...new Map(roster.map(person => [person.groupId, person.groupName])).entries()];
   return <main className="assignment-shell">
@@ -128,6 +143,9 @@ export default function AssignmentsPage({ params }: { params: Promise<{ id: stri
       <div className="form-grid">
         {(["groupMaxScore", "individualMaxScore", "targetCoverage", "maxWorkload"] as const).map(key => <label className="field" key={key}>{({ groupMaxScore: "คะแนนกลุ่ม", individualMaxScore: "คะแนนรายบุคคล", targetCoverage: "ผู้ประเมินต่อคู่ที่ต้องการ", maxWorkload: "งานสูงสุดต่อผู้ประเมิน" })[key]}<input type="number" min="0" value={form[key]} disabled={selected?.status !== undefined && selected.status !== "DRAFT"} onChange={e => change(key, Number(e.target.value))} /></label>)}
       </div>
+      <label className="field">น้ำหนักคำตอบผู้สอน (0–99.99; นักศึกษา = 1)<input type="number" min="0" max="99.99" step="0.01"
+        value={form.instructorWeight} disabled={selected?.status !== undefined && selected.status !== "DRAFT"}
+        onChange={e => change("instructorWeight", Number(e.target.value))} /></label>
       <div className="form-grid">{(["groupDeadline", "individualDeadline"] as const).map(key => <label className="field" key={key}>{key === "groupDeadline" ? "กำหนดส่งกลุ่ม" : "กำหนดส่งรายบุคคล"} ({timezone})<input type="datetime-local" value={utcToClassroomInput(form[key], timezone)} disabled={selected?.status !== undefined && !["DRAFT", "OPEN", "CLOSED"].includes(selected.status)} onChange={e => change(key, classroomInputToUtc(e.target.value, timezone))} /></label>)}</div>
       <h2>เกณฑ์และน้ำหนัก</h2><p className="fine-print">แต่ละด้านที่เปิดใช้ต้องรวม 100%</p>
       {form.criteria.map((criterion, index) => <div className="criteria-row" key={index}>
@@ -154,6 +172,23 @@ export default function AssignmentsPage({ params }: { params: Promise<{ id: stri
           {plan.parts.map((part, index) => <tr key={index}><td>{part.side}{part.groupId ? ` · ${groups.find(group => group[0] === part.groupId)?.[1] ?? part.groupId}` : ""}</td><td>{part.pairCount}</td><td>{part.coverage}/{part.requested}</td><td>{part.assignmentCount}</td><td>{part.reason ?? (part.lowConfidence ? "กลุ่ม 3 คน: ความเชื่อมั่นต่ำ" : "พร้อม")}</td></tr>)}
         </tbody></table></div></div>}
       {selected.status === "DRAFT" && plan?.feasible && <button className="primary-button" disabled={busy} onClick={publish}>เผยแพร่และบันทึกคู่</button>}
+      {selected.status === "OPEN" && selected.currentPairs.length > 0 && <div className="preview-box">
+        <h3>ประเมินเองหรือเพิ่มผู้ประเมิน</h3>
+        <label className="field">คู่และเกณฑ์<select value={extraPairId} onChange={e => setExtraPairId(e.target.value)}>
+          <option value="">เลือกคู่</option>
+          {[...new Map(selected.currentPairs.map(pair => [
+            `${pair.side}:${pair.criterion_name}:${pair.group_a_id}:${pair.group_b_id}:${pair.student_a_id}:${pair.student_b_id}`, pair])).values()].map(pair =>
+            <option key={pair.id} value={pair.id}>{pair.side} · {pair.criterion_name} · {
+              pair.side === "GROUP" ? `${groups.find(g => g[0] === pair.group_a_id)?.[1] ?? "?"} / ${groups.find(g => g[0] === pair.group_b_id)?.[1] ?? "?"}` :
+                `${roster.find(p => p.id === pair.student_a_id)?.displayName ?? "?"} / ${roster.find(p => p.id === pair.student_b_id)?.displayName ?? "?"}`}
+              {` · ผู้ประเมิน ${pair.evaluator_count} คน`}</option>)}</select></label>
+        <label className="field">จำนวนผู้ประเมินนักศึกษาเพิ่ม<input type="number" min="1" max="20" value={extraCount}
+          onChange={e => setExtraCount(Number(e.target.value))} /></label>
+        <div className="actions"><button className="secondary-button" disabled={busy || !extraPairId} onClick={() => addEvaluators("STUDENT")}>เพิ่มผู้ประเมิน</button>
+          <button className="secondary-button" disabled={busy || !extraPairId} onClick={() => addEvaluators("INSTRUCTOR")}>มอบคู่ให้ตนเอง</button>
+          <a className="secondary-button" href={`/full-system/assignments/${selected.id}/evaluate/group`}>ประเมินกลุ่ม</a>
+          <a className="secondary-button" href={`/full-system/assignments/${selected.id}/evaluate/individual`}>ประเมินรายบุคคล</a></div>
+      </div>}
       <p><a href={`/full-system/assignments/${selected.id}/reports`}>ดูรายงานและตัดสินคะแนน →</a></p>
       <h2>ประวัติ generation</h2><ul className="plain-list">{selected.generations.map(row => <li key={row.generation}>รุ่น {row.generation} · {row.status}{row.invalidated_reason ? ` · ${row.invalidated_reason}` : ""}</li>)}</ul>
       <p className="fine-print">เวลาเส้นตายกลุ่ม: {displayDate(selected.groupDeadline, timezone)} · รายบุคคล: {displayDate(selected.individualDeadline, timezone)} ({timezone})</p>

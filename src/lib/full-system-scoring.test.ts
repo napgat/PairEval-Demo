@@ -53,4 +53,20 @@ describe("PRD v2.1 scoring", () => {
     expect(full?.component).toBe(5);
     expect(full?.criteria[0].lowConfidence).toBe(false);
   });
+  it("uses a fractional instructor weight without inflating comparison count", () => {
+    const pairs = ["student", "instructor"].map((evaluatorId, index) => ({
+      id: `p${index}`, criterionId: "c", side: "GROUP" as const, aId: "a", bId: "b",
+      displayLeft: "A" as const, evaluatorId }));
+    const result = calculateItemScores({
+      criteria: [{ id: "c", side: "GROUP", weightPct: 100 }], pairs,
+      answers: [{ pairId: "p0", choice: 1, evaluatorId: "student", weight: 1 },
+        { pairId: "p1", choice: 6, evaluatorId: "instructor", weight: 0.5 }],
+      groupIds: ["a", "b"], studentIds: [],
+      settings: { groupMax: 10, individualMax: 0, floor: .6, ceiling: 1,
+        minComparisons: 3, kMin: 3, completionThreshold: .9 },
+    });
+    expect(result.find(row => row.itemId === "a")?.criteria[0].q).toBeCloseTo(2 / 3);
+    expect(result.find(row => row.itemId === "a")?.criteria[0].comparisons).toBe(2);
+    expect(result.find(row => row.itemId === "b")?.criteria[0].q).toBeCloseTo(1 / 3);
+  });
 });

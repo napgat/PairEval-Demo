@@ -9,25 +9,26 @@ export type EvaluationSide = "GROUP" | "INDIVIDUAL";
 const sideOk = (side: string): side is EvaluationSide => side === "GROUP" || side === "INDIVIDUAL";
 const idOk = (id: string) => /^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/i.test(id);
 type Scope = { classroom_id: string; generation: number; status: string; deadline: Date | null;
-  group_id: string; group_size: number; timezone: string; deadline_open: boolean };
+  group_id: string | null; group_size: number; timezone: string; deadline_open: boolean; role: string };
 
 async function scope(client: PoolClient, actor: FullActor, assignmentId: string, side: EvaluationSide,
     lock = false): Promise<Scope> {
   const found = await client.query<Scope & { allowed_email_domains: string[] }>(`SELECT a.classroom_id,a.generation,a.status,
     ${side === "GROUP" ? "a.group_deadline_utc" : "a.individual_deadline_utc"} AS deadline,
     (${side === "GROUP" ? "a.group_deadline_utc" : "a.individual_deadline_utc"} > clock_timestamp()) AS deadline_open,
-    m.group_id,c.timezone,c.allowed_email_domains,
+    m.group_id,m.role,c.timezone,c.allowed_email_domains,
     (SELECT count(*)::integer FROM classroom_member peer WHERE peer.classroom_id=a.classroom_id
       AND peer.group_id=m.group_id AND peer.role='STUDENT' AND peer.membership_status='ACTIVE') AS group_size
     FROM assignment a JOIN classroom c ON c.id=a.classroom_id
     JOIN classroom_member m ON m.classroom_id=a.classroom_id
-    WHERE a.id=$1 AND c.status='ACTIVE' AND m.user_id=$2 AND m.role='STUDENT'
+    WHERE a.id=$1 AND c.status='ACTIVE' AND m.user_id=$2
+      AND m.role IN ('STUDENT','OWNER','CO_TEACHER')
       AND m.membership_status='ACTIVE' ${lock ? "FOR UPDATE OF a" : ""}`, [assignmentId, actor.id]);
   const row = found.rows[0];
   if (!row || !domainAllowed(actor.hostedDomain, row.allowed_email_domains)) {
     throw new AssignmentNotFoundError("Evaluation not found");
   }
-  if (side === "INDIVIDUAL" && row.group_size <= 2) throw new AssignmentConflictError("Individual evaluation is disabled for groups of two or fewer");
+  if (side === "INDIVIDUAL" && row.role === "STUDENT" && row.group_size <= 2) throw new AssignmentConflictError("Individual evaluation is disabled for groups of two or fewer");
   if (row.generation < 1 || row.status === "DRAFT") throw new AssignmentConflictError("Assignment is not published");
   return row;
 }

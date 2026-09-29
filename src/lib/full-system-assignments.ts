@@ -1,4 +1,4 @@
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import type { PoolClient } from "pg";
 import { databasePool } from "./full-system-postgres";
 import { domainAllowed, type FullActor } from "./full-system-auth";
@@ -16,6 +16,7 @@ type ArtifactInput = { side: "GROUP" | "INDIVIDUAL"; itemId: string; url: string
 export type AssignmentInput = { name: string; description?: string; artifactOverviewUrl?: string;
   groupMaxScore: number; individualMaxScore: number; groupDeadline: string | null;
   individualDeadline: string | null; targetCoverage: number; maxWorkload: number;
+  instructorWeight: number;
   criteria: CriterionInput[]; artifacts?: ArtifactInput[] };
 
 function uuid(value: unknown): value is string { return typeof value === "string" && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value); }
@@ -43,6 +44,12 @@ export function validateAssignmentInput(raw: unknown): AssignmentInput {
   }
   if (x.artifactOverviewUrl !== undefined && x.artifactOverviewUrl !== "" && !safeUrl(x.artifactOverviewUrl)) {
     throw new AssignmentInputError("Artifact overview URL must use HTTPS");
+  }
+  const instructorWeight = x.instructorWeight === undefined ? 1 : x.instructorWeight;
+  if (typeof instructorWeight !== "number" || !Number.isFinite(instructorWeight) ||
+      instructorWeight < 0 || instructorWeight > 99.99 ||
+      Math.abs(Math.round(instructorWeight * 100) - instructorWeight * 100) > 0.000001) {
+    throw new AssignmentInputError("Instructor weight must be 0–99.99 with at most two decimals");
   }
   if (!Array.isArray(x.criteria) || x.criteria.length > 40 || !Array.isArray(x.artifacts ?? []) ||
       ((x.artifacts as unknown[] | undefined)?.length ?? 0) > 400) throw new AssignmentInputError("Invalid criteria or artifacts");
@@ -74,6 +81,7 @@ export function validateAssignmentInput(raw: unknown): AssignmentInput {
     groupMaxScore: x.groupMaxScore as number, individualMaxScore: x.individualMaxScore as number,
     groupDeadline: x.groupDeadline as string | null, individualDeadline: x.individualDeadline as string | null,
     targetCoverage: x.targetCoverage as number, maxWorkload: x.maxWorkload as number,
+    instructorWeight,
     criteria, artifacts };
 }
 
@@ -138,11 +146,12 @@ export async function createAssignment(actor: FullActor, classroomId: string, ra
     mutate: async client => {
       await client.query(`INSERT INTO assignment
         (id,classroom_id,name,slug,description,artifact_overview_url,group_max_score,individual_max_score,
-         group_deadline_utc,individual_deadline_utc,target_coverage,max_workload,created_by)
-        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)`,
+         group_deadline_utc,individual_deadline_utc,target_coverage,max_workload,instructor_weight,created_by)
+        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)`,
       [id, classroomId, input.name, `assignment-${id.slice(0, 8)}`, input.description ?? null,
         input.artifactOverviewUrl ?? null, input.groupMaxScore, input.individualMaxScore,
-        input.groupDeadline, input.individualDeadline, input.targetCoverage, input.maxWorkload, actor.id]);
+        input.groupDeadline, input.individualDeadline, input.targetCoverage, input.maxWorkload,
+        input.instructorWeight, actor.id]);
       await saveDetails(client, id, classroomId, input);
       return { id, status: "DRAFT" as const };
     },
@@ -163,10 +172,10 @@ export async function replaceDraftAssignment(actor: FullActor, id: string, raw: 
     mutate: async (client, row) => {
       await client.query(`UPDATE assignment SET name=$2,description=$3,artifact_overview_url=$4,
         group_max_score=$5,individual_max_score=$6,group_deadline_utc=$7,individual_deadline_utc=$8,
-        target_coverage=$9,max_workload=$10 WHERE id=$1`,
+        target_coverage=$9,max_workload=$10,instructor_weight=$11 WHERE id=$1`,
       [id, input.name, input.description ?? null, input.artifactOverviewUrl ?? null,
         input.groupMaxScore, input.individualMaxScore, input.groupDeadline, input.individualDeadline,
-        input.targetCoverage, input.maxWorkload]);
+        input.targetCoverage, input.maxWorkload, input.instructorWeight]);
       await saveDetails(client, id, row.classroom_id, input);
       return { id, status: "DRAFT" as const, generation: row.generation };
     },
@@ -200,7 +209,7 @@ async function lockedAssignment(client: PoolClient, actor: FullActor, id: string
 }
 async function loadInput(client: PoolClient, id: string): Promise<AssignmentInput> {
   const assignment = await client.query(`SELECT name,description,artifact_overview_url,group_max_score,
-    individual_max_score,group_deadline_utc,individual_deadline_utc,target_coverage,max_workload
+    individual_max_score,group_deadline_utc,individual_deadline_utc,target_coverage,max_workload,instructor_weight
     FROM assignment WHERE id=$1`, [id]);
   if (!assignment.rows[0]) throw new AssignmentNotFoundError("Assignment not found");
   const x = assignment.rows[0];
@@ -216,6 +225,7 @@ async function loadInput(client: PoolClient, id: string): Promise<AssignmentInpu
     groupDeadline: x.group_deadline_utc?.toISOString() ?? null,
     individualDeadline: x.individual_deadline_utc?.toISOString() ?? null,
     targetCoverage: x.target_coverage, maxWorkload: x.max_workload,
+    instructorWeight: Number(x.instructor_weight),
     criteria: criteria.rows.map(row => ({ side: row.side, name: row.name,
       description: row.description ?? undefined, weightPct: Number(row.weight_pct) })),
     artifacts: [...groupArtifacts.rows.map(row => ({ side: "GROUP" as const, itemId: row.item_id,
@@ -244,9 +254,16 @@ export async function getAssignment(actor: FullActor, id: string) {
       FROM assignment_generation WHERE assignment_id=$1 ORDER BY generation`, [id]);
     const coverage = await client.query(`SELECT generation,side,criterion_id,count(*)::integer AS n
       FROM pair_assignment WHERE assignment_id=$1 GROUP BY generation,side,criterion_id ORDER BY generation,side`, [id]);
+    const pairs = await client.query(`SELECT p.id,p.side,p.criterion_id,c.name AS criterion_name,
+      p.group_a_id,p.group_b_id,p.student_a_id,p.student_b_id,count(*) OVER (
+        PARTITION BY p.criterion_id,p.side,p.group_a_id,p.group_b_id,p.student_a_id,p.student_b_id) AS evaluator_count
+      FROM pair_assignment p JOIN criterion c ON c.id=p.criterion_id
+      WHERE p.assignment_id=$1 AND p.generation=$2 ORDER BY p.side,c.display_order,p.id`,
+    [id, row.generation]);
     await client.query("COMMIT");
     return { id, classroomId: row.classroom_id, status: row.status, generation: row.generation,
-      ...input, generations: generations.rows, persistedAssignments: coverage.rows };
+      ...input, generations: generations.rows, persistedAssignments: coverage.rows,
+      currentPairs: pairs.rows };
   } catch (error) { await client.query("ROLLBACK"); throw error; } finally { client.release(); }
 }
 
@@ -306,6 +323,88 @@ export async function publishAssignment(actor: FullActor, id: string, seed: stri
     },
     committedAfter: result => ({ status: result.status, generation: result.generation,
       assignmentCount: result.assignmentCount }),
+  });
+}
+
+/** Add evaluators to one persisted comparison in its current generation. */
+export async function addPairEvaluators(actor: FullActor, id: string, raw: unknown) {
+  const input = raw && typeof raw === "object" ? raw as Record<string, unknown> : {};
+  const pairId = input.pairId;
+  const mode = input.mode;
+  const count = input.count;
+  if (!uuid(pairId) || !["STUDENT", "INSTRUCTOR"].includes(String(mode)) ||
+      !Number.isSafeInteger(count) || Number(count) < 1 || Number(count) > 20 ||
+      mode === "INSTRUCTOR" && count !== 1) {
+    throw new AssignmentInputError("Provide pairId, mode and count (1–20)");
+  }
+  return runAuditedMutation({
+    prepare: async client => {
+      const assignment = await lockedAssignment(client, actor, id);
+      if (assignment.status !== "OPEN" || assignment.generation < 1) {
+        throw new AssignmentConflictError("Only an OPEN assignment accepts additional evaluators");
+      }
+      const found = await client.query(`SELECT p.*,a.group_deadline_utc,a.individual_deadline_utc
+        FROM pair_assignment p JOIN assignment a ON a.id=p.assignment_id
+        WHERE p.id=$1 AND p.assignment_id=$2 AND p.generation=$3`,
+      [pairId, id, assignment.generation]);
+      const pair = found.rows[0];
+      if (!pair) throw new AssignmentNotFoundError("Current pair not found");
+      const due = pair.side === "GROUP" ? pair.group_deadline_utc : pair.individual_deadline_utc;
+      if (!due || due.getTime() <= Date.now()) throw new AssignmentConflictError("Pair deadline passed");
+      const existing = await client.query<{ evaluator_user_id: string }>(`SELECT evaluator_user_id
+        FROM pair_assignment WHERE assignment_id=$1 AND generation=$2 AND criterion_id=$3
+          AND side=$4 AND group_a_id IS NOT DISTINCT FROM $5::uuid
+          AND group_b_id IS NOT DISTINCT FROM $6::uuid
+          AND student_a_id IS NOT DISTINCT FROM $7::uuid
+          AND student_b_id IS NOT DISTINCT FROM $8::uuid`,
+      [id, assignment.generation, pair.criterion_id, pair.side, pair.group_a_id,
+        pair.group_b_id, pair.student_a_id, pair.student_b_id]);
+      const used = new Set(existing.rows.map(row => row.evaluator_user_id));
+      let eligible: string[];
+      if (mode === "INSTRUCTOR") {
+        if (used.has(actor.id)) throw new AssignmentConflictError("Instructor already evaluates this pair");
+        eligible = [actor.id];
+      } else {
+        const students = await client.query<{ user_id: string }>(`SELECT m.user_id FROM classroom_member m
+          JOIN app_user u ON u.id=m.user_id
+          WHERE m.classroom_id=$1 AND m.role='STUDENT' AND m.membership_status='ACTIVE'
+            AND u.status='ACTIVE' AND (
+              ($2::text='GROUP' AND m.group_id<>$3::uuid AND m.group_id<>$4::uuid)
+              OR ($2::text='INDIVIDUAL' AND m.group_id=(SELECT group_id FROM classroom_member
+                WHERE classroom_id=$1 AND user_id=$5::uuid AND role='STUDENT' AND membership_status='ACTIVE')
+                AND m.user_id<>$5::uuid AND m.user_id<>$6::uuid)) ORDER BY m.user_id`,
+        [assignment.classroom_id, pair.side, pair.group_a_id, pair.group_b_id,
+          pair.student_a_id, pair.student_b_id]);
+        eligible = students.rows.map(row => row.user_id).filter(userId => !used.has(userId))
+          .sort((left, right) => {
+            const rank = (userId: string) => createHash("sha256")
+              .update(`${id}:${assignment.generation}:${pairId}:${userId}`).digest("hex");
+            return rank(left).localeCompare(rank(right));
+          });
+      }
+      if (eligible.length < Number(count)) throw new AssignmentConflictError("Not enough unused eligible evaluators");
+      const selected = eligible.slice(0, Number(count));
+      return { assignment, pair, selected };
+    },
+    intent: ({ assignment, pair, selected }) => ({ classroomId: assignment.classroom_id,
+      actorUserId: actor.id, action: "PAIR_EVALUATORS_ADD_REQUESTED", resourceType: "pair_assignment",
+      resourceId: pairId, before: { generation: assignment.generation, side: pair.side },
+      after: { mode, count: selected.length } }),
+    mutate: async (client, { assignment, pair, selected }) => {
+      for (const evaluatorId of selected) await client.query(`INSERT INTO pair_assignment
+        (id,assignment_id,criterion_id,side,group_a_id,group_b_id,student_a_id,student_b_id,
+         evaluator_user_id,display_left,generation,left_artifact_url,right_artifact_url,source)
+        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)`,
+      [randomUUID(), id, pair.criterion_id, pair.side, pair.group_a_id, pair.group_b_id,
+        pair.student_a_id, pair.student_b_id, evaluatorId, pair.display_left,
+        assignment.generation, pair.left_artifact_url, pair.right_artifact_url,
+        mode === "INSTRUCTOR" ? "INSTRUCTOR_SELF" : "INSTRUCTOR_EXTRA"]);
+      if (mode === "STUDENT") await enqueueAssignmentNotifications(client, {
+        assignmentId: id, classroomId: assignment.classroom_id, generation: assignment.generation,
+        event: "EXTRA_EVALUATOR", recipientIds: selected, keySuffix: pairId });
+      return { pairId, generation: assignment.generation, added: selected.length, mode };
+    },
+    committedAfter: result => result,
   });
 }
 

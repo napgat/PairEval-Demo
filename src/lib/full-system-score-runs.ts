@@ -12,6 +12,7 @@ const validId = (id: string) => /^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/i
 type AssignmentRow = { id: string; classroom_id: string; generation: number; status: string;
   slug: string; classroom_slug: string;
   group_max_score: string; individual_max_score: string; score_floor: string; score_ceiling: string;
+  instructor_weight: string;
   min_comparisons: number; completion_threshold: string; scoring_formula_version: string;
   allowed_email_domains: string[]; group_deadline_utc: Date | null; individual_deadline_utc: Date | null };
 type StudentRow = { id: string; group_id: string; display_name: string };
@@ -126,9 +127,9 @@ async function scoreInputs(client: PoolClient, a: AssignmentRow, kind: "INTERIM"
   const criteria = await client.query<CriterionRow>(`SELECT id,side,name,weight_pct FROM criterion
     WHERE assignment_id=$1 AND active ORDER BY id`, [a.id]);
   const pairRows = await client.query(`SELECT id,criterion_id,side,group_a_id,group_b_id,student_a_id,
-    student_b_id,display_left,evaluator_user_id FROM pair_assignment
+    student_b_id,display_left,evaluator_user_id,source FROM pair_assignment
     WHERE assignment_id=$1 AND generation=$2 ORDER BY id`, [a.id, a.generation]);
-  const answerRows = await client.query(`SELECT sa.pair_assignment_id,sa.choice,sr.evaluator_user_id
+  const answerRows = await client.query(`SELECT sa.pair_assignment_id,sa.choice,sr.evaluator_user_id,p.source
     FROM (SELECT DISTINCT ON (evaluator_user_id,side) id,evaluator_user_id,side
       FROM submission_revision WHERE assignment_id=$1 AND generation=$2
       ORDER BY evaluator_user_id,side,revision_number DESC) sr
@@ -144,7 +145,8 @@ async function scoreInputs(client: PoolClient, a: AssignmentRow, kind: "INTERIM"
     bId: p.side === "GROUP" ? p.group_b_id : p.student_b_id,
     displayLeft: p.display_left, evaluatorId: p.evaluator_user_id }));
   const answers: ScoreAnswer[] = answerRows.rows.map(row => ({ pairId: row.pair_assignment_id,
-    choice: row.choice, evaluatorId: row.evaluator_user_id, weight: 1 }));
+    choice: row.choice, evaluatorId: row.evaluator_user_id,
+    weight: row.source === "INSTRUCTOR_SELF" ? Number(a.instructor_weight) : 1 }));
   const settings: ScoreSettings = { groupMax: Number(a.group_max_score),
     individualMax: Number(a.individual_max_score), floor: Number(a.score_floor),
     ceiling: Number(a.score_ceiling), minComparisons: a.min_comparisons,
