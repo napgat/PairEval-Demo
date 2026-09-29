@@ -136,10 +136,10 @@ export async function importRoster(actor: FullActor, classroomId: string, csv: s
 
 export async function listRoster(classroomId: string) {
   const result = await databasePool().query<{ id: string; email: string; display_name: string;
-    student_id: string | null; group_name: string }>(`SELECT u.id,u.email_lookup AS email,u.display_name,m.student_number AS student_id,g.name AS group_name
+    student_id: string | null; group_id: string; group_name: string }>(`SELECT u.id,u.email_lookup AS email,u.display_name,m.student_number AS student_id,g.id AS group_id,g.name AS group_name
     FROM classroom_member m JOIN app_user u ON u.id=m.user_id JOIN group_entity g ON g.id=m.group_id
     WHERE m.classroom_id=$1 AND m.role='STUDENT' AND m.membership_status='ACTIVE'
     ORDER BY g.name,u.email_lookup`, [classroomId]);
   return result.rows.map(row => ({ id: row.id, email: row.email, displayName: row.display_name,
-    studentId: row.student_id, groupName: row.group_name }));
+    studentId: row.student_id, groupId: row.group_id, groupName: row.group_name }));
 }
