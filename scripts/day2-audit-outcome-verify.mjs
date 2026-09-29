@@ -39,7 +39,7 @@ try {
   }
   const residual = await operational.query(`SELECT
     (SELECT count(*)::integer FROM app_user WHERE email_lookup LIKE 'day2-%@example.test') AS users,
-    (SELECT count(*)::integer FROM classroom WHERE name LIKE 'Synthetic Day 2 %') AS classrooms`);
+    (SELECT count(*)::integer FROM classroom WHERE name LIKE 'Synthetic Day 2 %' OR name LIKE 'Synthetic Role %') AS classrooms`);
   console.log(`Audit outcome verification (${environment}): committed=${committed}, rejected=${rejected}, pending=${pending}, syntheticUsers=${residual.rows[0].users}, syntheticClassrooms=${residual.rows[0].classrooms}`);
   if (pending || residual.rows[0].users || residual.rows[0].classrooms) process.exitCode = 1;
 } finally { await operational.end(); await audit.end(); }

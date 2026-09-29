@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { domainAllowed, normalizeEmail, tokenHash } from "./full-system-auth";
-import { pkceChallenge, validateGoogleClaims } from "./full-system-oidc";
+import { callbackProblem, pkceChallenge, validateGoogleClaims } from "./full-system-oidc";
 
 describe("Full System OIDC claim handling", () => {
   const claims = { sub: "google-sub", nonce: "nonce", email: " First.Last+tag@Uni.ac.th ",
@@ -31,5 +31,13 @@ describe("Full System OIDC claim handling", () => {
     expect(tokenHash("secret")).toMatch(/^[a-f0-9]{64}$/);
     expect(tokenHash("secret")).not.toContain("secret");
     expect(pkceChallenge("verifier")).toMatch(/^[A-Za-z0-9_-]{43}$/);
+  });
+
+  it("reports Google consent denial only after matching the stored state", () => {
+    const input = { state: "stored", code: null, cookieState: "stored", nonce: "nonce",
+      verifier: "verifier", providerError: "access_denied" };
+    expect(callbackProblem(input)).toMatchObject({ code: "OIDC_CONSENT_DENIED", status: 403 });
+    expect(callbackProblem({ ...input, state: "wrong" })).toMatchObject({ code: "OIDC_STATE_INVALID", status: 400 });
+    expect(callbackProblem({ ...input, providerError: null })).toMatchObject({ code: "OIDC_STATE_INVALID", status: 400 });
   });
 });

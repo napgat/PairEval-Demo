@@ -22,6 +22,19 @@ export function oidcConfig(): { clientId: string; clientSecret: string; redirect
 export function randomOidcValue(): string { return randomBytes(32).toString("base64url"); }
 export function pkceChallenge(verifier: string): string { return createHash("sha256").update(verifier).digest("base64url"); }
 
+export function callbackProblem(input: { state: string | null; code: string | null;
+  cookieState: string | undefined; nonce: string | undefined; verifier: string | undefined;
+  providerError: string | null }): { code: string; status: number; message?: string } | null {
+  if (!input.state || !input.cookieState || input.state !== input.cookieState ||
+      !input.nonce || !input.verifier) return { code: "OIDC_STATE_INVALID", status: 400 };
+  if (input.providerError === "access_denied") return {
+    code: "OIDC_CONSENT_DENIED", status: 403, message: "ยกเลิกการเข้าสู่ระบบด้วย Google แล้ว" };
+  if (input.providerError) return { code: "OIDC_PROVIDER_REJECTED", status: 403,
+    message: "Google ไม่อนุญาตให้เข้าสู่ระบบในครั้งนี้" };
+  if (!input.code) return { code: "OIDC_STATE_INVALID", status: 400 };
+  return null;
+}
+
 export function validateGoogleClaims(claims: JWTPayload, expectedNonce: string): VerifiedGoogleIdentity {
   const email = typeof claims.email === "string" ? normalizeEmail(claims.email) : "";
   if (!claims.sub || typeof claims.sub !== "string" || claims.nonce !== expectedNonce || claims.email_verified !== true ||
