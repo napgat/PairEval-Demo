@@ -46,12 +46,23 @@ const day4Progress = new Map([
   ...["FR-SCORE-01", "FR-SCORE-02", "FR-SCORE-04", "FR-SCORE-05", "FR-SCORE-07", "FR-SCORE-10", "FR-SCORE-11", "FR-SCORE-12", "FR-SCORE-13"].map(id => [id, ["src/lib/full-system-scoring.ts; src/lib/full-system-my-score.ts; src/app/full-system/assignments/[id]/my-score/page.tsx", "PRD worked-example golden unit tests and Day 4 PostgreSQL latest-submission score-change smoke; full scoring acceptance pending"]]),
   ...["FR-ANON-01", "FR-ANON-02", "FR-ANON-03", "FR-ANON-04", "FR-API-01", "FR-API-06"].map(id => [id, ["src/lib/full-system-evaluation.ts; src/lib/full-system-my-score.ts; src/app/api/full-system/assignments", "Day 4 synthetic scope/no-identity and k-threshold unit/API evidence; draft API contract path and wider negative matrix pending"]]),
 ]);
+const day5Evidence = "Day 5 unit and synthetic development score/report smoke: snapshot history, override, Finalize/Reopen, CSV BOM, four-sheet XLSX, appeal and role denials; staging verification pending; full PRD acceptance pending";
+const day5Progress = new Map([
+  ["FR-API-02", ["src/lib/full-system-evaluation.ts; db/migrations/008_submission_idempotency.sql; src/app/api/full-system/assignments/[id]/evaluation/[side]/route.ts", "Day 5 synthetic same-key replay and cross-side conflict check; staging verification pending"]],
+  ...["FR-SCORE-06", "FR-SCORE-08", "FR-SCORE-09"].map(id => [id, ["src/lib/full-system-score-runs.ts; db/migrations/006_score_decisions.sql; src/app/api/full-system/assignments/[id]/score-runs", day5Evidence + "; scheduled 02:00 job remains"]]),
+  ...["FR-REPORT-01", "FR-REPORT-02", "FR-REPORT-03", "FR-REPORT-04", "FR-REPORT-05", "FR-REPORT-06"].map(id => [id, ["src/lib/full-system-score-runs.ts; src/app/full-system/assignments/[id]/reports/page.tsx; src/lib/full-system-my-score.ts", day5Evidence + "; full quality signals and pair-average coverage remain"]]),
+  ...["FR-EXPORT-01", "FR-EXPORT-02", "FR-EXPORT-05", "FR-EXPORT-06"].map(id => [id, ["src/lib/full-system-score-export.ts; src/app/api/full-system/assignments/[id]/exports/route.ts", day5Evidence + "; full naming and large async export remain"]]),
+  ...["FR-APPEAL-01", "FR-APPEAL-02"].map(id => [id, ["src/lib/full-system-appeals.ts; db/migrations/007_appeal.sql; src/app/api/full-system/assignments/[id]/appeals/route.ts", day5Evidence + "; override is a separate Reopen/Override/Finalize flow"]]),
+  ...["FR-AUDIT-01", "FR-AUDIT-02"].map(id => [id, ["src/lib/full-system-audit.ts; src/app/api/full-system/assignments/[id]/audit/route.ts", day5Evidence + "; trusted IP capture and all mandatory event coverage remain"]]),
+  ["DR-03", ["db/migrations/006_score_decisions.sql; src/lib/full-system-score-runs.ts", "Day 5 synthetic old snapshot retained after override and reopen; database UPDATE/DELETE prohibition for score snapshots remains"]],
+  ["DR-04", ["db/migrations/006_score_decisions.sql", "Score snapshot criterion values and override values stored as numeric; JavaScript scoring precision acceptance pending"]],
+]);
 const lines = [
-  "# PRD v2.1 execution matrix — through Day 4",
+  "# PRD v2.1 execution matrix — through Day 5",
   "",
   "Source: [PRD v2.1](../design%20document/pairwise_evaluation_prd%201.md) and [Traceability Matrix](../design%20document/12_Traceability%20Matrix.md). Exactly 188 IDs in PRD section 1–19. `M/S/C` comes from PRD MoSCoW tables; `unranked in PRD` is deliberate, not an inferred priority. Owner is the workstream assignment (A platform/data, B domain, C UI/API, D verification), not an institutional approver.",
   "",
-  "`not started` means the Full System implementation has no qualifying evidence. `in progress` means partial implementation or setup exists; it does not mean PRD acceptance passed. Operational migrations 001–005 are on Neon development/staging. Separate audit development/staging projects and restricted roles passed permission smoke. Assignment/pairing and student evaluation/My Score have synthetic prototype evidence. Instructor evaluation, scheduled score recomputation, finalize, extra pairing and notifications remain. Independent audit integrity, full event coverage, retention and full backup/restore remain. No ID is marked implemented or tested. Working SQLite Demo behavior and its tests are baseline evidence only, never automatic PRD v2.1 passage. `planned:` paths are targets, not existing files. Decision references are from the traceability matrix; `—` means no explicit dependency recorded there.",
+  "`not started` means the Full System implementation has no qualifying evidence. `in progress` means partial implementation or setup exists; it does not mean PRD acceptance passed. Operational migrations 001–008 are on Neon development/staging. Separate audit development/staging projects and restricted roles passed permission smoke. Assignment/pairing, student evaluation, My Score, manual score snapshots, reports/export and appeals have synthetic prototype evidence. Instructor evaluation, scheduled score recomputation, extra pairing, identity export and notifications remain. Independent audit integrity, full event coverage, retention and full backup/restore remain. No ID is marked implemented or tested. Working SQLite Demo behavior and its tests are baseline evidence only, never automatic PRD v2.1 passage. `planned:` paths are targets, not existing files. Decision references are from the traceability matrix; `—` means no explicit dependency recorded there.",
   "",
   "| PRD ID | PRD line | Owner | Priority | Status | Implementation location | Test evidence | Dependent decisions / gates |",
   "|---|---:|---|---|---|---|---|---|",
@@ -63,12 +74,12 @@ for (const row of rows) {
   if (!prd[lineNo - 1]?.includes(id)) throw new Error(`PRD line mismatch for ${id} at ${lineNo}`);
   const [owner, planned] = classification(id);
   const hasDdl = migrationIds.has(id);
-  const progress = day4Progress.get(id) ?? day3Progress.get(id) ?? day2Progress.get(id);
+  const progress = day5Progress.get(id) ?? day4Progress.get(id) ?? day3Progress.get(id) ?? day2Progress.get(id);
   const location = progress?.[0] ?? (hasDdl ? (id === "DR-09" ? "db/audit/001_audit.sql; scripts/audit-smoke.mjs; scripts/audit-integrity.mjs" : "db/migrations/001_initial.sql; db/migrations/002_identity_roster.sql (partial)") : planned);
   const decision = decisionText.trim().replace(/\|/g, "\\|");
-  const evidence = progress?.[1] ?? (!hasDdl ? "none for Full System" : id === "DR-09" ? "separate Neon audit dev/staging; restricted-role and Vercel staging probes passed; staging 5 committed/1 rejected correlated outcomes and 19-row local checkpoint passed; independent integrity/retention pending" : "migrations 001–005 applied to Neon development/staging; requirement-specific acceptance pending");
+  const evidence = progress?.[1] ?? (!hasDdl ? "none for Full System" : id === "DR-09" ? "separate Neon audit dev/staging; restricted-role and Vercel staging probes passed; staging 5 committed/1 rejected correlated outcomes and 19-row local checkpoint passed; independent integrity/retention pending" : "migrations 001–008 applied to Neon development/staging; requirement-specific acceptance pending");
   lines.push(`| \`${id}\` | [${lineNo}](../design%20document/pairwise_evaluation_prd%201.md#L${lineNo}) | ${owner} | ${priority(id, prd[lineNo - 1])} | ${hasDdl || progress ? "in progress" : "not started"} | ${location} | ${evidence} | ${decision} |`);
 }
-lines.push("", "## Acceptance gate", "", "Full System acceptance remains pending until the authenticated staging flow, privacy notice, audit event coverage, cross-classroom security, and requirement-specific tests run. See day-01.md through day-04.md for actual commands and external blockers.", "");
+lines.push("", "## Acceptance gate", "", "Full System acceptance remains pending until the authenticated staging flow, privacy notice, audit event coverage, cross-classroom security, and requirement-specific tests run. See day-01.md through day-05.md for actual commands and external blockers.", "");
 writeFileSync(join(root, "docs/full-system/prd-v2.1-execution-matrix.md"), lines.join("\n"));
 console.log(`Execution matrix written: ${rows.length} unique PRD IDs`);

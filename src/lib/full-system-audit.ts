@@ -115,3 +115,15 @@ export async function appendAuditOutcome(input: {
     throw new AuditUnavailableError("Audit outcome idempotency mismatch");
   }
 }
+
+/** Classroom-scoped instructor timeline; evaluator identity remains in restricted storage. */
+export async function readAuditTimeline(classroomId: string) {
+  await requireRestrictedAuditRole();
+  const rows = await pool().query<{ action: string; resource_type: string; resource_id: string;
+    request_id: string; occurred_at: Date }>(`SELECT action,resource_type,resource_id,request_id,occurred_at
+    FROM audit_event WHERE classroom_id=$1 ORDER BY occurred_at DESC,id DESC LIMIT 100`,
+  [classroomId]);
+  return rows.rows.map(row => ({ action: row.action, resourceType: row.resource_type,
+    resourceId: row.resource_id, requestId: row.request_id,
+    occurredAt: row.occurred_at.toISOString() }));
+}

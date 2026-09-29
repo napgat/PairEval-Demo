@@ -17,6 +17,7 @@ export default function EvaluationPage({ params }: { params: Promise<{ id: strin
   const [saving, setSaving] = useState(false);
   const [busy, setBusy] = useState(false);
   const pending = useRef(new Map<string, number | null>());
+  const submitKey = useRef<string | null>(null);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const load = async () => {
     const response = await fetch(path, { cache: "no-store" }); const payload = await response.json();
@@ -51,6 +52,7 @@ export default function EvaluationPage({ params }: { params: Promise<{ id: strin
     setData(current => current && ({ ...current, pairs: current.pairs.map(pair =>
       pair.id === pairId ? { ...pair, choice } : pair) }));
     pending.current.set(pairId, choice);
+    submitKey.current = null;
     setMessage("กำลังบันทึก…");
     if (timer.current) clearTimeout(timer.current);
     timer.current = setTimeout(() => { void flush().catch(() => {}); }, 500);
@@ -61,8 +63,11 @@ export default function EvaluationPage({ params }: { params: Promise<{ id: strin
     if (!window.confirm(`ยังไม่ตอบ ${missing} คู่จาก ${data.pairs.length} คู่ ยืนยันส่งคำตอบที่มีหรือไม่?`)) return;
     setBusy(true);
     try { await flush();
-      const response = await fetch(path, { method: "POST" }); const payload = await response.json();
+      submitKey.current ??= crypto.randomUUID();
+      const response = await fetch(path, { method: "POST",
+        headers: { "Idempotency-Key": submitKey.current } }); const payload = await response.json();
       if (!response.ok) throw new Error(payload.error?.message ?? payload.error?.code ?? "ส่งไม่สำเร็จ");
+      submitKey.current = null;
       await load(); setMessage(`ส่งคำตอบรุ่น ${payload.data.revision} แล้ว (${payload.data.answered}/${payload.data.assigned})`);
     } catch (error) { setMessage(error instanceof Error ? error.message : "ส่งไม่สำเร็จ"); }
     finally { setBusy(false); }

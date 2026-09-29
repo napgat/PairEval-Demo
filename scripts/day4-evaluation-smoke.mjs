@@ -21,6 +21,7 @@ async function api(path, user, method = "GET", body) {
   const response = await fetch(`${origin}${path}`, { method, redirect: "manual", headers: {
     Cookie: `paireval_full_session=${tokens.get(user)}`,
     ...(method === "GET" ? {} : { Origin: origin }),
+    ...(method === "POST" && path.includes("/evaluation/") ? { "Idempotency-Key": randomUUID() } : {}),
     ...(body === undefined ? {} : { "Content-Type": "application/json" }),
   }, body: body === undefined ? undefined : JSON.stringify(body) });
   return { status: response.status, payload: await response.json() };

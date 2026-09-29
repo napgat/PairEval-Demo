@@ -154,6 +154,7 @@ export default function AssignmentsPage({ params }: { params: Promise<{ id: stri
           {plan.parts.map((part, index) => <tr key={index}><td>{part.side}{part.groupId ? ` · ${groups.find(group => group[0] === part.groupId)?.[1] ?? part.groupId}` : ""}</td><td>{part.pairCount}</td><td>{part.coverage}/{part.requested}</td><td>{part.assignmentCount}</td><td>{part.reason ?? (part.lowConfidence ? "กลุ่ม 3 คน: ความเชื่อมั่นต่ำ" : "พร้อม")}</td></tr>)}
         </tbody></table></div></div>}
       {selected.status === "DRAFT" && plan?.feasible && <button className="primary-button" disabled={busy} onClick={publish}>เผยแพร่และบันทึกคู่</button>}
+      <p><a href={`/full-system/assignments/${selected.id}/reports`}>ดูรายงานและตัดสินคะแนน →</a></p>
       <h2>ประวัติ generation</h2><ul className="plain-list">{selected.generations.map(row => <li key={row.generation}>รุ่น {row.generation} · {row.status}{row.invalidated_reason ? ` · ${row.invalidated_reason}` : ""}</li>)}</ul>
       <p className="fine-print">เวลาเส้นตายกลุ่ม: {displayDate(selected.groupDeadline, timezone)} · รายบุคคล: {displayDate(selected.individualDeadline, timezone)} ({timezone})</p>
     </section>}

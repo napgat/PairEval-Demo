@@ -20,22 +20,43 @@ export async function getMyScore(actor: FullActor, assignmentId: string) {
   const a = scope.rows[0];
   if (!a || !domainAllowed(actor.hostedDomain, a.allowed_email_domains)) throw new AssignmentNotFoundError("Score not found");
   if (a.generation < 1 || a.status === "DRAFT") throw new AssignmentConflictError("Assignment is not published");
-  const [groups, students, criteria, pairs, answers] = await Promise.all([
-    client.query<{ id: string }>(`SELECT id FROM group_entity WHERE classroom_id=(SELECT classroom_id FROM assignment WHERE id=$1)`, [assignmentId]),
-    client.query<{ id: string }>(`SELECT user_id AS id FROM classroom_member WHERE classroom_id=(SELECT classroom_id FROM assignment WHERE id=$1)
-      AND role='STUDENT' AND membership_status='ACTIVE'`, [assignmentId]),
-    client.query(`SELECT id,side,weight_pct FROM criterion WHERE assignment_id=$1 AND active`, [assignmentId]),
-    client.query(`SELECT id,criterion_id,side,group_a_id,group_b_id,student_a_id,student_b_id,display_left,evaluator_user_id
-      FROM pair_assignment WHERE assignment_id=$1 AND generation=$2`, [assignmentId, a.generation]),
-    client.query(`SELECT sa.pair_assignment_id,sa.choice,sr.evaluator_user_id,p.side
+  if (a.status === "FINALIZED") {
+    const final = await client.query(`SELECT output_json FROM score_snapshot WHERE assignment_id=$1
+      AND generation=$2 AND kind='FINAL' ORDER BY snapshot_no DESC LIMIT 1`, [assignmentId, a.generation]);
+    const output = final.rows[0]?.output_json;
+    const student = output?.students?.find((row: { id: string }) => row.id === actor.id);
+    if (!student) throw new AssignmentConflictError("Final score snapshot is missing");
+    const belowK = student.flags.includes("BELOW_K");
+    const individualComponent = Number(a.individual_max_score) === 0 ? 0 :
+      belowK ? null : student.individualComponent;
+    const result = { assignmentId, status: "FINAL", label: "คะแนน Final",
+      groupComponent: student.groupComponent, individualComponent,
+      individualStatus: Number(a.individual_max_score) === 0 ? "DISABLED" :
+        belowK ? "INSUFFICIENT_DATA" : individualComponent === null ? "NO_DATA" : "AVAILABLE",
+      groupStatus: student.groupComponent === null ? "NO_DATA" : "AVAILABLE",
+      total: belowK ? null : student.total, answered: student.answered, assigned: student.assigned,
+      p: student.p, M: student.M, lowConfidence: student.flags.includes("LOW_CONFIDENCE") };
+    await client.query("COMMIT");
+    return result;
+  }
+  const groups = await client.query<{ id: string }>(`SELECT id FROM group_entity
+    WHERE classroom_id=(SELECT classroom_id FROM assignment WHERE id=$1)`, [assignmentId]);
+  const students = await client.query<{ id: string }>(`SELECT user_id AS id FROM classroom_member
+    WHERE classroom_id=(SELECT classroom_id FROM assignment WHERE id=$1)
+      AND role='STUDENT' AND membership_status='ACTIVE'`, [assignmentId]);
+  const criteria = await client.query(`SELECT id,side,weight_pct FROM criterion
+    WHERE assignment_id=$1 AND active`, [assignmentId]);
+  const pairs = await client.query(`SELECT id,criterion_id,side,group_a_id,group_b_id,student_a_id,
+    student_b_id,display_left,evaluator_user_id FROM pair_assignment
+    WHERE assignment_id=$1 AND generation=$2`, [assignmentId, a.generation]);
+  const answers = await client.query(`SELECT sa.pair_assignment_id,sa.choice,sr.evaluator_user_id,p.side
       FROM (SELECT DISTINCT ON (evaluator_user_id,side) id,evaluator_user_id,side
         FROM submission_revision WHERE assignment_id=$1 AND generation=$2
         ORDER BY evaluator_user_id,side,revision_number DESC) sr
       JOIN submission_answer sa ON sa.revision_id=sr.id
       JOIN pair_assignment p ON p.id=sa.pair_assignment_id
       WHERE p.assignment_id=$1 AND p.generation=$2 AND p.evaluator_user_id=sr.evaluator_user_id
-        AND p.side=sr.side`, [assignmentId, a.generation]),
-  ]);
+        AND p.side=sr.side`, [assignmentId, a.generation]);
   const scorePairs: ScorePair[] = pairs.rows.map(p => ({ id: p.id, criterionId: p.criterion_id,
     side: p.side, aId: p.side === "GROUP" ? p.group_a_id : p.student_a_id,
     bId: p.side === "GROUP" ? p.group_b_id : p.student_b_id,
@@ -50,12 +71,18 @@ export async function getMyScore(actor: FullActor, assignmentId: string) {
       kMin: 3, completionThreshold: Number(a.completion_threshold) } });
   const group = values.find(item => item.side === "GROUP" && item.itemId === a.group_id);
   const individual = values.find(item => item.side === "INDIVIDUAL" && item.itemId === actor.id);
+  const overrideRows = await client.query<{ side: string; override_value: string }>(`SELECT DISTINCT ON (side)
+    side,override_value FROM score_override WHERE assignment_id=$1 AND generation=$2
+      AND ((side='GROUP' AND item_id=$3) OR (side='INDIVIDUAL' AND item_id=$4))
+    ORDER BY side,created_at DESC,id DESC`, [assignmentId, a.generation, a.group_id, actor.id]);
+  const override = (side: string) => overrideRows.rows.find(row => row.side === side);
   const assigned = scorePairs.filter(pair => pair.evaluatorId === actor.id).length;
   const answered = scoreAnswers.filter(answer => answer.evaluatorId === actor.id).length;
   const { p, M } = participation(answered, assigned, Number(a.completion_threshold));
-  const groupComponent = group?.component ?? null;
+  const groupComponent = override("GROUP") ? Number(override("GROUP")!.override_value) : group?.component ?? null;
   const individualAvailable = Number(a.individual_max_score) === 0 || !!individual?.anonymous;
-  const individualComponent = Number(a.individual_max_score) === 0 ? 0 : individualAvailable ? individual?.component ?? null : null;
+  const individualComponent = Number(a.individual_max_score) === 0 ? 0 : individualAvailable ?
+    override("INDIVIDUAL") ? Number(override("INDIVIDUAL")!.override_value) : individual?.component ?? null : null;
   const total = groupComponent === null || individualComponent === null ? null :
     (groupComponent + individualComponent) * M;
   const result = { assignmentId, status: "INTERIM", label: "ชั่วคราว — อาจเปลี่ยนแปลงได้",

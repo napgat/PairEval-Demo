@@ -22,6 +22,7 @@ export async function PUT(request: NextRequest, context: Context) {
 export async function POST(request: NextRequest, context: Context) {
   const auth = await assignmentActor(request, true); if (auth.error) return auth.error;
   const { id, side } = await context.params;
-  try { return NextResponse.json({ data: await submitEvaluation(auth.actor, id, side.toUpperCase()) }); }
+  try { return NextResponse.json({ data: await submitEvaluation(auth.actor, id, side.toUpperCase(),
+    request.headers.get("Idempotency-Key")) }); }
   catch (error) { return assignmentError(error); }
 }
