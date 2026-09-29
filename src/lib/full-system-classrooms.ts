@@ -6,6 +6,7 @@ import { previewFullRosterCsv, type FullRosterRow } from "./full-system-roster";
 import { runAuditedMutation } from "./full-system-audit-outbox";
 
 export class ClassroomInputError extends Error {}
+export class ClassroomConflictError extends Error {}
 export class RosterVersionError extends Error {}
 export type ClassroomSummary = { id: string; name: string; role: string; status: string; rosterVersion: number; timezone: string };
 
@@ -118,10 +119,14 @@ export async function importRoster(actor: FullActor, classroomId: string, csv: s
         `SELECT m.role,c.allowed_email_domains FROM classroom_member m JOIN classroom c ON c.id = m.classroom_id
          WHERE m.classroom_id = $1 AND m.user_id = $2 AND m.membership_status = 'ACTIVE' FOR UPDATE`,
         [classroomId, actor.id]);
-      if (!membership.rows[0] || membership.rows[0].role === "STUDENT" ||
+      if (!membership.rows[0] || !["OWNER", "CO_TEACHER"].includes(membership.rows[0].role) ||
           !domainAllowed(actor.hostedDomain, membership.rows[0].allowed_email_domains)) {
         throw new ClassroomInputError("Classroom not found");
       }
+      const published = await client.query(`SELECT 1 FROM assignment
+        WHERE classroom_id=$1 AND status NOT IN ('DRAFT','ARCHIVED') LIMIT 1`, [classroomId]);
+      if (published.rowCount) throw new ClassroomConflictError(
+        "Unpublish every active assignment before changing the roster");
       return classroom.rows[0].roster_version;
     },
     intent: version => ({ classroomId, actorUserId: actor.id, action: "ROSTER_IMPORT_REQUESTED",

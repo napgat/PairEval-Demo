@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { actorForRequest, classroomRole, sameOrigin } from "@/lib/full-system-auth";
-import { ClassroomInputError, importRoster, RosterVersionError } from "@/lib/full-system-classrooms";
+import { ClassroomConflictError, ClassroomInputError, importRoster, RosterVersionError } from "@/lib/full-system-classrooms";
 import { AuditOutcomePendingError, AuditUnavailableError } from "@/lib/full-system-audit";
 
 export const runtime = "nodejs";
@@ -13,7 +13,7 @@ export async function POST(request: NextRequest, context: { params: Promise<{ id
   const { id } = await context.params;
   const role = await classroomRole(actor, id);
   if (!role) return NextResponse.json({ error: { code: "NOT_FOUND" } }, { status: 404 });
-  if (role === "STUDENT") return NextResponse.json({ error: { code: "FORBIDDEN" } }, { status: 403 });
+  if (!["OWNER", "CO_TEACHER"].includes(role)) return NextResponse.json({ error: { code: "FORBIDDEN" } }, { status: 403 });
   try {
     const body = await request.json();
     if (typeof body?.csv !== "string" || typeof body?.confirmDigest !== "string" ||
@@ -26,6 +26,8 @@ export async function POST(request: NextRequest, context: { params: Promise<{ id
         requestId: error.requestId } }, { status: 202, headers: { "Retry-After": "5" } });
     if (error instanceof AuditUnavailableError) return NextResponse.json({ error: { code: "AUDIT_UNAVAILABLE" } }, { status: 503 });
     if (error instanceof RosterVersionError) return NextResponse.json({ error: { code: "ROSTER_CHANGED" } }, { status: 409 });
+    if (error instanceof ClassroomConflictError) return NextResponse.json(
+      { error: { code: "ASSIGNMENT_PUBLISHED", message: error.message } }, { status: 409 });
     if (error instanceof ClassroomInputError) return NextResponse.json({ error: { code: "ROSTER_INVALID", message: error.message } }, { status: 422 });
     return NextResponse.json({ error: { code: "ROSTER_IMPORT_FAILED" } }, { status: 500 });
   }

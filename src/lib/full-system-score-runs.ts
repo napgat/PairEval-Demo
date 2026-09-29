@@ -119,7 +119,10 @@ export function assembleScoreRun(input: { assignmentId: string; generation: numb
 
 async function scoreInputs(client: PoolClient, a: AssignmentRow, kind: "INTERIM" | "FINAL") {
   const groups = await client.query<{ id: string; name: string }>(
-    "SELECT id,name FROM group_entity WHERE classroom_id=$1 ORDER BY id", [a.classroom_id]);
+    `SELECT g.id,g.name FROM group_entity g WHERE g.classroom_id=$1
+      AND EXISTS (SELECT 1 FROM classroom_member m WHERE m.classroom_id=$1
+        AND m.group_id=g.id AND m.role='STUDENT' AND m.membership_status='ACTIVE')
+      ORDER BY g.id`, [a.classroom_id]);
   const students = await client.query<StudentRow>(`SELECT m.user_id AS id,m.group_id,u.display_name
     FROM classroom_member m JOIN app_user u ON u.id=m.user_id
     WHERE m.classroom_id=$1 AND m.role='STUDENT' AND m.membership_status='ACTIVE' ORDER BY m.user_id`,

@@ -29,6 +29,14 @@ describe("Full System deterministic bounded pairing", () => {
     expect(result.parts[0].reason).toContain("minEligible=0");
     expect(result.comparisons).toHaveLength(0);
   });
+  it("reduces target coverage to the highest feasible positive value with numerical reason", () => {
+    const result = plan([3, 5, 4], "GROUP");
+    expect(result.feasible).toBe(true);
+    expect(result.parts[0]).toMatchObject({ pairCount: 3, requested: 5,
+      coverage: 3, assignmentCount: 9 });
+    expect(result.parts[0].reason).toContain("actual=3");
+    expect(result.parts[0].reason).toContain("minEligible=3");
+  });
 
   it("keeps individual evaluators in group and off their pair, with workload cap", () => {
     const result = plan([7], "INDIVIDUAL", 8);

@@ -235,7 +235,10 @@ async function loadInput(client: PoolClient, id: string): Promise<AssignmentInpu
 }
 async function planWithClient(client: PoolClient, id: string, classroomId: string, seed: string): Promise<PairPlan> {
   const input = await loadInput(client, id); validateWeights(input); validatePublishDates(input);
-  const groups = await client.query<{ id: string }>("SELECT id FROM group_entity WHERE classroom_id=$1 ORDER BY id", [classroomId]);
+  const groups = await client.query<{ id: string }>(`SELECT g.id FROM group_entity g
+    WHERE g.classroom_id=$1 AND EXISTS (SELECT 1 FROM classroom_member m
+      WHERE m.classroom_id=$1 AND m.group_id=g.id AND m.role='STUDENT'
+        AND m.membership_status='ACTIVE') ORDER BY g.id`, [classroomId]);
   const students = await client.query<PairStudent>(`SELECT m.user_id AS id,m.group_id AS "groupId"
     FROM classroom_member m WHERE m.classroom_id=$1 AND m.role='STUDENT' AND m.membership_status='ACTIVE'
     ORDER BY m.user_id`, [classroomId]);
@@ -311,13 +314,9 @@ export async function publishAssignment(actor: FullActor, id: string, seed: stri
         artifact.get(`${pair.side}:${pair.displayLeft === "A" ? pair.bId : pair.aId}`) ?? null]);
       await client.query(`UPDATE assignment SET generation=$2,pairing_seed=$3,status='OPEN',published_at=now()
         WHERE id=$1`, [id, generation, /^\d{1,18}$/.test(seed) ? seed : null]);
-      const affected = row.generation > 0 ? await client.query<{ evaluator_user_id: string }>(
-        `SELECT DISTINCT evaluator_user_id FROM pair_assignment
-         WHERE assignment_id=$1 AND generation IN ($2,$3)`, [id, row.generation, generation]) : null;
       await enqueueAssignmentNotifications(client, { assignmentId: id,
         classroomId: row.classroom_id, generation,
-        event: row.generation > 0 ? "PAIRS_REGENERATED" : "ASSIGNMENT_PUBLISHED",
-        recipientIds: affected?.rows.map(person => person.evaluator_user_id) });
+        event: row.generation > 0 ? "PAIRS_REGENERATED" : "ASSIGNMENT_PUBLISHED" });
       return { id, status: "OPEN" as const, generation, parts: plan.parts,
         assignmentCount: plan.comparisons.length };
     },

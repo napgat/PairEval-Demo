@@ -72,8 +72,15 @@ const day7Progress = new Map([
   ["FR-SCORE-03", ["src/lib/full-system-assignments.ts; src/lib/full-system-score-runs.ts; src/lib/full-system-scoring.test.ts", "Day 7 unit and synthetic development/staging score smoke passed instructor weight 0.5 in weighted mean with comparison count 2; edge acceptance pending"]],
   ["FR-NOTIF-05", ["src/lib/full-system-assignments.ts; src/lib/full-system-notifications.ts", "Day 7 synthetic development/staging extra-evaluator in-app notification passed; no external transport or deployed scheduler"]],
 ]);
+const postDay7Progress = new Map([
+  ["FR-ASSIGN-03", ["src/lib/full-system-classrooms.ts; src/lib/full-system-assignments.ts; src/app/full-system/classrooms/[id]/assignments/page.tsx", "Post-Day-7 synthetic development (staging pending) group-change browser/API smoke: published roster edit 409; unpublish then versioned CSV preview/import and republish; old submissions retained and excluded from current score. Full roster and policy acceptance pending"]],
+  ...["FR-PAIR-04", "FR-PAIR-05", "FR-PAIR-06"].map(id => [id, ["src/lib/full-system-pairing.ts; src/lib/full-system-pairing.test.ts; src/lib/full-system-assignments.ts; scripts/day3-assignment-smoke.mjs", "Post-Day-7 unit and synthetic development (staging pending) smoke: target 5 reduced to feasible 3 across three populated groups (9 assignments, balanced coverage 3 each, workload cap 8); two-group zero-eligible case blocks publish. Broader fixtures pending"]]),
+  ["FR-PAIR-11", ["src/lib/full-system-classrooms.ts; src/lib/full-system-assignments.ts; src/app/full-system/classrooms/[id]/assignments/page.tsx; scripts/day3-assignment-smoke.mjs", "Post-Day-7 synthetic development (staging pending) unpublish → group move → republish through 320 px browser; old generation 24 pairs retained, new 9 pairs and current score isolated, all 12 active students notified. Withdrawal policy OQ-4 and wider acceptance pending"]],
+  ["DR-02", ["db/migrations/004_assignment_pairing.sql; src/lib/full-system-assignments.ts; scripts/day3-assignment-smoke.mjs", "Post-Day-7 synthetic development (staging pending) group change retains prior submitted comparison and pair generation while selecting generation 2 for current score; database-level prohibition acceptance pending"]],
+  ["DR-03", ["db/migrations/006_score_decisions.sql; src/lib/full-system-score-runs.ts; src/lib/full-system-my-score.ts; scripts/day7-instructor-smoke.mjs", "Post-Day-7 synthetic development weighted instructor score agrees with My Score and prior generation is isolated; database-level snapshot immutability acceptance pending"]],
+]);
 const lines = [
-  "# PRD v2.1 execution matrix — through Day 7",
+  "# PRD v2.1 execution matrix — Day 7 plus bounded S3/S5 follow-up",
   "",
   "Source: [PRD v2.1](../design%20document/pairwise_evaluation_prd%201.md) and [Traceability Matrix](../design%20document/12_Traceability%20Matrix.md). Exactly 188 IDs in PRD section 1–19. `M/S/C` comes from PRD MoSCoW tables; `unranked in PRD` is deliberate, not an inferred priority. Owner is the workstream assignment (A platform/data, B domain, C UI/API, D verification), not an institutional approver.",
   "",
@@ -89,7 +96,7 @@ for (const row of rows) {
   if (!prd[lineNo - 1]?.includes(id)) throw new Error(`PRD line mismatch for ${id} at ${lineNo}`);
   const [owner, planned] = classification(id);
   const hasDdl = migrationIds.has(id);
-  const progress = day7Progress.get(id) ?? day6Progress.get(id) ?? day5Progress.get(id) ?? day4Progress.get(id) ?? day3Progress.get(id) ?? day2Progress.get(id);
+  const progress = postDay7Progress.get(id) ?? day7Progress.get(id) ?? day6Progress.get(id) ?? day5Progress.get(id) ?? day4Progress.get(id) ?? day3Progress.get(id) ?? day2Progress.get(id);
   const location = progress?.[0] ?? (hasDdl ? (id === "DR-09" ? "db/audit/001_audit.sql; scripts/audit-smoke.mjs; scripts/audit-integrity.mjs" : "db/migrations/001_initial.sql; db/migrations/002_identity_roster.sql (partial)") : planned);
   const decision = decisionText.trim().replace(/\|/g, "\\|");
   const evidence = progress?.[1] ?? (!hasDdl ? "none for Full System" : id === "DR-09" ? "separate Neon audit dev/staging; restricted-role and Vercel staging probes passed; staging 5 committed/1 rejected correlated outcomes and 19-row local checkpoint passed; independent integrity/retention pending" : "migrations 001–009 applied to Neon development/staging; requirement-specific acceptance pending");

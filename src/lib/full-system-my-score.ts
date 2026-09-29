@@ -11,7 +11,7 @@ export async function getMyScore(actor: FullActor, assignmentId: string) {
   try {
   await client.query("BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY");
   const scope = await client.query(`SELECT a.id,a.generation,a.status,a.group_max_score,a.individual_max_score,
-    a.score_floor,a.score_ceiling,a.min_comparisons,a.completion_threshold,
+    a.score_floor,a.score_ceiling,a.min_comparisons,a.completion_threshold,a.instructor_weight,
     m.group_id,c.allowed_email_domains
     FROM assignment a JOIN classroom c ON c.id=a.classroom_id
     JOIN classroom_member m ON m.classroom_id=a.classroom_id
@@ -39,17 +39,19 @@ export async function getMyScore(actor: FullActor, assignmentId: string) {
     await client.query("COMMIT");
     return result;
   }
-  const groups = await client.query<{ id: string }>(`SELECT id FROM group_entity
-    WHERE classroom_id=(SELECT classroom_id FROM assignment WHERE id=$1)`, [assignmentId]);
+  const groups = await client.query<{ id: string }>(`SELECT g.id FROM group_entity g
+    WHERE g.classroom_id=(SELECT classroom_id FROM assignment WHERE id=$1)
+      AND EXISTS (SELECT 1 FROM classroom_member m WHERE m.classroom_id=g.classroom_id
+        AND m.group_id=g.id AND m.role='STUDENT' AND m.membership_status='ACTIVE')`, [assignmentId]);
   const students = await client.query<{ id: string }>(`SELECT user_id AS id FROM classroom_member
     WHERE classroom_id=(SELECT classroom_id FROM assignment WHERE id=$1)
       AND role='STUDENT' AND membership_status='ACTIVE'`, [assignmentId]);
   const criteria = await client.query(`SELECT id,side,weight_pct FROM criterion
     WHERE assignment_id=$1 AND active`, [assignmentId]);
   const pairs = await client.query(`SELECT id,criterion_id,side,group_a_id,group_b_id,student_a_id,
-    student_b_id,display_left,evaluator_user_id FROM pair_assignment
+    student_b_id,display_left,evaluator_user_id,source FROM pair_assignment
     WHERE assignment_id=$1 AND generation=$2`, [assignmentId, a.generation]);
-  const answers = await client.query(`SELECT sa.pair_assignment_id,sa.choice,sr.evaluator_user_id,p.side
+  const answers = await client.query(`SELECT sa.pair_assignment_id,sa.choice,sr.evaluator_user_id,p.side,p.source
       FROM (SELECT DISTINCT ON (evaluator_user_id,side) id,evaluator_user_id,side
         FROM submission_revision WHERE assignment_id=$1 AND generation=$2
         ORDER BY evaluator_user_id,side,revision_number DESC) sr
@@ -62,7 +64,8 @@ export async function getMyScore(actor: FullActor, assignmentId: string) {
     bId: p.side === "GROUP" ? p.group_b_id : p.student_b_id,
     displayLeft: p.display_left, evaluatorId: p.evaluator_user_id }));
   const scoreAnswers: ScoreAnswer[] = answers.rows.map(row => ({ pairId: row.pair_assignment_id,
-    choice: row.choice, evaluatorId: row.evaluator_user_id, weight: 1 }));
+    choice: row.choice, evaluatorId: row.evaluator_user_id,
+    weight: row.source === "INSTRUCTOR_SELF" ? Number(a.instructor_weight) : 1 }));
   const values = calculateItemScores({ criteria: criteria.rows.map(c => ({ id: c.id, side: c.side,
     weightPct: Number(c.weight_pct) })), pairs: scorePairs, answers: scoreAnswers,
     groupIds: groups.rows.map(g => g.id), studentIds: students.rows.map(s => s.id),

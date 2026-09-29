@@ -18,6 +18,8 @@ type Assignment = Input & { id: string; status: string; generation: number;
 type Plan = { feasible: boolean; parts: Array<{ side: string; groupId?: string; pairCount: number;
   coverage: number; requested: number; assignmentCount: number; reason: string | null; lowConfidence: boolean }> };
 type RosterRow = { id: string; displayName: string; groupId: string; groupName: string };
+type RosterPreview = { errors: string[]; warnings: string[]; digest: string; version: number;
+  diff: { added: number; moved: number; unchanged: number } };
 const empty: Input = { name: "", description: "", artifactOverviewUrl: "", groupMaxScore: 10,
   individualMaxScore: 0, groupDeadline: null, individualDeadline: null, targetCoverage: 5,
   maxWorkload: 8, instructorWeight: 1,
@@ -35,6 +37,9 @@ export default function AssignmentsPage({ params }: { params: Promise<{ id: stri
   const { id: classroomId } = use(params);
   const [rows, setRows] = useState<Array<{ id: string; name: string; status: string; generation: number }>>([]);
   const [roster, setRoster] = useState<RosterRow[]>([]);
+  const [rosterVersion, setRosterVersion] = useState(0);
+  const [rosterCsv, setRosterCsv] = useState("");
+  const [rosterPreview, setRosterPreview] = useState<RosterPreview | null>(null);
   const [timezone, setTimezone] = useState("Asia/Bangkok");
   const [selected, setSelected] = useState<Assignment | null>(null);
   const [form, setForm] = useState<Input>(empty);
@@ -52,10 +57,12 @@ export default function AssignmentsPage({ params }: { params: Promise<{ id: stri
     return payload.data;
   }, []);
   const refresh = useCallback(async () => {
-    const [assignments, people] = await Promise.all([
+    const [assignments, people, classrooms] = await Promise.all([
       request(`/api/full-system/classrooms/${classroomId}/assignments`),
-      request(`/api/full-system/classrooms/${classroomId}/roster`)]);
+      request(`/api/full-system/classrooms/${classroomId}/roster`),
+      request("/api/full-system/classrooms")]);
     setRows(assignments); setRoster(people);
+    setRosterVersion(classrooms.find((room: { id: string }) => room.id === classroomId)?.rosterVersion ?? 0);
   }, [classroomId, request]);
   useEffect(() => {
     let active = true;
@@ -66,6 +73,7 @@ export default function AssignmentsPage({ params }: { params: Promise<{ id: stri
           request(`/api/full-system/classrooms/${classroomId}/roster`),
           request("/api/full-system/classrooms")]);
         if (active) { setRows(assignments); setRoster(people);
+          setRosterVersion(classrooms.find((room: { id: string }) => room.id === classroomId)?.rosterVersion ?? 0);
           setTimezone(classrooms.find((room: { id: string }) => room.id === classroomId)?.timezone ?? "Asia/Bangkok"); }
       } catch (error) { if (active) setMessage(error instanceof Error ? error.message : "โหลดข้อมูลไม่สำเร็จ"); }
     })();
@@ -123,6 +131,19 @@ export default function AssignmentsPage({ params }: { params: Promise<{ id: stri
     await open(selected.id);
     setMessage(mode === "INSTRUCTOR" ? "เพิ่มคู่ประเมินของผู้สอนแล้ว" : "เพิ่มผู้ประเมินและแจ้งเตือนแล้ว");
   });
+  const previewCsv = () => action(async () => {
+    setRosterPreview(await request(`/api/full-system/classrooms/${classroomId}/roster/preview`,
+      "POST", { csv: rosterCsv }));
+  });
+  const importCsv = () => action(async () => {
+    if (!rosterPreview || rosterPreview.version !== rosterVersion) throw new Error("ตรวจ CSV ใหม่ก่อนนำเข้า");
+    await request(`/api/full-system/classrooms/${classroomId}/roster/import`, "POST", {
+      csv: rosterCsv, expectedVersion: rosterPreview.version, confirmDigest: rosterPreview.digest });
+    setRosterPreview(null);
+    await refresh();
+    if (selected) await open(selected.id);
+    setMessage("นำเข้ารายชื่อแล้ว ตรวจ feasibility และเผยแพร่ generation ใหม่");
+  });
   const change = <K extends keyof Input>(key: K, value: Input[K]) => { setForm(current => ({ ...current, [key]: value })); setPlan(null); };
   const groups = [...new Map(roster.map(person => [person.groupId, person.groupName])).entries()];
   return <main className="assignment-shell">
@@ -134,6 +155,15 @@ export default function AssignmentsPage({ params }: { params: Promise<{ id: stri
       <div className="actions"><button className="secondary-button" onClick={() => { setSelected(null); setForm(empty); setPlan(null); }}>สร้างงานใหม่</button>
         {rows.map(row => <button className="secondary-button" key={row.id} onClick={() => action(() => open(row.id))}>
           {row.name} · {row.status} · รุ่น {row.generation}</button>)}</div>
+    </section>
+    <section className="form-panel"><h2>แก้กลุ่มหลังยกเลิกเผยแพร่</h2>
+      <p className="fine-print">รุ่นรายชื่อ {rosterVersion} · ต้องยกเลิกเผยแพร่ทุกงานที่ยังใช้งานอยู่ก่อนนำเข้า CSV; คู่และคำตอบรุ่นเดิมจะไม่มีผลกับคะแนนรุ่นใหม่ แต่ยังอยู่ในประวัติ</p>
+      <label className="field">CSV รายชื่อและกลุ่ม<textarea value={rosterCsv} placeholder="email,group_name,student_id,display_name"
+        onChange={e => { setRosterCsv(e.target.value); setRosterPreview(null); }} /></label>
+      <div className="actions"><button className="secondary-button" disabled={busy || !rosterCsv.trim()} onClick={previewCsv}>ตรวจ CSV และดูการย้ายกลุ่ม</button>
+        <button className="primary-button" disabled={busy || !rosterPreview || selected?.status !== "DRAFT"} onClick={importCsv}>ยืนยันนำเข้ารายชื่อ</button></div>
+      {rosterPreview && <p role="status" className="notice">เพิ่ม {rosterPreview.diff.added} · ย้ายกลุ่ม {rosterPreview.diff.moved} · คงเดิม {rosterPreview.diff.unchanged}
+        {rosterPreview.warnings.length ? ` · ${rosterPreview.warnings.join("; ")}` : ""}</p>}
     </section>
     <section className="form-panel"><h2>{selected ? `แก้ไข ${selected.name}` : "สร้าง DRAFT"}</h2>
       {selected && <p className="fine-print">สถานะ {selected.status} · generation {selected.generation}</p>}

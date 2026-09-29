@@ -125,6 +125,11 @@ try {
   const groupScore = snapshot.rows[0].output_json.groups.find(group => group.id === groups[0]);
   if (Math.abs(groupScore.criteria[0].q - 2 / 3) > 0.0001 ||
       groupScore.criteria[0].comparisons !== 2) throw new Error("Fractional instructor weight failed");
+  const myScore = status(await call(`${base}/my-score`, students[0]), 200,
+    "student weighted My Score");
+  if (Math.abs(myScore.groupComponent - groupScore.component) > 0.0001) {
+    throw new Error("Student My Score differs from weighted score snapshot");
+  }
   console.log(`${environment} Day 7 instructor smoke passed: role denial, 320 px instructor UI,
     eligible extra assignment, notification, duplicate rejection, instructor/student submission,
     weighted q and comparison count`);
