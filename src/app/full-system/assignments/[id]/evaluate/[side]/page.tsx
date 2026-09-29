@@ -16,6 +16,7 @@ export default function EvaluationPage({ params }: { params: Promise<{ id: strin
   const [message, setMessage] = useState("");
   const [saving, setSaving] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [clock, setClock] = useState(() => Date.now());
   const pending = useRef(new Map<string, number | null>());
   const submitKey = useRef<string | null>(null);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -30,6 +31,10 @@ export default function EvaluationPage({ params }: { params: Promise<{ id: strin
     if (active) setData(payload.data);
   } catch (error) { if (active) setMessage(error instanceof Error ? error.message : "โหลดงานไม่สำเร็จ"); } })();
     return () => { active = false; if (timer.current) clearTimeout(timer.current); }; }, [path]);
+  useEffect(() => {
+    const interval = setInterval(() => setClock(Date.now()), 60_000);
+    return () => clearInterval(interval);
+  }, []);
   const flush = async () => {
     if (timer.current) clearTimeout(timer.current);
     const updates = [...pending.current]; pending.current.clear();
@@ -73,13 +78,16 @@ export default function EvaluationPage({ params }: { params: Promise<{ id: strin
     finally { setBusy(false); }
   };
   const answered = data?.pairs.filter(pair => pair.choice !== null).length ?? 0;
+  const remaining = data?.deadline ? Date.parse(data.deadline) - clock : null;
   return <main className="assignment-shell"><p><a href="/full-system">← ห้องเรียน</a></p>
     <span className="eyebrow">PairEval Full System · FS08–FS09</span>
     <h1>{side === "group" ? "ประเมินผลงานกลุ่ม" : "ประเมินรายบุคคล"}</h1>
-    {message && <p className="notice" role="status">{message}</p>}
+    {message && <p className="notice" role="status" aria-live="polite">{message}</p>}
     {!data ? <p>กำลังโหลด…</p> : <>
       <p className="lead">ตอบแล้ว {answered}/{data.pairs.length} · {data.readOnly ? "พ้นกำหนดส่ง: อ่านอย่างเดียว" : "ระบบบันทึกฉบับร่างอัตโนมัติ"}</p>
       <p className="fine-print">ครบกำหนด {data.deadline ? new Date(data.deadline).toLocaleString("th-TH", { timeZone: data.timezone }) : "ไม่กำหนด"} ({data.timezone})</p>
+      {remaining !== null && remaining > 0 && remaining < 48 * 60 * 60 * 1000 &&
+        <p className="evaluation-warning" role="status">เหลือเวลา {Math.floor(remaining / 3_600_000)} ชั่วโมง {Math.floor(remaining % 3_600_000 / 60_000)} นาที</p>}
       <p className="fine-print">คะแนนส่วนตัวใช้คะแนนจากงานของคุณร่วมกับอัตราการส่งคำตอบ p และตัวคูณ M; draft ยังไม่ถูกนำไปคำนวณ</p>
       {data.latestSubmission && <p className="notice">ส่งล่าสุดรุ่น {data.latestSubmission.revision} · ส่งซ้ำได้ก่อนครบกำหนด</p>}
       {data.disabledReason && <p className="notice">{data.disabledReason}</p>}
@@ -87,7 +95,7 @@ export default function EvaluationPage({ params }: { params: Promise<{ id: strin
         <div className="criterion-heading"><h2>{criterion.name}</h2><span>{data.pairs.filter(pair => pair.criterionId === criterion.id && pair.choice !== null).length} / {data.pairs.filter(pair => pair.criterionId === criterion.id).length}</span></div>
         {criterion.description && <p>{criterion.description}</p>}
         {data.pairs.filter(pair => pair.criterionId === criterion.id).map(pair => <fieldset className="evaluation-pair" key={pair.id}>
-          <legend>เลือกหนึ่งคำตอบสำหรับคู่นี้</legend><div className="candidate-labels">
+          <legend>{criterion.name}: {pair.leftName} เทียบกับ {pair.rightName} — เลือกหนึ่งคำตอบ</legend><div className="candidate-labels">
             <strong>{pair.leftName}<br />{pair.leftArtifactUrl ? <a href={pair.leftArtifactUrl} target="_blank" rel="noopener noreferrer">ดูผลงาน ↗</a> : <small>อาจารย์ยังไม่ได้ระบุผลงาน</small>}</strong>
             <span>เทียบกับ</span><strong>{pair.rightName}<br />{pair.rightArtifactUrl ? <a href={pair.rightArtifactUrl} target="_blank" rel="noopener noreferrer">ดูผลงาน ↗</a> : <small>อาจารย์ยังไม่ได้ระบุผลงาน</small>}</strong>
           </div><div className="rating-options">{labels.map((label, index) => <label key={index}>

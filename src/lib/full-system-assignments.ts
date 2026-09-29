@@ -3,6 +3,7 @@ import type { PoolClient } from "pg";
 import { databasePool } from "./full-system-postgres";
 import { domainAllowed, type FullActor } from "./full-system-auth";
 import { runAuditedMutation } from "./full-system-audit-outbox";
+import { enqueueAssignmentNotifications } from "./full-system-notifications";
 import { planFullSystemPairs, type PairCriterion, type PairPlan, type PairStudent } from "./full-system-pairing";
 
 export class AssignmentInputError extends Error {}
@@ -293,6 +294,13 @@ export async function publishAssignment(actor: FullActor, id: string, seed: stri
         artifact.get(`${pair.side}:${pair.displayLeft === "A" ? pair.bId : pair.aId}`) ?? null]);
       await client.query(`UPDATE assignment SET generation=$2,pairing_seed=$3,status='OPEN',published_at=now()
         WHERE id=$1`, [id, generation, /^\d{1,18}$/.test(seed) ? seed : null]);
+      const affected = row.generation > 0 ? await client.query<{ evaluator_user_id: string }>(
+        `SELECT DISTINCT evaluator_user_id FROM pair_assignment
+         WHERE assignment_id=$1 AND generation IN ($2,$3)`, [id, row.generation, generation]) : null;
+      await enqueueAssignmentNotifications(client, { assignmentId: id,
+        classroomId: row.classroom_id, generation,
+        event: row.generation > 0 ? "PAIRS_REGENERATED" : "ASSIGNMENT_PUBLISHED",
+        recipientIds: affected?.rows.map(person => person.evaluator_user_id) });
       return { id, status: "OPEN" as const, generation, parts: plan.parts,
         assignmentCount: plan.comparisons.length };
     },

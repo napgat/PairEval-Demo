@@ -3,6 +3,7 @@ import type { PoolClient } from "pg";
 import { databasePool } from "./full-system-postgres";
 import { domainAllowed, type FullActor } from "./full-system-auth";
 import { runAuditedMutation } from "./full-system-audit-outbox";
+import { enqueueAssignmentNotifications } from "./full-system-notifications";
 import { AssignmentConflictError, AssignmentInputError, AssignmentNotFoundError } from "./full-system-assignments";
 import { calculateItemScores, mappedScore, participation, type ScoreAnswer, type ScoreItem,
   type ScorePair, type ScoreSettings } from "./full-system-scoring";
@@ -196,8 +197,12 @@ export async function createScoreRun(actor: FullActor, assignmentId: string, kin
             criterion.lowConfidence ? ["LOW_CONFIDENCE"] : []]);
         }
       }
-      if (kind === "FINAL") await client.query(`UPDATE assignment SET status='FINALIZED',finalized_at=now()
-        WHERE id=$1`, [assignmentId]);
+      if (kind === "FINAL") {
+        await client.query(`UPDATE assignment SET status='FINALIZED',finalized_at=now()
+          WHERE id=$1`, [assignmentId]);
+        await enqueueAssignmentNotifications(client, { assignmentId, classroomId: a.classroom_id,
+          generation: a.generation, event: "SCORE_FINALIZED", keySuffix: snapshotId });
+      }
       return { id: snapshotId, snapshotNo: number.rows[0].next, kind, inputHash, output };
     },
     committedAfter: result => ({ snapshotId: result.id, snapshotNo: result.snapshotNo,

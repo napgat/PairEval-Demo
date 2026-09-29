@@ -1,4 +1,5 @@
 import { createHash, randomBytes, randomUUID } from "node:crypto";
+import { execFileSync } from "node:child_process";
 import { Pool } from "pg";
 
 const environment = process.argv[2] ?? "development";
@@ -98,6 +99,10 @@ try {
   }
   const published = check(await api(`/api/full-system/assignments/${draftId}/publish`, "POST", { seed: "7" }), 200, "publish");
   if (published.assignmentCount !== 24 || published.generation !== 1) throw new Error("Incorrect persisted pairing count");
+  const opened = await pool.query(`SELECT event_type,count(*)::integer AS n FROM app_notification
+    WHERE assignment_id=$1 GROUP BY event_type`, [draftId]);
+  if (opened.rows.length !== 1 || opened.rows[0].event_type !== "ASSIGNMENT_PUBLISHED" ||
+      opened.rows[0].n !== 12) throw new Error("Publish notification count mismatch");
   const first = await pool.query(`SELECT side,count(*)::integer AS n,
     count(*) FILTER (WHERE student_a_id IS NOT NULL)::integer AS individuals,
     count(*) FILTER (WHERE left_artifact_url IS NOT NULL OR right_artifact_url IS NOT NULL)::integer AS artifacts
@@ -113,6 +118,23 @@ try {
     criteria: [{ side: "GROUP", name: "Combined", weightPct: 100 }] })), 200, "edit after unpublish");
   const republished = check(await api(`/api/full-system/assignments/${draftId}/publish`, "POST", { seed: "7" }), 200, "republish");
   if (republished.assignmentCount !== 12 || republished.generation !== 2) throw new Error("Incorrect generation 2 count");
+  const regenerated = await pool.query(`SELECT count(*)::integer AS n FROM app_notification
+    WHERE assignment_id=$1 AND event_type='PAIRS_REGENERATED' AND generation=2`, [draftId]);
+  const affected = await pool.query(`SELECT count(DISTINCT evaluator_user_id)::integer AS n
+    FROM pair_assignment WHERE assignment_id=$1 AND generation IN (1,2)`, [draftId]);
+  if (regenerated.rows[0].n !== affected.rows[0].n) throw new Error("Regeneration notification count mismatch");
+  await pool.query("UPDATE assignment SET group_deadline_utc=now()+interval '24 hours' WHERE id=$1", [draftId]);
+  const runReminders = () => execFileSync(process.execPath,
+    ["scripts/day6-deadline-reminders.mjs", environment, draftId], { encoding: "utf8" });
+  const firstReminder = runReminders(), replayReminder = runReminders();
+  const expectedRecipients = await pool.query(`SELECT count(DISTINCT evaluator_user_id)::integer AS n
+    FROM pair_assignment WHERE assignment_id=$1 AND generation=2`, [draftId]);
+  const reminders = await pool.query(`SELECT count(*)::integer AS n FROM app_notification
+    WHERE assignment_id=$1 AND event_type='DEADLINE_48H_GROUP'`, [draftId]);
+  if (!firstReminder.includes(`inserted=${expectedRecipients.rows[0].n}`) ||
+      !replayReminder.includes("inserted=0") || reminders.rows[0].n !== expectedRecipients.rows[0].n) {
+    throw new Error("48-hour reminder retry was not idempotent");
+  }
   const history = await pool.query(`SELECT generation,count(*)::integer AS n FROM pair_assignment
     WHERE assignment_id=$1 GROUP BY generation ORDER BY generation`, [draftId]);
   if (history.rows.length !== 2 || history.rows[0].n !== 24 || history.rows[1].n !== 12) {
@@ -137,7 +159,8 @@ try {
     throw new Error("Infeasible publish wrote partial state");
   }
   console.log(`${environment} Day 3 assignment smoke passed: draft/weights, feasible publish 24, no Individual,
-    artifacts, unpublish/re-publish generations 24+12, clone, infeasible rollback`);
+    artifacts, unpublish/re-publish generations 24+12, clone, infeasible rollback,
+    publish/regenerate notifications and idempotent 48-hour reminders`);
 } finally {
   const client = await pool.connect();
   try {

@@ -101,13 +101,25 @@ try {
   }
   const studentBrowser = await chromium.launch({ headless: true });
   try {
-    const context = await studentBrowser.newContext({ viewport: { width: 390, height: 844 } });
+    const context = await studentBrowser.newContext({ viewport: { width: 320, height: 700 } });
     await context.addCookies([{ name: "paireval_full_session", value: tokens.get(evaluator), url: origin }]);
     const page = await context.newPage(); page.setDefaultTimeout(60000);
     page.on("dialog", dialog => void dialog.accept());
     await page.goto(`${origin}/full-system/assignments/${assignment}/evaluate/group`);
     await page.getByRole("heading", { name: "ประเมินผลงานกลุ่ม" }).waitFor();
     const firstRadio = page.locator(`input[name="${pair.id}"]`).first();
+    await firstRadio.focus();
+    await page.keyboard.press("ArrowRight");
+    if (!await page.locator(`input[name="${pair.id}"]`).nth(1).isChecked()) {
+      throw new Error("Radio group did not support keyboard arrows");
+    }
+    const radioBox = await firstRadio.boundingBox();
+    if (!radioBox || radioBox.width < 24 || radioBox.height < 24) {
+      throw new Error("Radio target smaller than 24 px");
+    }
+    const horizontalOverflow = await page.evaluate(() =>
+      document.documentElement.scrollWidth > window.innerWidth);
+    if (horizontalOverflow) throw new Error("Evaluation page overflows at 320 px");
     await page.locator(`input[name="${pair.id}"]`).nth(1).check();
     const saved = page.waitForResponse(response => response.url().endsWith(path) &&
       response.request().method() === "PUT" && response.status() === 200);

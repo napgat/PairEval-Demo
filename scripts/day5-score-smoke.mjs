@@ -163,6 +163,26 @@ try {
   const final = expectStatus(await call(scorePath, owner, "POST", { kind: "FINAL" }), 200,
     "final snapshot");
   if (final.snapshotNo !== 3 || final.kind !== "FINAL") throw new Error("Finalize mismatch");
+  const noticePath = "/api/full-system/notifications";
+  const notices = expectStatus(await call(noticePath, students[0]), 200, "own notification list");
+  if (notices.length !== 1 || notices[0].event !== "SCORE_FINALIZED" ||
+      notices[0].deepLink !== `/full-system/assignments/${assignment}/my-score` ||
+      /คะแนน|@|\d+[.]\d+/.test(notices[0].message)) throw new Error("Final notification leaked data or link failed");
+  if (expectStatus(await call(noticePath, outsider), 200, "outsider notification list").length !== 0 ||
+      expectStatus(await call(noticePath, owner), 200, "owner notification list").length !== 0) {
+    throw new Error("Notification leaked outside student recipient scope");
+  }
+  expectStatus(await call(noticePath, students[1], "POST", { id: notices[0].id }), 404,
+    "other student notification read denied");
+  const badOrigin = await fetch(`${origin}${noticePath}`, { method: "POST", headers: {
+    Cookie: `paireval_full_session=${tokens.get(students[0])}`,
+    Origin: "https://untrusted.example.test", "Content-Type": "application/json" },
+    body: JSON.stringify({ id: notices[0].id }) });
+  if (badOrigin.status !== 403 || (await badOrigin.json()).error?.code !== "ORIGIN_INVALID") {
+    throw new Error("Notification mutation accepted a cross-origin request");
+  }
+  expectStatus(await call(noticePath, students[0], "POST", { id: notices[0].id }), 200,
+    "own notification read");
   const ownFinal = expectStatus(await call(`/api/full-system/assignments/${assignment}/my-score`,
     students[0]), 200, "own final score");
   if (ownFinal.status !== "FINAL" || ownFinal.groupComponent !== 12 ||

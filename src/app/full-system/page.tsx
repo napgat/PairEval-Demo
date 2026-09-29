@@ -4,10 +4,12 @@ import { useEffect, useState } from "react";
 
 type Session = { email: string; platformRole: string; canCreateClassroom: boolean; privacyAccepted: boolean };
 type Classroom = { id: string; name: string; role: string; status: string; rosterVersion: number };
+type Notice = { id: string; event: string; message: string; deepLink: string; createdAt: string; readAt: string | null };
 
 export default function FullSystemHome() {
   const [session, setSession] = useState<Session | null>(null);
   const [classrooms, setClassrooms] = useState<Classroom[]>([]);
+  const [notices, setNotices] = useState<Notice[]>([]);
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState("");
 
@@ -26,6 +28,8 @@ export default function FullSystemHome() {
           if (!rooms.ok) throw new Error("CLASSROOMS_UNAVAILABLE");
           const data = (await rooms.json()).data as Classroom[];
           if (active) setClassrooms(data);
+          const notifications = await fetch("/api/full-system/notifications", { cache: "no-store" });
+          if (notifications.ok && active) setNotices((await notifications.json()).data as Notice[]);
         }
       } catch {
         if (active) setMessage("ไม่สามารถโหลดข้อมูลระบบเต็มได้ในขณะนี้");
@@ -46,6 +50,11 @@ export default function FullSystemHome() {
       <form action="/api/auth/logout" method="post"><button className="secondary-button" type="submit">ออกจากระบบ</button></form>
     </> : <>
       <p className="lead">บัญชี {session.email}</p>
+      {notices.length > 0 && <section aria-label="การแจ้งเตือน"><h2>การแจ้งเตือน</h2>
+        <ul className="plain-list">{notices.map(notice => <li key={notice.id}>
+          <a className="text-link" href={notice.deepLink}>{notice.message}</a>
+          {!notice.readAt && <small>ใหม่</small>}
+        </li>)}</ul></section>}
       {classrooms.length === 0 ? <p>ยังไม่มีห้องเรียนที่บัญชีนี้เข้าถึงได้</p> :
         <ul className="plain-list">{classrooms.map(room => <li key={room.id}>
           <strong>{room.name}</strong><small>บทบาท {room.role} · รุ่นรายชื่อ {room.rosterVersion}</small>

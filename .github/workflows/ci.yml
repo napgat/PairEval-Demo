@@ -20,6 +20,8 @@ jobs:
           node-version: '24'
           cache: npm
       - run: npm ci
+      - name: Block high and critical production dependency advisories
+        run: npm audit --omit=dev --audit-level=high
       - run: npm test
       - run: npm run typecheck
       - run: npm run lint
