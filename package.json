@@ -22,7 +22,8 @@
     "db:smoke": "node scripts/full-system-db.mjs smoke",
     "audit:activate": "node scripts/activate-audit-role.mjs",
     "audit:smoke": "node scripts/audit-smoke.mjs",
-    "audit:integrity": "node scripts/audit-integrity.mjs"
+    "audit:integrity": "node scripts/audit-integrity.mjs",
+    "audit:restore-test": "node scripts/audit-restore-test.mjs"
   },
   "dependencies": {
     "jose": "^6.2.12",

@@ -17,4 +17,8 @@ try {
   const row = result.rows[0];
   console.log(JSON.stringify({ status: row?.status ?? null, googleLinked: row?.google_linked ?? false,
     sessionCount: row?.session_count ?? 0, activeSessions: row?.active_sessions ?? 0 }));
+  const sessions = await pool.query(`SELECT created_at, revoked_at IS NOT NULL AS revoked,
+    expires_at > now() AS unexpired FROM app_session WHERE user_id=$1 ORDER BY created_at`, [fixture.userId]);
+  console.log(JSON.stringify({ sessions: sessions.rows.map(item => ({ createdAt: item.created_at,
+    revoked: item.revoked, unexpired: item.unexpired })) }));
 } finally { await pool.end(); }
