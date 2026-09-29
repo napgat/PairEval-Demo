@@ -23,6 +23,7 @@ try {
     FROM audit_outbox ORDER BY created_at,id`);
   const pending = outbox.rows.filter(row => !row.delivered_at).length;
   let committed = 0; let rejected = 0;
+  const actions = new Map();
   for (const row of outbox.rows) {
     if (!row.delivered_at) continue;
     const events = await audit.query(`SELECT id,action FROM audit_event
@@ -36,10 +37,13 @@ try {
     if (row.action.endsWith("_COMMITTED")) committed++;
     else if (row.action.endsWith("_REJECTED")) rejected++;
     else throw new Error("Unexpected audit outcome action");
+    actions.set(row.action, (actions.get(row.action) ?? 0) + 1);
   }
   const residual = await operational.query(`SELECT
     (SELECT count(*)::integer FROM app_user WHERE email_lookup LIKE 'day2-%@example.test') AS users,
-    (SELECT count(*)::integer FROM classroom WHERE name LIKE 'Synthetic Day 2 %' OR name LIKE 'Synthetic Role %') AS classrooms`);
-  console.log(`Audit outcome verification (${environment}): committed=${committed}, rejected=${rejected}, pending=${pending}, syntheticUsers=${residual.rows[0].users}, syntheticClassrooms=${residual.rows[0].classrooms}`);
-  if (pending || residual.rows[0].users || residual.rows[0].classrooms) process.exitCode = 1;
+    (SELECT count(*)::integer FROM classroom WHERE name LIKE 'Synthetic Day 2 %' OR name LIKE 'Synthetic Role %' OR name LIKE 'Synthetic Day 3 %') AS classrooms,
+    (SELECT count(*)::integer FROM app_user WHERE email_lookup LIKE 'day3-%@example.test') AS day3_users`);
+  console.log(`Audit outcome verification (${environment}): committed=${committed}, rejected=${rejected}, pending=${pending}, syntheticUsers=${residual.rows[0].users}, day3Users=${residual.rows[0].day3_users}, syntheticClassrooms=${residual.rows[0].classrooms}`);
+  console.log(`Assignment audit outcomes (${environment}): ${JSON.stringify(Object.fromEntries([...actions].filter(([action]) => action.startsWith("ASSIGNMENT_"))))}`);
+  if (pending || residual.rows[0].users || residual.rows[0].day3_users || residual.rows[0].classrooms) process.exitCode = 1;
 } finally { await operational.end(); await audit.end(); }

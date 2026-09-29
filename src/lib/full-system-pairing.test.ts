@@ -56,4 +56,30 @@ describe("Full System deterministic bounded pairing", () => {
     expect(a.comparisons).not.toEqual(plan([6, 6, 6, 6], "GROUP", 8, "different").comparisons);
     for (const part of a.parts) expect(part.assignmentCount).toBe(part.pairCount * part.coverage);
   });
+
+  it("preserves uniqueness, eligibility, exact coverage and balanced loads across synthetic sizes", () => {
+    for (const sizes of [[3, 3, 3], [4, 5, 6], [2, 4, 7], [7, 7, 7, 7]]) {
+      for (const side of ["GROUP", "INDIVIDUAL"] as const) {
+        const result = plan(sizes, side);
+        const owner = new Map(students(sizes).map(student => [student.id, student.groupId]));
+        const unique = new Set<string>();
+        for (const part of result.parts) {
+          const actual = result.comparisons.filter(row => row.criterionId === part.criterionId &&
+            (side === "GROUP" || owner.get(row.aId) === part.groupId));
+          expect(actual).toHaveLength(part.assignmentCount);
+          expect(part.assignmentCount).toBe(part.pairCount * part.coverage);
+          const loads = Object.values(part.workload);
+          if (loads.length) expect(Math.max(...loads) - Math.min(...loads)).toBeLessThanOrEqual(1);
+        }
+        for (const row of result.comparisons) {
+          expect(row.aId < row.bId).toBe(true);
+          expect(row.evaluatorId).not.toBe(row.aId); expect(row.evaluatorId).not.toBe(row.bId);
+          if (side === "GROUP") expect([row.aId, row.bId]).not.toContain(owner.get(row.evaluatorId));
+          else expect(owner.get(row.evaluatorId)).toBe(owner.get(row.aId));
+          const key = `${row.criterionId}:${row.aId}:${row.bId}:${row.evaluatorId}`;
+          expect(unique.has(key)).toBe(false); unique.add(key);
+        }
+      }
+    }
+  });
 });

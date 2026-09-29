@@ -34,7 +34,7 @@ const day2Progress = new Map([
   ["FR-AUDIT-02", ["src/lib/full-system-audit.ts; db/audit/001_audit.sql", "audit schema has actor/action/resource/UTC timestamp and before/after/reason/IP fields; writer omits trusted IP and some event context; acceptance pending"]],
   ["FR-AUDIT-03", ["db/audit/001_audit.sql; scripts/audit-smoke.mjs", "app role INSERT/SELECT allowed and UPDATE/DELETE/TRUNCATE denied on both audit DBs; no audit mutation API; owner-level tamper protection pending"]],
 ]);
-const day3Evidence = "61 local tests, typecheck/lint/build, synthetic development and staging assignment smoke; Day 3 prototype only; requirement-specific acceptance and remaining gates in day-03.md";
+const day3Evidence = "62 local tests, typecheck/lint/build, synthetic development and staging assignment smoke; Day 3 prototype only; requirement-specific acceptance and remaining gates in day-03.md";
 const day3Progress = new Map([
   ...["FR-ASSIGN-01", "FR-ASSIGN-02", "FR-ASSIGN-03", "FR-ASSIGN-06", "FR-ASSIGN-07", "FR-ASSIGN-08"].map(id => [id, ["src/lib/full-system-assignments.ts; src/app/full-system/classrooms/[id]/assignments/page.tsx; db/migrations/004_assignment_pairing.sql", day3Evidence]]),
   ...["FR-PAIR-01", "FR-PAIR-02", "FR-PAIR-03", "FR-PAIR-04", "FR-PAIR-05", "FR-PAIR-06", "FR-PAIR-07", "FR-PAIR-08", "FR-PAIR-09", "FR-PAIR-12", "FR-PAIR-13", "FR-PAIR-14", "INV-G1", "INV-I1", "INV-2", "INV-3", "INV-4", "INV-5", "INV-6"].map(id => [id, ["src/lib/full-system-pairing.ts; src/lib/full-system-pairing.test.ts; src/lib/full-system-assignments.ts; db/migrations/004_assignment_pairing.sql", day3Evidence]]),
