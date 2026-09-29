@@ -7,7 +7,7 @@ import { runAuditedMutation } from "./full-system-audit-outbox";
 
 export class ClassroomInputError extends Error {}
 export class RosterVersionError extends Error {}
-export type ClassroomSummary = { id: string; name: string; role: string; status: string; rosterVersion: number };
+export type ClassroomSummary = { id: string; name: string; role: string; status: string; rosterVersion: number; timezone: string };
 
 function digest(csv: string): string { return createHash("sha256").update(csv).digest("hex"); }
 
@@ -80,11 +80,12 @@ export async function createClassroomWithRoster(actor: FullActor, input: {
 
 export async function listClassrooms(actor: FullActor): Promise<ClassroomSummary[]> {
   const result = await databasePool().query<{ id: string; name: string; role: string; status: string;
-    roster_version: number; allowed_email_domains: string[] }>(`SELECT c.id,c.name,m.role,c.status,c.roster_version,c.allowed_email_domains
+    roster_version: number; timezone: string; allowed_email_domains: string[] }>(`SELECT c.id,c.name,m.role,c.status,c.roster_version,c.timezone,c.allowed_email_domains
     FROM classroom_member m JOIN classroom c ON c.id = m.classroom_id
     WHERE m.user_id = $1 AND m.membership_status = 'ACTIVE' AND c.status = 'ACTIVE' ORDER BY c.created_at DESC`, [actor.id]);
   return result.rows.filter(row => domainAllowed(actor.hostedDomain, row.allowed_email_domains))
-    .map(row => ({ id: row.id, name: row.name, role: row.role, status: row.status, rosterVersion: row.roster_version }));
+    .map(row => ({ id: row.id, name: row.name, role: row.role, status: row.status,
+      rosterVersion: row.roster_version, timezone: row.timezone }));
 }
 
 export async function previewRosterChange(classroomId: string, csv: string) {

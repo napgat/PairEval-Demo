@@ -50,6 +50,7 @@ export default function FullSystemHome() {
         <ul className="plain-list">{classrooms.map(room => <li key={room.id}>
           <strong>{room.name}</strong><small>บทบาท {room.role} · รุ่นรายชื่อ {room.rosterVersion}</small>
           {(["OWNER", "CO_TEACHER"].includes(room.role)) && <a className="text-link" href={`/full-system/classrooms/${room.id}/assignments`}>จัดการงานและดูแผนจับคู่ →</a>}
+          {room.role === "STUDENT" && <a className="text-link" href={`/full-system/classrooms/${room.id}/work`}>งานประเมินและคะแนนของฉัน →</a>}
         </li>)}</ul>}
       {session.canCreateClassroom && <p className="fine-print">บัญชีนี้มีสิทธิ์สร้างห้องเรียนผ่าน API ของระบบเต็ม</p>}
       <form action="/api/auth/logout" method="post"><button className="secondary-button" type="submit">ออกจากระบบ</button></form>

@@ -1,6 +1,7 @@
 "use client";
 
 import { use, useCallback, useEffect, useState } from "react";
+import { classroomInputToUtc, utcToClassroomInput } from "@/lib/full-system-timezone";
 
 type Criterion = { side: "GROUP" | "INDIVIDUAL"; name: string; weightPct: number };
 type Artifact = { side: "GROUP" | "INDIVIDUAL"; itemId: string; url: string };
@@ -17,19 +18,18 @@ const empty: Input = { name: "", description: "", artifactOverviewUrl: "", group
   individualMaxScore: 0, groupDeadline: null, individualDeadline: null, targetCoverage: 5,
   maxWorkload: 8, criteria: [{ side: "GROUP", name: "", weightPct: 100 }], artifacts: [] };
 const url = (id: string) => `/api/full-system/assignments/${id}`;
-const displayDate = (value: string | null) => value ? new Date(value).toLocaleString("th-TH", { timeZone: "Asia/Bangkok" }) : "ยังไม่กำหนด";
+const displayDate = (value: string | null, timeZone: string) => value ? new Date(value).toLocaleString("th-TH", { timeZone }) : "ยังไม่กำหนด";
 const toInput = (assignment: Assignment): Input => ({ name: assignment.name, description: assignment.description ?? "",
   artifactOverviewUrl: assignment.artifactOverviewUrl ?? "", groupMaxScore: assignment.groupMaxScore,
   individualMaxScore: assignment.individualMaxScore, groupDeadline: assignment.groupDeadline,
   individualDeadline: assignment.individualDeadline, targetCoverage: assignment.targetCoverage,
   maxWorkload: assignment.maxWorkload, criteria: assignment.criteria, artifacts: assignment.artifacts });
-const datetimeLocal = (value: string | null) => value ? new Date(value).toLocaleString("sv-SE", { timeZone: "Asia/Bangkok" }).replace(" ", "T").slice(0, 16) : "";
-const localToIso = (value: string) => value ? new Date(`${value}:00+07:00`).toISOString() : null;
 
 export default function AssignmentsPage({ params }: { params: Promise<{ id: string }> }) {
   const { id: classroomId } = use(params);
   const [rows, setRows] = useState<Array<{ id: string; name: string; status: string; generation: number }>>([]);
   const [roster, setRoster] = useState<RosterRow[]>([]);
+  const [timezone, setTimezone] = useState("Asia/Bangkok");
   const [selected, setSelected] = useState<Assignment | null>(null);
   const [form, setForm] = useState<Input>(empty);
   const [plan, setPlan] = useState<Plan | null>(null);
@@ -53,10 +53,12 @@ export default function AssignmentsPage({ params }: { params: Promise<{ id: stri
     let active = true;
     (async () => {
       try {
-        const [assignments, people] = await Promise.all([
+        const [assignments, people, classrooms] = await Promise.all([
           request(`/api/full-system/classrooms/${classroomId}/assignments`),
-          request(`/api/full-system/classrooms/${classroomId}/roster`)]);
-        if (active) { setRows(assignments); setRoster(people); }
+          request(`/api/full-system/classrooms/${classroomId}/roster`),
+          request("/api/full-system/classrooms")]);
+        if (active) { setRows(assignments); setRoster(people);
+          setTimezone(classrooms.find((room: { id: string }) => room.id === classroomId)?.timezone ?? "Asia/Bangkok"); }
       } catch (error) { if (active) setMessage(error instanceof Error ? error.message : "โหลดข้อมูลไม่สำเร็จ"); }
     })();
     return () => { active = false; };
@@ -83,6 +85,14 @@ export default function AssignmentsPage({ params }: { params: Promise<{ id: stri
     if (!selected || !plan?.feasible) throw new Error("ตรวจแผนที่เป็นไปได้ก่อนเผยแพร่");
     await request(`${url(selected.id)}/publish`, "POST", { seed }); await open(selected.id);
     setMessage("เผยแพร่และบันทึกคู่แล้ว");
+  });
+  const saveDeadlines = () => action(async () => {
+    if (!selected) return;
+    await request(`${url(selected.id)}/deadlines`, "PATCH", {
+      ...(form.groupMaxScore > 0 ? { groupDeadline: form.groupDeadline } : {}),
+      ...(form.individualMaxScore > 0 ? { individualDeadline: form.individualDeadline } : {}),
+    });
+    await open(selected.id); setMessage("บันทึกกำหนดส่งแล้ว");
   });
   const unpublish = () => action(async () => {
     if (!selected) return;
@@ -118,7 +128,7 @@ export default function AssignmentsPage({ params }: { params: Promise<{ id: stri
       <div className="form-grid">
         {(["groupMaxScore", "individualMaxScore", "targetCoverage", "maxWorkload"] as const).map(key => <label className="field" key={key}>{({ groupMaxScore: "คะแนนกลุ่ม", individualMaxScore: "คะแนนรายบุคคล", targetCoverage: "ผู้ประเมินต่อคู่ที่ต้องการ", maxWorkload: "งานสูงสุดต่อผู้ประเมิน" })[key]}<input type="number" min="0" value={form[key]} disabled={selected?.status !== undefined && selected.status !== "DRAFT"} onChange={e => change(key, Number(e.target.value))} /></label>)}
       </div>
-      <div className="form-grid">{(["groupDeadline", "individualDeadline"] as const).map(key => <label className="field" key={key}>{key === "groupDeadline" ? "กำหนดส่งกลุ่ม" : "กำหนดส่งรายบุคคล"} (เวลาไทย)<input type="datetime-local" value={datetimeLocal(form[key])} disabled={selected?.status !== undefined && selected.status !== "DRAFT"} onChange={e => change(key, localToIso(e.target.value))} /></label>)}</div>
+      <div className="form-grid">{(["groupDeadline", "individualDeadline"] as const).map(key => <label className="field" key={key}>{key === "groupDeadline" ? "กำหนดส่งกลุ่ม" : "กำหนดส่งรายบุคคล"} ({timezone})<input type="datetime-local" value={utcToClassroomInput(form[key], timezone)} disabled={selected?.status !== undefined && !["DRAFT", "OPEN", "CLOSED"].includes(selected.status)} onChange={e => change(key, classroomInputToUtc(e.target.value, timezone))} /></label>)}</div>
       <h2>เกณฑ์และน้ำหนัก</h2><p className="fine-print">แต่ละด้านที่เปิดใช้ต้องรวม 100%</p>
       {form.criteria.map((criterion, index) => <div className="criteria-row" key={index}>
         <label>ด้าน<select value={criterion.side} disabled={selected?.status !== undefined && selected.status !== "DRAFT"} onChange={e => change("criteria", form.criteria.map((row, i) => i === index ? { ...row, side: e.target.value as Criterion["side"] } : row))}><option value="GROUP">กลุ่ม</option><option value="INDIVIDUAL">รายบุคคล</option></select></label>
@@ -131,6 +141,7 @@ export default function AssignmentsPage({ params }: { params: Promise<{ id: stri
       {[...groups.map(([itemId, name]) => ({ side: "GROUP" as const, itemId, name: `กลุ่ม ${name}` })),
         ...roster.map(person => ({ side: "INDIVIDUAL" as const, itemId: person.id, name: person.displayName }))].map(item => <label className="field" key={`${item.side}:${item.itemId}`}>{item.name}<input type="url" placeholder="https://…" disabled={selected?.status !== undefined && selected.status !== "DRAFT"} value={form.artifacts.find(row => row.side === item.side && row.itemId === item.itemId)?.url ?? ""} onChange={e => change("artifacts", [...form.artifacts.filter(row => row.side !== item.side || row.itemId !== item.itemId), ...(e.target.value ? [{ side: item.side, itemId: item.itemId, url: e.target.value }] : [])])} /></label>)}
       <div className="actions">{(!selected || selected.status === "DRAFT") && <button className="primary-button" disabled={busy} onClick={save}>บันทึก DRAFT</button>}
+        {selected && ["OPEN", "CLOSED"].includes(selected.status) && <button className="primary-button" disabled={busy} onClick={saveDeadlines}>บันทึกกำหนดส่ง</button>}
         {selected && <button className="secondary-button" disabled={busy} onClick={clone}>คัดลอกเป็น DRAFT</button>}
         {selected && selected.status !== "DRAFT" && <button className="secondary-button" disabled={busy} onClick={unpublish}>ยกเลิกเผยแพร่</button>}</div>
     </section>
@@ -144,7 +155,7 @@ export default function AssignmentsPage({ params }: { params: Promise<{ id: stri
         </tbody></table></div></div>}
       {selected.status === "DRAFT" && plan?.feasible && <button className="primary-button" disabled={busy} onClick={publish}>เผยแพร่และบันทึกคู่</button>}
       <h2>ประวัติ generation</h2><ul className="plain-list">{selected.generations.map(row => <li key={row.generation}>รุ่น {row.generation} · {row.status}{row.invalidated_reason ? ` · ${row.invalidated_reason}` : ""}</li>)}</ul>
-      <p className="fine-print">เวลาเส้นตายกลุ่ม: {displayDate(selected.groupDeadline)} · รายบุคคล: {displayDate(selected.individualDeadline)}</p>
+      <p className="fine-print">เวลาเส้นตายกลุ่ม: {displayDate(selected.groupDeadline, timezone)} · รายบุคคล: {displayDate(selected.individualDeadline, timezone)} ({timezone})</p>
     </section>}
   </main>;
 }

@@ -325,3 +325,51 @@ export async function unpublishAssignment(actor: FullActor, id: string, reason: 
     committedAfter: result => ({ status: result.status, invalidatedGeneration: result.invalidatedGeneration }),
   });
 }
+
+export async function changeAssignmentDeadlines(actor: FullActor, id: string, raw: unknown) {
+  if (!raw || typeof raw !== "object") throw new AssignmentInputError("Deadline body is required");
+  const input = raw as Record<string, unknown>;
+  const group = input.groupDeadline, individual = input.individualDeadline;
+  if (group === undefined && individual === undefined || group !== undefined && (group === null || !deadline(group)) ||
+      individual !== undefined && (individual === null || !deadline(individual))) {
+    throw new AssignmentInputError("Provide an explicit deadline with a timezone offset");
+  }
+  return runAuditedMutation({
+    prepare: async client => {
+      const row = await lockedAssignment(client, actor, id);
+      if (!["OPEN", "CLOSED"].includes(row.status)) throw new AssignmentConflictError("Deadline changes require an OPEN or CLOSED assignment");
+      const current = await client.query<{ group_deadline_utc: Date | null; individual_deadline_utc: Date | null;
+        group_max_score: string; individual_max_score: string; db_now: Date }>(`SELECT group_deadline_utc,individual_deadline_utc,
+        group_max_score,individual_max_score,clock_timestamp() AS db_now FROM assignment WHERE id=$1`, [id]);
+      const value = current.rows[0];
+      for (const [side, next, old, max] of [["GROUP", group, value.group_deadline_utc, value.group_max_score],
+        ["INDIVIDUAL", individual, value.individual_deadline_utc, value.individual_max_score]] as const) {
+        if (next === undefined) continue;
+        if (Number(max) === 0 || !old) throw new AssignmentInputError(`${side} side is disabled`);
+        const newTime = Date.parse(next as string);
+        if (newTime <= value.db_now.getTime()) throw new AssignmentInputError("New deadline must be in the future");
+        if (newTime < old.getTime() && old.getTime() <= value.db_now.getTime()) {
+          throw new AssignmentConflictError("Cannot shorten a deadline that has already passed");
+        }
+      }
+      return { row, value };
+    },
+    intent: ({ row, value }) => ({ classroomId: row.classroom_id, actorUserId: actor.id,
+      action: "ASSIGNMENT_DEADLINE_CHANGE_REQUESTED", resourceType: "assignment", resourceId: id,
+      before: { status: row.status, groupDeadline: value.group_deadline_utc?.toISOString(),
+        individualDeadline: value.individual_deadline_utc?.toISOString() } }),
+    mutate: async (client, { row, value }) => {
+      const nextGroup = group === undefined ? value.group_deadline_utc : group;
+      const nextIndividual = individual === undefined ? value.individual_deadline_utc : individual;
+      const shouldOpen = row.status === "CLOSED" && [nextGroup, nextIndividual].some(next =>
+        next && new Date(next).getTime() > value.db_now.getTime());
+      await client.query(`UPDATE assignment SET group_deadline_utc=$2,individual_deadline_utc=$3,
+        status=CASE WHEN $4 THEN 'OPEN' ELSE status END WHERE id=$1`,
+      [id, nextGroup, nextIndividual, shouldOpen]);
+      return { id, status: shouldOpen ? "OPEN" : row.status,
+        groupDeadline: nextGroup ? new Date(nextGroup).toISOString() : null,
+        individualDeadline: nextIndividual ? new Date(nextIndividual).toISOString() : null };
+    },
+    committedAfter: result => result,
+  });
+}
