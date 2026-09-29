@@ -28,7 +28,7 @@ async function scope(client: PoolClient, actor: FullActor, assignmentId: string,
     throw new AssignmentNotFoundError("Evaluation not found");
   }
   if (side === "INDIVIDUAL" && row.group_size <= 2) throw new AssignmentConflictError("Individual evaluation is disabled for groups of two or fewer");
-  if (row.generation < 1) throw new AssignmentConflictError("Assignment is not published");
+  if (row.generation < 1 || row.status === "DRAFT") throw new AssignmentConflictError("Assignment is not published");
   return row;
 }
 function writable(row: Scope): void {

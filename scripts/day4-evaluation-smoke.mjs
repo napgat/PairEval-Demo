@@ -125,6 +125,21 @@ try {
   const score1 = check(await api(scorePath, targetStudent), 200, "score after submit");
   if (score1.groupStatus !== "AVAILABLE" || score1.groupComponent === null ||
       JSON.stringify(score1).includes("evaluatorId")) throw new Error("Published own score missing or identity leak");
+  const scoreBrowser = await chromium.launch({ headless: true });
+  try {
+    const context = await scoreBrowser.newContext({ viewport: { width: 390, height: 844 } });
+    await context.addCookies([{ name: "paireval_full_session", value: tokens.get(targetStudent), url: origin }]);
+    const page = await context.newPage(); page.setDefaultTimeout(60000);
+    await page.goto(`${origin}/full-system/assignments/${assignment}/my-score`);
+    await page.getByRole("heading", { name: "คะแนนของฉัน" }).waitFor();
+    await page.getByText("ชั่วคราว — อาจเปลี่ยนแปลงได้").waitFor();
+    await page.getByText(score1.groupComponent.toFixed(2), { exact: true }).first().waitFor();
+    if ((await page.locator("main").innerText()).includes("ผู้ประเมิน:") ||
+        (await page.locator("main").innerText()).includes("เปลี่ยนจากเมื่อวาน")) {
+      throw new Error("My Score UI exposed evaluator or delta");
+    }
+    await context.close();
+  } finally { await scoreBrowser.close(); }
   check(await api(path, evaluator, "PUT", { pairId: pair.id, choice: 6 }), 200, "save changed draft");
   const second = check(await api(path, evaluator, "POST"), 200, "re-submit");
   if (second.revision !== 2) throw new Error("Second revision missing");
@@ -143,8 +158,12 @@ try {
   check(await api(deadlinePath, outsider, "PATCH", { groupDeadline: "2030-12-02T16:59:00+07:00" }), 404, "outsider deadline");
   check(await api(deadlinePath, owner, "PATCH", { groupDeadline: "2030-12-02T16:59:00+07:00" }), 200, "extend after deadline");
   if (check(await api(path, evaluator), 200, "extended deadline").readOnly) throw new Error("Extension did not reopen evaluation");
-  console.log(`${environment} Day 4 evaluation smoke passed: instructor/student UI, scope, draft refresh/exclusion, partial submit,
-    immutable re-submit, score change from latest revision, deadline denial/extension, no identity leak`);
+  check(await api(`/api/full-system/assignments/${assignment}/unpublish`, owner, "POST",
+    { reason: "synthetic invalidation check" }), 200, "unpublish");
+  check(await api(path, evaluator), 409, "invalidated evaluation hidden");
+  check(await api(scorePath, targetStudent), 409, "invalidated score hidden");
+  console.log(`${environment} Day 4 evaluation smoke passed: instructor/student/My Score UI, scope, draft refresh/exclusion, partial submit,
+    immutable re-submit, score change from latest revision, deadline denial/extension, invalidation, no identity leak`);
 } finally {
   const client = await pool.connect();
   try { await client.query("BEGIN");
