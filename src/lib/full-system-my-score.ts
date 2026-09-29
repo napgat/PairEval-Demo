@@ -7,8 +7,10 @@ export async function getMyScore(actor: FullActor, assignmentId: string) {
   if (!/^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/i.test(assignmentId)) {
     throw new AssignmentInputError("Invalid assignment ID");
   }
-  const db = databasePool();
-  const scope = await db.query(`SELECT a.id,a.generation,a.status,a.group_max_score,a.individual_max_score,
+  const client = await databasePool().connect();
+  try {
+  await client.query("BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY");
+  const scope = await client.query(`SELECT a.id,a.generation,a.status,a.group_max_score,a.individual_max_score,
     a.score_floor,a.score_ceiling,a.min_comparisons,a.completion_threshold,
     m.group_id,c.allowed_email_domains
     FROM assignment a JOIN classroom c ON c.id=a.classroom_id
@@ -19,13 +21,13 @@ export async function getMyScore(actor: FullActor, assignmentId: string) {
   if (!a || !domainAllowed(actor.hostedDomain, a.allowed_email_domains)) throw new AssignmentNotFoundError("Score not found");
   if (a.generation < 1 || a.status === "DRAFT") throw new AssignmentConflictError("Assignment is not published");
   const [groups, students, criteria, pairs, answers] = await Promise.all([
-    db.query<{ id: string }>(`SELECT id FROM group_entity WHERE classroom_id=(SELECT classroom_id FROM assignment WHERE id=$1)`, [assignmentId]),
-    db.query<{ id: string }>(`SELECT user_id AS id FROM classroom_member WHERE classroom_id=(SELECT classroom_id FROM assignment WHERE id=$1)
+    client.query<{ id: string }>(`SELECT id FROM group_entity WHERE classroom_id=(SELECT classroom_id FROM assignment WHERE id=$1)`, [assignmentId]),
+    client.query<{ id: string }>(`SELECT user_id AS id FROM classroom_member WHERE classroom_id=(SELECT classroom_id FROM assignment WHERE id=$1)
       AND role='STUDENT' AND membership_status='ACTIVE'`, [assignmentId]),
-    db.query(`SELECT id,side,weight_pct FROM criterion WHERE assignment_id=$1 AND active`, [assignmentId]),
-    db.query(`SELECT id,criterion_id,side,group_a_id,group_b_id,student_a_id,student_b_id,display_left,evaluator_user_id
+    client.query(`SELECT id,side,weight_pct FROM criterion WHERE assignment_id=$1 AND active`, [assignmentId]),
+    client.query(`SELECT id,criterion_id,side,group_a_id,group_b_id,student_a_id,student_b_id,display_left,evaluator_user_id
       FROM pair_assignment WHERE assignment_id=$1 AND generation=$2`, [assignmentId, a.generation]),
-    db.query(`SELECT sa.pair_assignment_id,sa.choice,sr.evaluator_user_id,p.side
+    client.query(`SELECT sa.pair_assignment_id,sa.choice,sr.evaluator_user_id,p.side
       FROM (SELECT DISTINCT ON (evaluator_user_id,side) id,evaluator_user_id,side
         FROM submission_revision WHERE assignment_id=$1 AND generation=$2
         ORDER BY evaluator_user_id,side,revision_number DESC) sr
@@ -56,10 +58,14 @@ export async function getMyScore(actor: FullActor, assignmentId: string) {
   const individualComponent = Number(a.individual_max_score) === 0 ? 0 : individualAvailable ? individual?.component ?? null : null;
   const total = groupComponent === null || individualComponent === null ? null :
     (groupComponent + individualComponent) * M;
-  return { assignmentId, status: "INTERIM", label: "ชั่วคราว — อาจเปลี่ยนแปลงได้",
+  const result = { assignmentId, status: "INTERIM", label: "ชั่วคราว — อาจเปลี่ยนแปลงได้",
     groupComponent, individualComponent, individualStatus: Number(a.individual_max_score) === 0 ? "DISABLED" :
       individualAvailable ? individualComponent === null ? "NO_DATA" : "AVAILABLE" : "INSUFFICIENT_DATA",
     groupStatus: groupComponent === null ? "NO_DATA" : "AVAILABLE", total,
     answered, assigned, p, M,
     lowConfidence: !!group?.criteria.some(c => c.lowConfidence) || !!individual?.criteria.some(c => c.lowConfidence) };
+  await client.query("COMMIT");
+  return result;
+  } catch (error) { await client.query("ROLLBACK").catch(() => {}); throw error; }
+  finally { client.release(); }
 }
