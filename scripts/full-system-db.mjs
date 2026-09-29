@@ -14,7 +14,7 @@ if (!process.env.PAIR_EVAL_ENV || !["development", "staging"].includes(process.e
 if (!process.env.PAIR_EVAL_EXPECTED_DB_HOST || new URL(process.env.DATABASE_URL).hostname !== process.env.PAIR_EVAL_EXPECTED_DB_HOST) {
   throw new Error("DATABASE_URL host does not match PAIR_EVAL_EXPECTED_DB_HOST");
 }
-const pool = new Pool({ connectionString: process.env.DATABASE_URL, max: 2, connectionTimeoutMillis: 5000 });
+const pool = new Pool({ connectionString: process.env.DATABASE_URL, max: 2, connectionTimeoutMillis: 15000 });
 
 async function migrate() {
   const client = await pool.connect();

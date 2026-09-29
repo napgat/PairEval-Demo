@@ -1,7 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { actorForRequest, sameOrigin } from "@/lib/full-system-auth";
 import { ClassroomInputError, createClassroomWithRoster, listClassrooms } from "@/lib/full-system-classrooms";
-import { AuditUnavailableError } from "@/lib/full-system-audit";
+import { AuditOutcomePendingError, AuditUnavailableError } from "@/lib/full-system-audit";
 
 export const runtime = "nodejs";
 
@@ -26,6 +26,9 @@ export async function POST(request: NextRequest) {
     const result = await createClassroomWithRoster(actor, body);
     return NextResponse.json({ data: result }, { status: 201 });
   } catch (error) {
+    if (error instanceof AuditOutcomePendingError) return NextResponse.json(
+      { data: { status: error.commitState === "UNKNOWN" ? "COMMIT_UNKNOWN" : "AUDIT_PENDING",
+        requestId: error.requestId } }, { status: 202, headers: { "Retry-After": "5" } });
     if (error instanceof AuditUnavailableError) return NextResponse.json({ error: { code: "AUDIT_UNAVAILABLE" } }, { status: 503 });
     if (error instanceof ClassroomInputError) return NextResponse.json({ error: { code: "CLASSROOM_INVALID", message: error.message } }, { status: 422 });
     return NextResponse.json({ error: { code: "CLASSROOM_CREATE_FAILED" } }, { status: 500 });

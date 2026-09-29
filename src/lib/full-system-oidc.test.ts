@@ -16,6 +16,9 @@ describe("Full System OIDC claim handling", () => {
   it("rejects nonce and unverified email claims", () => {
     expect(() => validateGoogleClaims(claims, "other")).toThrow();
     expect(() => validateGoogleClaims({ ...claims, email_verified: false }, "nonce")).toThrow();
+    expect(() => validateGoogleClaims({ ...claims, sub: "" }, "nonce")).toThrow();
+    expect(() => validateGoogleClaims({ ...claims, email: "not-an-email" }, "nonce")).toThrow();
+    expect(() => validateGoogleClaims({ ...claims, email: undefined }, "nonce")).toThrow();
   });
 
   it("uses verified hosted domain for classroom scope", () => {

@@ -23,7 +23,8 @@
     "audit:activate": "node scripts/activate-audit-role.mjs",
     "audit:smoke": "node scripts/audit-smoke.mjs",
     "audit:integrity": "node scripts/audit-integrity.mjs",
-    "audit:restore-test": "node scripts/audit-restore-test.mjs"
+    "audit:restore-test": "node scripts/audit-restore-test.mjs",
+    "audit:drain": "node scripts/audit-outbox-drain.mjs"
   },
   "dependencies": {
     "jose": "^6.2.12",

@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { actorForRequest, sameOrigin } from "@/lib/full-system-auth";
-import { AuditUnavailableError } from "@/lib/full-system-audit";
+import { AuditOutcomePendingError, AuditUnavailableError } from "@/lib/full-system-audit";
 import { MemberConflictError, MemberInputError, MemberNotFoundError, removeStaffMember } from "@/lib/full-system-members";
 
 export const runtime = "nodejs";
@@ -15,6 +15,9 @@ export async function DELETE(request: NextRequest, context: { params: Promise<{ 
     await removeStaffMember(actor, id, userId);
     return new NextResponse(null, { status: 204 });
   } catch (error) {
+    if (error instanceof AuditOutcomePendingError) return NextResponse.json(
+      { data: { status: error.commitState === "UNKNOWN" ? "COMMIT_UNKNOWN" : "AUDIT_PENDING",
+        requestId: error.requestId } }, { status: 202, headers: { "Retry-After": "5" } });
     if (error instanceof AuditUnavailableError) return NextResponse.json({ error: { code: "AUDIT_UNAVAILABLE" } }, { status: 503 });
     if (error instanceof MemberNotFoundError) return NextResponse.json({ error: { code: "NOT_FOUND" } }, { status: 404 });
     if (error instanceof MemberConflictError) return NextResponse.json({ error: { code: "MEMBER_CONFLICT" } }, { status: 409 });

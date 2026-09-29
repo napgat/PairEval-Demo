@@ -3,7 +3,7 @@ import type { PoolClient } from "pg";
 import { databasePool } from "./full-system-postgres";
 import { domainAllowed, type FullActor } from "./full-system-auth";
 import { previewFullRosterCsv, type FullRosterRow } from "./full-system-roster";
-import { writeAuditIntent } from "./full-system-audit";
+import { runAuditedMutation } from "./full-system-audit-outbox";
 
 export class ClassroomInputError extends Error {}
 export class RosterVersionError extends Error {}
@@ -52,29 +52,30 @@ export async function createClassroomWithRoster(actor: FullActor, input: {
   const ownerId = actor.platformRole === "SYSTEM_ADMIN" ? input.ownerUserId : actor.id;
   if (!ownerId || !/^[0-9a-f-]{36}$/.test(ownerId)) throw new ClassroomInputError("A FACULTY owner is required");
   const classroomId = randomUUID();
-  await writeAuditIntent({ classroomId, actorUserId: actor.id, action: "CLASSROOM_CREATE_REQUESTED",
-    resourceType: "classroom", resourceId: classroomId });
-  const client = await databasePool().connect();
-  try {
-    await client.query("BEGIN");
-    const creator = await client.query<{ platform_role: string; can_create_classroom: boolean }>(
-      "SELECT platform_role, can_create_classroom FROM app_user WHERE id = $1 AND status = 'ACTIVE' FOR UPDATE", [actor.id]);
-    if (!creator.rows[0] || creator.rows[0].platform_role !== "SYSTEM_ADMIN" &&
-        !creator.rows[0].can_create_classroom) throw new ClassroomInputError("FACULTY entitlement required");
-    const owner = await client.query("SELECT 1 FROM app_user WHERE id = $1 AND can_create_classroom AND status = 'ACTIVE'", [ownerId]);
-    if (owner.rowCount !== 1) throw new ClassroomInputError("Owner must have active FACULTY entitlement");
-    await client.query(`INSERT INTO classroom
-      (id,name,slug,timezone,allowed_email_domains,created_by)
-      VALUES ($1,$2,$3,$4,$5,$6)`,
-      [classroomId, name, `classroom-${classroomId.slice(0, 8)}`, input.timezone ?? "Asia/Bangkok",
-        domains.map(domain => domain.toLowerCase()), actor.id]);
-    await client.query(`INSERT INTO classroom_member (id,classroom_id,user_id,role)
-      VALUES ($1,$2,$3,'OWNER')`, [randomUUID(), classroomId, ownerId]);
-    await upsertRoster(client, classroomId, preview.rows);
-    await client.query("COMMIT");
-    return { id: classroomId, students: preview.rows.length, groups: preview.groups.length, warnings: preview.warnings };
-  } catch (error) { await client.query("ROLLBACK"); throw error; }
-  finally { client.release(); }
+  return runAuditedMutation({
+    prepare: async client => {
+      const creator = await client.query<{ platform_role: string; can_create_classroom: boolean }>(
+        "SELECT platform_role, can_create_classroom FROM app_user WHERE id = $1 AND status = 'ACTIVE' FOR UPDATE", [actor.id]);
+      if (!creator.rows[0] || creator.rows[0].platform_role !== "SYSTEM_ADMIN" &&
+          !creator.rows[0].can_create_classroom) throw new ClassroomInputError("FACULTY entitlement required");
+      const owner = await client.query("SELECT 1 FROM app_user WHERE id = $1 AND can_create_classroom AND status = 'ACTIVE'", [ownerId]);
+      if (owner.rowCount !== 1) throw new ClassroomInputError("Owner must have active FACULTY entitlement");
+    },
+    intent: () => ({ classroomId, actorUserId: actor.id, action: "CLASSROOM_CREATE_REQUESTED",
+      resourceType: "classroom", resourceId: classroomId }),
+    mutate: async client => {
+      await client.query(`INSERT INTO classroom
+        (id,name,slug,timezone,allowed_email_domains,created_by)
+        VALUES ($1,$2,$3,$4,$5,$6)`,
+        [classroomId, name, `classroom-${classroomId.slice(0, 8)}`, input.timezone ?? "Asia/Bangkok",
+          domains.map(domain => domain.toLowerCase()), actor.id]);
+      await client.query(`INSERT INTO classroom_member (id,classroom_id,user_id,role)
+        VALUES ($1,$2,$3,'OWNER')`, [randomUUID(), classroomId, ownerId]);
+      await upsertRoster(client, classroomId, preview.rows);
+      return { id: classroomId, students: preview.rows.length, groups: preview.groups.length, warnings: preview.warnings };
+    },
+    committedAfter: result => ({ students: result.students, groups: result.groups }),
+  });
 }
 
 export async function listClassrooms(actor: FullActor): Promise<ClassroomSummary[]> {
@@ -106,29 +107,31 @@ export async function importRoster(actor: FullActor, classroomId: string, csv: s
   const preview = previewFullRosterCsv(csv);
   if (preview.errors.length) throw new ClassroomInputError(preview.errors.join("; "));
   if (digest(csv) !== confirmDigest) throw new ClassroomInputError("CSV differs from preview");
-  await writeAuditIntent({ classroomId, actorUserId: actor.id, action: "ROSTER_IMPORT_REQUESTED",
-    resourceType: "classroom_roster", resourceId: classroomId });
-  const client = await databasePool().connect();
-  try {
-    await client.query("BEGIN");
-    const classroom = await client.query<{ roster_version: number }>(
-      "SELECT roster_version FROM classroom WHERE id = $1 AND status = 'ACTIVE' FOR UPDATE", [classroomId]);
-    if (!classroom.rows[0]) throw new ClassroomInputError("Classroom not found");
-    if (classroom.rows[0].roster_version !== expectedVersion) throw new RosterVersionError("Roster changed since preview");
-    const membership = await client.query<{ role: string; allowed_email_domains: string[] }>(
-      `SELECT m.role,c.allowed_email_domains FROM classroom_member m JOIN classroom c ON c.id = m.classroom_id
-       WHERE m.classroom_id = $1 AND m.user_id = $2 AND m.membership_status = 'ACTIVE' FOR UPDATE`,
-      [classroomId, actor.id]);
-    if (!membership.rows[0] || membership.rows[0].role === "STUDENT" ||
-        !domainAllowed(actor.hostedDomain, membership.rows[0].allowed_email_domains)) {
-      throw new ClassroomInputError("Classroom not found");
-    }
-    await upsertRoster(client, classroomId, preview.rows);
-    await client.query("COMMIT");
-    return { students: preview.rows.length, groups: preview.groups.length, warnings: preview.warnings,
-      rosterVersion: expectedVersion + 1 };
-  } catch (error) { await client.query("ROLLBACK"); throw error; }
-  finally { client.release(); }
+  return runAuditedMutation({
+    prepare: async client => {
+      const classroom = await client.query<{ roster_version: number }>(
+        "SELECT roster_version FROM classroom WHERE id = $1 AND status = 'ACTIVE' FOR UPDATE", [classroomId]);
+      if (!classroom.rows[0]) throw new ClassroomInputError("Classroom not found");
+      if (classroom.rows[0].roster_version !== expectedVersion) throw new RosterVersionError("Roster changed since preview");
+      const membership = await client.query<{ role: string; allowed_email_domains: string[] }>(
+        `SELECT m.role,c.allowed_email_domains FROM classroom_member m JOIN classroom c ON c.id = m.classroom_id
+         WHERE m.classroom_id = $1 AND m.user_id = $2 AND m.membership_status = 'ACTIVE' FOR UPDATE`,
+        [classroomId, actor.id]);
+      if (!membership.rows[0] || membership.rows[0].role === "STUDENT" ||
+          !domainAllowed(actor.hostedDomain, membership.rows[0].allowed_email_domains)) {
+        throw new ClassroomInputError("Classroom not found");
+      }
+      return classroom.rows[0].roster_version;
+    },
+    intent: version => ({ classroomId, actorUserId: actor.id, action: "ROSTER_IMPORT_REQUESTED",
+      resourceType: "classroom_roster", resourceId: classroomId, before: { rosterVersion: version } }),
+    mutate: async client => {
+      await upsertRoster(client, classroomId, preview.rows);
+      return { students: preview.rows.length, groups: preview.groups.length, warnings: preview.warnings,
+        rosterVersion: expectedVersion + 1 };
+    },
+    committedAfter: result => ({ students: result.students, groups: result.groups, rosterVersion: result.rosterVersion }),
+  });
 }
 
 export async function listRoster(classroomId: string) {

@@ -1,5 +1,5 @@
 import { databasePool } from "./full-system-postgres";
-import { writeAuditIntent } from "./full-system-audit";
+import { runAuditedMutation } from "./full-system-audit-outbox";
 import type { FullActor } from "./full-system-auth";
 
 export class EntitlementInputError extends Error {}
@@ -19,19 +19,23 @@ export async function setFacultyEntitlement(actor: FullActor, userId: string, en
       typeof reason !== "string" || reason.trim().length < 3 || reason.length > 500) {
     throw new EntitlementInputError("Invalid entitlement change");
   }
-  await writeAuditIntent({ actorUserId: actor.id, action: "FACULTY_ENTITLEMENT_CHANGE_REQUESTED",
-    resourceType: "app_user", resourceId: userId });
-  const client = await databasePool().connect();
-  try {
-    await client.query("BEGIN");
-    const admin = await client.query("SELECT 1 FROM app_user WHERE id=$1 AND platform_role='SYSTEM_ADMIN' AND status='ACTIVE' FOR UPDATE", [actor.id]);
-    if (admin.rowCount !== 1) throw new EntitlementInputError("SYSTEM_ADMIN role required");
-    const updated = await client.query<{ id: string; can_create_classroom: boolean }>(
-      "UPDATE app_user SET can_create_classroom=$2 WHERE id=$1 AND status <> 'DISABLED' RETURNING id,can_create_classroom",
-      [userId, enabled]);
-    if (!updated.rows[0]) throw new EntitlementNotFoundError("User not found");
-    await client.query("COMMIT");
-    return { userId: updated.rows[0].id, canCreateClassroom: updated.rows[0].can_create_classroom };
-  } catch (error) { await client.query("ROLLBACK"); throw error; }
-  finally { client.release(); }
+  return runAuditedMutation({
+    prepare: async client => {
+      const admin = await client.query("SELECT 1 FROM app_user WHERE id=$1 AND platform_role='SYSTEM_ADMIN' AND status='ACTIVE' FOR UPDATE", [actor.id]);
+      if (admin.rowCount !== 1) throw new EntitlementInputError("SYSTEM_ADMIN role required");
+      const target = await client.query<{ can_create_classroom: boolean }>(
+        "SELECT can_create_classroom FROM app_user WHERE id=$1 AND status <> 'DISABLED' FOR UPDATE", [userId]);
+      if (!target.rows[0]) throw new EntitlementNotFoundError("User not found");
+      return target.rows[0].can_create_classroom;
+    },
+    intent: previous => ({ actorUserId: actor.id, action: "FACULTY_ENTITLEMENT_CHANGE_REQUESTED",
+      resourceType: "app_user", resourceId: userId, before: { canCreateClassroom: previous },
+      after: { canCreateClassroom: enabled }, reason: reason.trim() }),
+    mutate: async client => {
+      const updated = await client.query<{ id: string; can_create_classroom: boolean }>(
+        "UPDATE app_user SET can_create_classroom=$2 WHERE id=$1 AND status <> 'DISABLED' RETURNING id,can_create_classroom",
+        [userId, enabled]);
+      return { userId: updated.rows[0].id, canCreateClassroom: updated.rows[0].can_create_classroom };
+    },
+  });
 }

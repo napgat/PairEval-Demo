@@ -1,0 +1,15 @@
+# DQ-11 API contract reconciliation — provisional
+
+Date: 29 September 2026. This compares the draft `07_API Contract_ส่วนใดเรียกส่งข้อมูล.md` with the current Full System staging API. It does not amend PRD v2.1 or approve the draft contract. The SQLite Demo routes remain separate.
+
+| Draft contract | Current staging path / shape | Decision needed before DQ-11 closes |
+|---|---|---|
+| `GET/POST /api/classrooms` | `GET/POST /api/full-system/classrooms`; creation takes JSON including inline `csv` and returns `{data:{id,students,groups,warnings}}`. | **Provisional:** retain `/api/full-system` namespace while Demo and Full System coexist. Approve final versioned namespace and creation response fields. |
+| `POST /api/classrooms/{id}/roster:import` multipart `file` | `POST /api/full-system/classrooms/{id}/roster/import` JSON `{csv,expectedVersion,confirmDigest}` after a JSON preview endpoint. | Approve file upload vs JSON plus digest/version protocol; define row-level validation shape and size limits. No compatibility alias is enabled. |
+| `GET /api/classrooms/{id}/roster` with cursor | `GET /api/full-system/classrooms/{id}/roster` returns an unpaginated array. | Implement scope-bound cursor pagination before accepting large rosters; decide which personal fields each staff role may see. |
+| `POST /api/classrooms/{id}/members` | `POST /api/full-system/classrooms/{id}/members`; `DELETE /api/full-system/classrooms/{id}/members/{userId}` is also present. | Approve remove route, role matrix and response fields. Owner-only add/remove and final-owner denial have synthetic API evidence. |
+| `GET/PUT /api/admin/faculty-entitlements` | Paths match the draft; list currently puts `nextCursor` inside `data`, and mutation requires a reason. | Move cursor to `meta` only after clients and contract tests agree; settle audit outcome/pending semantics. |
+| Success `{data,meta:{requestId}}`, errors `{error:{code,message,field,requestId}}` with `X-Request-Id` | Current routes usually return `{data}` or `{error:{code}}` and omit response/request IDs; pending audit prototype proposes `202` with `requestId`. | Adopt a single correlation/response envelope before freezing public API. Do not claim FR-API-03 or DQ-11 accepted yet. |
+| Logout `204` | Current logout returns a `303` redirect to `/full-system` and revokes one session. | Approve browser redirect versus API `204`; keep per-session vs global sign-out explicit. |
+
+Current scope tests cover `400` missing OIDC state, `401` invalid/no session, `403` student/non-admin, `404` outsider direct classroom route, `409` stale roster/final owner, and `422` invalid import. Rate limiting and `429`, pagination and request IDs, response field allowlists, identity/pseudonym rules, publish/export/score endpoints, and frontend contract tests remain open. The draft's claim that this repository has no OIDC route is historical and must be refreshed only through the draft-review process.

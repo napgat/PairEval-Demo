@@ -5,6 +5,11 @@ let auditPool: Pool | undefined;
 const AUDIT_RUNTIME_ROLE = "paireval_audit_app";
 
 export class AuditUnavailableError extends Error {}
+export class AuditOutcomePendingError extends Error {
+  constructor(public readonly requestId: string, public readonly commitState: "COMMITTED" | "UNKNOWN" = "COMMITTED") {
+    super(commitState === "COMMITTED" ? "Operational change committed; audit outcome is pending" : "Commit result is unknown");
+  }
+}
 export class AuditSmokeError extends Error {
   constructor(public readonly stage: "CONFIG" | "CONNECT" | "ROLE" | "QUERY") { super(`Audit smoke ${stage}`); }
 }
@@ -69,19 +74,44 @@ export async function runAuditSmoke(): Promise<{ audit: "postgresql"; writeReadR
   } finally { client.release(); }
 }
 
-/** Write an immutable request event before a critical operational mutation. Failure aborts that mutation. */
-export async function writeAuditIntent(input: {
+export type AuditIntentInput = {
   classroomId?: string; actorUserId: string; action: string; resourceType: string; resourceId: string;
   before?: Record<string, unknown>; after?: Record<string, unknown>; reason?: string;
-}): Promise<void> {
+};
+export type AuditIntent = AuditIntentInput & { requestId: string };
+
+/** Write an immutable request event before a critical operational mutation. Failure aborts that mutation. */
+export async function writeAuditIntent(input: AuditIntentInput): Promise<AuditIntent> {
+  const requestId = randomUUID();
   try {
     await requireRestrictedAuditRole();
     await pool().query(`INSERT INTO audit_event
       (id,classroom_id,actor_user_id,action,resource_type,resource_id,request_id,before_json,after_json,reason)
       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`,
     [randomUUID(), input.classroomId ?? null, input.actorUserId, input.action,
-      input.resourceType, input.resourceId, randomUUID(), input.before ?? null, input.after ?? null, input.reason ?? null]);
+      input.resourceType, input.resourceId, requestId, input.before ?? null, input.after ?? null, input.reason ?? null]);
   } catch {
     throw new AuditUnavailableError("Audit write failed; operational change was not started");
+  }
+  return { ...input, requestId };
+}
+
+/** Idempotent delivery from the operational outbox into separate append-only audit storage. */
+export async function appendAuditOutcome(input: {
+  id: string; requestId: string; classroomId?: string; actorUserId: string; action: string;
+  resourceType: string; resourceId: string; before?: Record<string, unknown>;
+  after?: Record<string, unknown>; reason?: string;
+}): Promise<void> {
+  await requireRestrictedAuditRole();
+  await pool().query(`INSERT INTO audit_event
+    (id,classroom_id,actor_user_id,action,resource_type,resource_id,request_id,before_json,after_json,reason)
+    VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) ON CONFLICT (id) DO NOTHING`,
+  [input.id, input.classroomId ?? null, input.actorUserId, input.action,
+    input.resourceType, input.resourceId, input.requestId, input.before ?? null,
+    input.after ?? null, input.reason ?? null]);
+  const found = await pool().query<{ action: string; request_id: string }>(
+    "SELECT action,request_id FROM audit_event WHERE id=$1", [input.id]);
+  if (found.rows[0]?.action !== input.action || found.rows[0]?.request_id !== input.requestId) {
+    throw new AuditUnavailableError("Audit outcome idempotency mismatch");
   }
 }
