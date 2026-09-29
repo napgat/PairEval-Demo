@@ -1,5 +1,6 @@
 import { createHash, randomBytes, randomUUID } from "node:crypto";
 import { Pool } from "pg";
+import { chromium } from "@playwright/test";
 
 const environment = process.argv[2] ?? "development";
 if (!["development", "staging"].includes(environment)) throw new Error("Use development or staging");
@@ -80,8 +81,20 @@ try {
     "outsider add denied");
   status(await call(`${base}/evaluators`, students[0], "POST", { pairId, mode: "STUDENT", count: 1 }), 404,
     "student add denied");
-  status(await call(`${base}/evaluators`, owner, "POST", { pairId, mode: "INSTRUCTOR", count: 1 }), 200,
-    "instructor pair assigned");
+  const browser = await chromium.launch({ headless: true });
+  try {
+    const context = await browser.newContext({ viewport: { width: 320, height: 700 } });
+    await context.addCookies([{ name: "paireval_full_session", value: tokens.get(owner), url: origin }]);
+    const page = await context.newPage();
+    await page.goto(`${origin}/full-system/classrooms/${room}/assignments`);
+    await page.getByRole("button", { name: /Synthetic Day 7 · OPEN/ }).click();
+    await page.getByLabel("คู่และเกณฑ์").selectOption({ index: 1 });
+    await page.getByRole("button", { name: "มอบคู่ให้ตนเอง" }).click();
+    await page.getByText("เพิ่มคู่ประเมินของผู้สอนแล้ว").waitFor();
+    const width = await page.evaluate(() => document.documentElement.scrollWidth);
+    if (width > 320) throw new Error(`Instructor controls overflow at 320 px: ${width}`);
+    await context.close();
+  } finally { await browser.close(); }
   status(await call(`${base}/evaluators`, owner, "POST", { pairId, mode: "INSTRUCTOR", count: 1 }), 409,
     "duplicate instructor denied");
   const added = status(await call(`${base}/evaluators`, owner, "POST", {
@@ -112,8 +125,9 @@ try {
   const groupScore = snapshot.rows[0].output_json.groups.find(group => group.id === groups[0]);
   if (Math.abs(groupScore.criteria[0].q - 2 / 3) > 0.0001 ||
       groupScore.criteria[0].comparisons !== 2) throw new Error("Fractional instructor weight failed");
-  console.log(`${environment} Day 7 instructor smoke passed: role denial, eligible extra assignment,
-    notification, duplicate rejection, instructor/student submission, weighted q and comparison count`);
+  console.log(`${environment} Day 7 instructor smoke passed: role denial, 320 px instructor UI,
+    eligible extra assignment, notification, duplicate rejection, instructor/student submission,
+    weighted q and comparison count`);
 } finally {
   const client = await pool.connect();
   try {

@@ -67,10 +67,10 @@ const day6Progress = new Map([
   ["FR-SEC-07", [".github/workflows/ci.yml; package.json; package-lock.json", "Day 6 CI #29 production npm audit high/critical gate passed after Next.js 16.3.7; two moderate ExcelJS/uuid advisories remain; secret scanning not enabled"]],
 ]);
 const day7Progress = new Map([
-  ["FR-PAIR-10", ["src/lib/full-system-assignments.ts; src/app/api/full-system/assignments/[id]/evaluators/route.ts; src/app/full-system/classrooms/[id]/assignments/page.tsx", "Day 7 synthetic development instructor smoke passed eligible unused evaluator selection, duplicate/outsider denial and extra notification; staging and broader coverage pending"]],
-  ["FR-API-07", ["src/lib/full-system-evaluation.ts; src/app/api/full-system/assignments/[id]/evaluation/[side]/route.ts", "Day 7 synthetic development instructor pair, draft and submit passed with separate persisted pair source; staging and full role matrix pending"]],
-  ["FR-SCORE-03", ["src/lib/full-system-assignments.ts; src/lib/full-system-score-runs.ts; src/lib/full-system-scoring.test.ts", "Day 7 unit and synthetic development score smoke passed instructor weight 0.5 in weighted mean with comparison count 2; staging and edge acceptance pending"]],
-  ["FR-NOTIF-05", ["src/lib/full-system-assignments.ts; src/lib/full-system-notifications.ts", "Day 7 synthetic development extra-evaluator in-app notification passed; no external transport or deployed scheduler"]],
+  ["FR-PAIR-10", ["src/lib/full-system-assignments.ts; src/app/api/full-system/assignments/[id]/evaluators/route.ts; src/app/full-system/classrooms/[id]/assignments/page.tsx", "Day 7 synthetic development/staging smoke passed eligible unused evaluator selection, duplicate/outsider denial, 320 px instructor control and extra notification; broader coverage pending"]],
+  ["FR-API-07", ["src/lib/full-system-evaluation.ts; src/app/api/full-system/assignments/[id]/evaluation/[side]/route.ts", "Day 7 synthetic development/staging instructor pair, draft and submit passed with separate persisted pair source; full role matrix pending"]],
+  ["FR-SCORE-03", ["src/lib/full-system-assignments.ts; src/lib/full-system-score-runs.ts; src/lib/full-system-scoring.test.ts", "Day 7 unit and synthetic development/staging score smoke passed instructor weight 0.5 in weighted mean with comparison count 2; edge acceptance pending"]],
+  ["FR-NOTIF-05", ["src/lib/full-system-assignments.ts; src/lib/full-system-notifications.ts", "Day 7 synthetic development/staging extra-evaluator in-app notification passed; no external transport or deployed scheduler"]],
 ]);
 const lines = [
   "# PRD v2.1 execution matrix — through Day 7",
