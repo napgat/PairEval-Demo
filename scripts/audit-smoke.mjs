@@ -11,7 +11,7 @@ const operationalUrl = process.env.DATABASE_URL;
 if (!auditUrl || !operationalUrl || new URL(auditUrl).hostname === new URL(operationalUrl).hostname) {
   throw new Error("Separate audit database is not configured");
 }
-const pool = new Pool({ connectionString: auditUrl, max: 1, connectionTimeoutMillis: 5000 });
+const pool = new Pool({ connectionString: auditUrl, max: 1, connectionTimeoutMillis: 15000 });
 const client = await pool.connect();
 try {
   const role = await client.query("SELECT current_user AS role_name");
