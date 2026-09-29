@@ -220,6 +220,10 @@ try {
   "finalized override denial");
   expectStatus(await call(`${scorePath}/reopen`, owner, "POST", { reason: "Synthetic appeal review" }),
     200, "reopen");
+  if (expectStatus(await call(noticePath, students[0]), 200, "reopened notification list")
+    .some(notice => notice.event === "SCORE_FINALIZED")) {
+    throw new Error("Reopened score still advertised as final");
+  }
   const after = expectStatus(await call(scorePath, owner), 200, "snapshot retained after reopen");
   if (after.assignmentStatus !== "CLOSED" || after.id !== final.id) {
     throw new Error("Reopen erased final snapshot");

@@ -30,8 +30,12 @@ try {
       AND s.deadline > now() AND s.deadline <= now() + interval '48 hours'
       AND EXISTS (SELECT 1 FROM pair_assignment p WHERE p.assignment_id=a.id
         AND p.generation=a.generation AND p.side=s.side AND p.evaluator_user_id=m.user_id)
-      AND NOT EXISTS (SELECT 1 FROM submission_revision r WHERE r.assignment_id=a.id
-        AND r.generation=a.generation AND r.side=s.side AND r.evaluator_user_id=m.user_id)`,
+      AND (SELECT count(*) FROM pair_assignment p2 WHERE p2.assignment_id=a.id
+        AND p2.generation=a.generation AND p2.side=s.side AND p2.evaluator_user_id=m.user_id)
+        > (SELECT count(*) FROM submission_answer sa WHERE sa.revision_id=(
+          SELECT r.id FROM submission_revision r WHERE r.assignment_id=a.id
+            AND r.generation=a.generation AND r.side=s.side AND r.evaluator_user_id=m.user_id
+          ORDER BY r.revision_number DESC LIMIT 1))`,
   [assignmentFilter]);
   let inserted = 0;
   for (const row of due.rows) {

@@ -56,6 +56,7 @@ export async function listNotifications(actor: FullActor) {
     WHERE n.recipient_user_id=$1 AND m.role='STUDENT' AND m.membership_status='ACTIVE'
       AND c.status='ACTIVE' AND a.status IN ('OPEN','CLOSED','FINALIZED')
       AND n.generation=a.generation
+      AND (n.event_type<>'SCORE_FINALIZED' OR a.status='FINALIZED')
       AND (cardinality(c.allowed_email_domains)=0 OR $2::text=ANY(c.allowed_email_domains))
     ORDER BY n.created_at DESC,n.id DESC LIMIT 100`, [actor.id, actor.hostedDomain]);
   return result.rows.map(row => ({ id: row.id, event: row.event_type, message: row.message,
@@ -72,6 +73,7 @@ export async function markNotificationRead(actor: FullActor, id: string) {
       AND m.user_id=$2 AND m.role='STUDENT' AND m.membership_status='ACTIVE'
       AND c.status='ACTIVE' AND a.status IN ('OPEN','CLOSED','FINALIZED')
       AND n.generation=a.generation
+      AND (n.event_type<>'SCORE_FINALIZED' OR a.status='FINALIZED')
       AND (cardinality(c.allowed_email_domains)=0 OR $3::text=ANY(c.allowed_email_domains))`,
   [id, actor.id, actor.hostedDomain]);
   return result.rowCount === 1;
