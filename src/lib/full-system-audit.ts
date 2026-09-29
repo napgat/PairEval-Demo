@@ -16,7 +16,7 @@ function pool(): Pool {
   const audit = new URL(auditUrl);
   const operational = new URL(operationalUrl);
   if (audit.hostname === operational.hostname) throw new AuditUnavailableError("Audit database must use a separate Neon endpoint");
-  auditPool ??= new Pool({ connectionString: auditUrl, max: 2, connectionTimeoutMillis: 5000 });
+  auditPool ??= new Pool({ connectionString: auditUrl, max: 2, connectionTimeoutMillis: 15000 });
   return auditPool;
 }
 

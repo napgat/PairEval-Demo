@@ -17,7 +17,7 @@ if (!auditUrl || !operationalUrl || new URL(auditUrl).hostname === new URL(opera
   throw new Error("Separate audit database is not configured");
 }
 const auditHost = new URL(auditUrl).hostname;
-const pool = new Pool({ connectionString: auditUrl, max: 1, connectionTimeoutMillis: 5000 });
+const pool = new Pool({ connectionString: auditUrl, max: 1, connectionTimeoutMillis: 15000 });
 try {
   const role = await pool.query(`SELECT current_user AS role_name,
     has_table_privilege(current_user,'audit_event','INSERT') AS can_insert,

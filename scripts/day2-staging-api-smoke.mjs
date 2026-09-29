@@ -3,13 +3,15 @@ import { join } from "node:path";
 import { Pool } from "pg";
 
 // Uses disposable synthetic accounts and a test-only direct session fixture. This does not test Google login
-// or constitute approval of a Privacy Notice. Only the independent staging operational database is targeted.
-process.loadEnvFile(join(process.cwd(), ".env.staging.local"));
-if (process.env.PAIR_EVAL_ENV !== "staging" || !process.env.DATABASE_URL ||
+// or constitute approval of a Privacy Notice. Only PairEval operational databases are targeted.
+const environment = process.argv[2] ?? "staging";
+if (!["development", "staging"].includes(environment)) throw new Error("Use development or staging");
+process.loadEnvFile(join(process.cwd(), environment === "development" ? ".env.local" : ".env.staging.local"));
+if (process.env.PAIR_EVAL_ENV !== environment || !process.env.DATABASE_URL ||
     new URL(process.env.DATABASE_URL).hostname !== process.env.PAIR_EVAL_EXPECTED_DB_HOST) {
-  throw new Error("Staging operational database guard failed");
+  throw new Error("Operational database guard failed");
 }
-const origin = "https://paireval-full-staging.vercel.app";
+const origin = environment === "development" ? "http://localhost:3101" : "https://paireval-full-staging.vercel.app";
 const pool = new Pool({ connectionString: process.env.DATABASE_URL, max: 1, connectionTimeoutMillis: 15000 });
 const marker = randomUUID().slice(0, 8);
 const ownerId = randomUUID();
@@ -101,7 +103,7 @@ try {
     method: "DELETE", token: ownerToken }), 409, "final owner guard");
   expectStatus(await api("/api/auth/logout", { method: "POST", token: ownerToken }), 303, "logout");
   expectStatus(await api("/api/auth/session", { token: ownerToken }), 401, "revoked session");
-  console.log("Staging synthetic API smoke passed: create/list/scope, atomic rollback, import/version, final-owner, logout");
+  console.log(`${environment} synthetic API smoke passed: create/list/scope, atomic rollback, import/version, final-owner, logout`);
 } finally {
   await pool.query("UPDATE app_session SET revoked_at=now() WHERE user_id IN ($1,$2) AND revoked_at IS NULL", [ownerId, outsiderId]).catch(() => {});
   if (classroomId) {
