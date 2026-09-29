@@ -1,5 +1,6 @@
 import { createHash, randomBytes, randomUUID } from "node:crypto";
 import { Pool } from "pg";
+import { chromium } from "@playwright/test";
 
 const environment = process.argv[2] ?? "development";
 if (!["development", "staging"].includes(environment)) throw new Error("Use development or staging");
@@ -53,13 +54,28 @@ try {
     await client.query("COMMIT");
   } catch (error) { await client.query("ROLLBACK"); throw error; } finally { client.release(); }
 
-  const body = { name: "Synthetic evaluation", description: "Synthetic only", groupMaxScore: 10,
-    individualMaxScore: 0, groupDeadline: "2030-12-01T16:59:00+07:00", individualDeadline: null,
-    targetCoverage: 1, maxWorkload: 8,
-    criteria: [{ side: "GROUP", name: "Quality", weightPct: 100 }], artifacts: [] };
   check(await api(`/api/full-system/classrooms/${room}/student-assignments`, outsider), 404, "outsider classroom");
-  assignment = check(await api(`/api/full-system/classrooms/${room}/assignments`, owner, "POST", body), 201, "create").id;
-  check(await api(`/api/full-system/assignments/${assignment}/publish`, owner, "POST", { seed: "day4" }), 200, "publish");
+  const browser = await chromium.launch({ headless: true });
+  try {
+    const context = await browser.newContext({ viewport: { width: 1280, height: 900 } });
+    await context.addCookies([{ name: "paireval_full_session", value: tokens.get(owner), url: origin }]);
+    const page = await context.newPage(); page.setDefaultTimeout(60000);
+    await page.goto(`${origin}/full-system/classrooms/${room}/assignments`);
+    await page.getByRole("heading", { name: "งานประเมินและแผนจับคู่" }).waitFor();
+    await page.getByLabel("ชื่องาน").fill("Synthetic evaluation");
+    await page.getByLabel(/กำหนดส่งกลุ่ม/).fill("2030-12-01T16:59");
+    await page.getByLabel("ชื่อเกณฑ์").fill("Quality");
+    await page.getByLabel("ผู้ประเมินต่อคู่ที่ต้องการ").fill("1");
+    await page.getByRole("button", { name: "บันทึก DRAFT" }).click();
+    await page.getByText("บันทึก DRAFT แล้ว").waitFor();
+    assignment = (await pool.query("SELECT id FROM assignment WHERE classroom_id=$1", [room])).rows[0]?.id;
+    if (!assignment) throw new Error("UI did not persist DRAFT");
+    await page.getByRole("button", { name: "คำนวณ feasibility" }).click();
+    await page.getByText("พร้อมเผยแพร่").waitFor();
+    await page.getByRole("button", { name: "เผยแพร่และบันทึกคู่" }).click();
+    await page.getByText("เผยแพร่และบันทึกคู่แล้ว").waitFor();
+    await context.close();
+  } finally { await browser.close(); }
   const path = `/api/full-system/assignments/${assignment}/evaluation/group`;
   const pairRow = await pool.query(`SELECT id,evaluator_user_id,display_left FROM pair_assignment
     WHERE assignment_id=$1 AND side='GROUP' AND (group_a_id=$2 OR group_b_id=$2) ORDER BY id LIMIT 1`,
@@ -82,8 +98,30 @@ try {
   if (check(await api(scorePath, targetStudent), 200, "score excludes draft").groupStatus !== "NO_DATA") {
     throw new Error("Unsubmitted draft affected score");
   }
-  const first = check(await api(path, evaluator, "POST"), 200, "partial submit");
-  if (first.revision !== 1 || first.answered !== 1) throw new Error("First revision mismatch");
+  const studentBrowser = await chromium.launch({ headless: true });
+  try {
+    const context = await studentBrowser.newContext({ viewport: { width: 390, height: 844 } });
+    await context.addCookies([{ name: "paireval_full_session", value: tokens.get(evaluator), url: origin }]);
+    const page = await context.newPage(); page.setDefaultTimeout(60000);
+    page.on("dialog", dialog => void dialog.accept());
+    await page.goto(`${origin}/full-system/assignments/${assignment}/evaluate/group`);
+    await page.getByRole("heading", { name: "ประเมินผลงานกลุ่ม" }).waitFor();
+    const firstRadio = page.locator(`input[name="${pair.id}"]`).first();
+    await page.locator(`input[name="${pair.id}"]`).nth(1).check();
+    const saved = page.waitForResponse(response => response.url().endsWith(path) &&
+      response.request().method() === "PUT" && response.status() === 200);
+    await firstRadio.check();
+    await saved;
+    await page.getByText(/บันทึกแล้ว เมื่อ/).waitFor();
+    await page.reload();
+    if (!await page.locator(`input[name="${pair.id}"]`).first().isChecked()) throw new Error("UI draft not restored after refresh");
+    await page.getByRole("button", { name: "ส่งคำตอบ" }).click();
+    await page.getByText(/ส่งคำตอบรุ่น 1 แล้ว/).waitFor();
+    await context.close();
+  } finally { await studentBrowser.close(); }
+  if (check(await api(path, evaluator), 200, "partial submit").latestSubmission?.revision !== 1) {
+    throw new Error("UI first submission missing");
+  }
   const score1 = check(await api(scorePath, targetStudent), 200, "score after submit");
   if (score1.groupStatus !== "AVAILABLE" || score1.groupComponent === null ||
       JSON.stringify(score1).includes("evaluatorId")) throw new Error("Published own score missing or identity leak");
@@ -105,11 +143,12 @@ try {
   check(await api(deadlinePath, outsider, "PATCH", { groupDeadline: "2030-12-02T16:59:00+07:00" }), 404, "outsider deadline");
   check(await api(deadlinePath, owner, "PATCH", { groupDeadline: "2030-12-02T16:59:00+07:00" }), 200, "extend after deadline");
   if (check(await api(path, evaluator), 200, "extended deadline").readOnly) throw new Error("Extension did not reopen evaluation");
-  console.log(`${environment} Day 4 evaluation smoke passed: scope, draft refresh/exclusion, partial submit,
+  console.log(`${environment} Day 4 evaluation smoke passed: instructor/student UI, scope, draft refresh/exclusion, partial submit,
     immutable re-submit, score change from latest revision, deadline denial/extension, no identity leak`);
 } finally {
   const client = await pool.connect();
   try { await client.query("BEGIN");
+    assignment ??= (await client.query("SELECT id FROM assignment WHERE classroom_id=$1", [room])).rows[0]?.id;
     if (assignment) {
       await client.query(`DELETE FROM submission_answer WHERE revision_id IN
         (SELECT id FROM submission_revision WHERE assignment_id=$1)`, [assignment]);
@@ -119,6 +158,8 @@ try {
       await client.query("DELETE FROM pair_assignment WHERE assignment_id=$1", [assignment]);
       await client.query("DELETE FROM assignment_generation WHERE assignment_id=$1", [assignment]);
       await client.query("DELETE FROM criterion WHERE assignment_id=$1", [assignment]);
+      await client.query("DELETE FROM group_artifact WHERE assignment_id=$1", [assignment]);
+      await client.query("DELETE FROM individual_artifact WHERE assignment_id=$1", [assignment]);
       await client.query("DELETE FROM assignment WHERE id=$1", [assignment]);
     }
     await client.query("DELETE FROM classroom_member WHERE classroom_id=$1", [room]);

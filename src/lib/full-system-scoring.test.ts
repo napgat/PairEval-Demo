@@ -38,4 +38,19 @@ describe("PRD v2.1 scoring", () => {
     expect(one[0].component).not.toBeNull(); expect(one[0].anonymous).toBe(false);
     expect(one[0].criteria[0].lowConfidence).toBe(true);
   });
+  it("reveals individual component only after three distinct submitted evaluators", () => {
+    const rows = ["e1", "e2", "e3"].map((evaluatorId, index) => ({
+      id: `p${index}`, criterionId: "c", side: "INDIVIDUAL" as const,
+      aId: "a", bId: `b${index}`, displayLeft: "A" as const, evaluatorId }));
+    const base = { criteria: [{ id: "c", side: "INDIVIDUAL" as const, weightPct: 100 }],
+      pairs: rows, groupIds: [] as string[], studentIds: ["a", "b0", "b1", "b2"],
+      settings: { groupMax: 0, individualMax: 5, floor: .6, ceiling: 1, minComparisons: 3,
+        kMin: 3, completionThreshold: .9 } };
+    const answers = rows.map(row => ({ pairId: row.id, choice: 1, evaluatorId: row.evaluatorId, weight: 1 }));
+    expect(calculateItemScores({ ...base, answers: answers.slice(0, 2) }).find(item => item.itemId === "a")?.anonymous).toBe(false);
+    const full = calculateItemScores({ ...base, answers }).find(item => item.itemId === "a");
+    expect(full).toMatchObject({ evaluatorCount: 3, anonymous: true });
+    expect(full?.component).toBe(5);
+    expect(full?.criteria[0].lowConfidence).toBe(false);
+  });
 });
