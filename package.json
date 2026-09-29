@@ -19,9 +19,12 @@
     "test:ui-audit": "node scripts/day6-ui-audit.mjs",
     "db:migrate": "node scripts/full-system-db.mjs migrate",
     "db:seed": "node scripts/full-system-db.mjs seed",
-    "db:smoke": "node scripts/full-system-db.mjs smoke"
+    "db:smoke": "node scripts/full-system-db.mjs smoke",
+    "audit:activate": "node scripts/activate-audit-role.mjs",
+    "audit:smoke": "node scripts/audit-smoke.mjs"
   },
   "dependencies": {
+    "jose": "^6.2.12",
     "lucide-react": "^1.25.0",
     "next": "16.2.10",
     "pg": "^8.23.0",

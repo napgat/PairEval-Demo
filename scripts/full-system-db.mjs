@@ -1,4 +1,4 @@
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import { randomUUID } from "node:crypto";
 import { Pool } from "pg";
@@ -22,14 +22,20 @@ async function migrate() {
     await client.query("BEGIN");
     await client.query("SELECT pg_advisory_xact_lock(23180401)");
     await client.query("CREATE TABLE IF NOT EXISTS schema_migrations (version text PRIMARY KEY, applied_at timestamptz NOT NULL DEFAULT now())");
-    const version = "001_initial";
-    const found = await client.query("SELECT 1 FROM schema_migrations WHERE version = $1", [version]);
-    if (found.rowCount === 0) {
-      await client.query(readFileSync(join(process.cwd(), "db", "migrations", `${version}.sql`), "utf8"));
-      await client.query("INSERT INTO schema_migrations (version) VALUES ($1)", [version]);
+    const directory = join(process.cwd(), "db", "migrations");
+    const files = readdirSync(directory).filter(file => /^\d{3}_[a-z0-9_]+\.sql$/.test(file)).sort();
+    const applied = [];
+    for (const file of files) {
+      const version = file.slice(0, -4);
+      const found = await client.query("SELECT 1 FROM schema_migrations WHERE version = $1", [version]);
+      if (found.rowCount === 0) {
+        await client.query(readFileSync(join(directory, file), "utf8"));
+        await client.query("INSERT INTO schema_migrations (version) VALUES ($1)", [version]);
+        applied.push(version);
+      }
     }
     await client.query("COMMIT");
-    console.log(`Migration ${version}: ${found.rowCount === 0 ? "applied" : "already applied"} (${process.env.PAIR_EVAL_ENV})`);
+    console.log(`Migrations: ${applied.length ? applied.join(", ") + " applied" : "already applied"} (${process.env.PAIR_EVAL_ENV})`);
   } catch (error) {
     await client.query("ROLLBACK");
     throw error;

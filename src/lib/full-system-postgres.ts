@@ -3,9 +3,12 @@ import { Pool } from "pg";
 
 let pool: Pool | undefined;
 
-function databasePool(): Pool {
+export function databasePool(): Pool {
   const connectionString = process.env.DATABASE_URL;
   if (!connectionString) throw new Error("DATABASE_URL is not configured");
+  if (process.env.PAIR_EVAL_EXPECTED_DB_HOST && new URL(connectionString).hostname !== process.env.PAIR_EVAL_EXPECTED_DB_HOST) {
+    throw new Error("Operational database host mismatch");
+  }
   pool ??= new Pool({ connectionString, max: 2, connectionTimeoutMillis: 5000 });
   return pool;
 }

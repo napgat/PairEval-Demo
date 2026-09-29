@@ -26,12 +26,18 @@ function priority(id, line) {
 }
 
 const migrationIds = new Set(["DR-04", "DR-05", "DR-09"]);
+const day2Progress = new Map([
+  ...["FR-AUTH-01", "FR-AUTH-02", "FR-AUTH-03", "FR-AUTH-04"].map(id => [id, ["src/lib/full-system-oidc.ts; src/lib/full-system-auth.ts; src/app/api/auth", "OIDC claim/PKCE unit tests passed; live Google callback and session refresh pending"]]),
+  ...["FR-AUTHZ-01", "FR-AUTHZ-02", "FR-AUTHZ-03", "FR-AUTHZ-04"].map(id => [id, ["src/lib/full-system-auth.ts; src/lib/full-system-classrooms.ts; src/app/api/full-system", "server-side role/scope code; cross-classroom and role integration tests pending"]]),
+  ...["FR-CLASS-01", "FR-CLASS-02", "FR-CLASS-03", "FR-CLASS-04", "FR-CLASS-05", "FR-CLASS-06"].map(id => [id, ["src/lib/full-system-roster.ts; src/lib/full-system-classrooms.ts; src/lib/full-system-members.ts; src/app/api/full-system/classrooms", "CSV parser unit tests passed; database transaction/rollback and staging UI tests pending"]]),
+  ["FR-AUDIT-01", ["src/lib/full-system-audit.ts; db/audit/001_audit.sql", "separate audit DB/role smoke passed; required-event coverage and integrity checks pending"]],
+]);
 const lines = [
-  "# PRD v2.1 execution matrix — Day 1",
+  "# PRD v2.1 execution matrix — through Day 2",
   "",
-  "Source: [PRD v2.1](../design%20document/pairwise_evaluation_prd%201.md) and [Traceability Matrix](../design%20document/12_Traceability%20Matrix.md). Exactly 188 IDs in PRD section 1–19. `M/S/C` comes from PRD MoSCoW tables; `unranked in PRD` is deliberate, not an inferred priority. Owner is the Day 1 workstream assignment (A platform/data, B domain, C UI/API, D verification), not an institutional approver.",
+  "Source: [PRD v2.1](../design%20document/pairwise_evaluation_prd%201.md) and [Traceability Matrix](../design%20document/12_Traceability%20Matrix.md). Exactly 188 IDs in PRD section 1–19. `M/S/C` comes from PRD MoSCoW tables; `unranked in PRD` is deliberate, not an inferred priority. Owner is the workstream assignment (A platform/data, B domain, C UI/API, D verification), not an institutional approver.",
   "",
-  "`not started` means the Full System implementation has no qualifying evidence. `in progress` below means an initial DDL artifact exists, but has **not** been run on Neon. No ID is marked implemented or tested. Working SQLite Demo behavior and its tests are baseline evidence only, never automatic PRD v2.1 passage. `planned:` paths are targets, not existing files. Decision references are from the traceability matrix; `—` means no explicit dependency recorded there.",
+  "`not started` means the Full System implementation has no qualifying evidence. `in progress` means partial implementation or setup exists; it does not mean PRD acceptance passed. Operational migrations 001/002 are on Neon development/staging. Separate audit development/staging projects and restricted roles passed permission smoke, while app audit coverage, retention, and integrity are pending. No ID is marked implemented or tested. Working SQLite Demo behavior and its tests are baseline evidence only, never automatic PRD v2.1 passage. `planned:` paths are targets, not existing files. Decision references are from the traceability matrix; `—` means no explicit dependency recorded there.",
   "",
   "| PRD ID | PRD line | Owner | Priority | Status | Implementation location | Test evidence | Dependent decisions / gates |",
   "|---|---:|---|---|---|---|---|---|",
@@ -43,11 +49,12 @@ for (const row of rows) {
   if (!prd[lineNo - 1]?.includes(id)) throw new Error(`PRD line mismatch for ${id} at ${lineNo}`);
   const [owner, planned] = classification(id);
   const hasDdl = migrationIds.has(id);
-  const location = hasDdl ? (id === "DR-09" ? "db/audit/001_audit.sql (proposal only)" : "db/migrations/001_initial.sql (partial)") : planned;
+  const progress = day2Progress.get(id);
+  const location = progress?.[0] ?? (hasDdl ? (id === "DR-09" ? "db/audit/001_audit.sql; scripts/audit-smoke.mjs" : "db/migrations/001_initial.sql; db/migrations/002_identity_roster.sql (partial)") : planned);
   const decision = decisionText.trim().replace(/\|/g, "\\|");
-  const evidence = !hasDdl ? "none for Full System" : id === "DR-09" ? "DDL proposal only; separate audit store pending" : "initial DDL applied to Neon staging; requirement-specific test pending";
-  lines.push(`| \`${id}\` | [${lineNo}](../design%20document/pairwise_evaluation_prd%201.md#L${lineNo}) | ${owner} | ${priority(id, prd[lineNo - 1])} | ${hasDdl ? "in progress" : "not started"} | ${location} | ${evidence} | ${decision} |`);
+  const evidence = progress?.[1] ?? (!hasDdl ? "none for Full System" : id === "DR-09" ? "separate Neon audit dev/staging; restricted-role INSERT/SELECT and UPDATE/DELETE/TRUNCATE denial smoke passed; retention/integrity pending" : "migrations 001/002 applied to Neon development/staging; requirement-specific acceptance pending");
+  lines.push(`| \`${id}\` | [${lineNo}](../design%20document/pairwise_evaluation_prd%201.md#L${lineNo}) | ${owner} | ${priority(id, prd[lineNo - 1])} | ${hasDdl || progress ? "in progress" : "not started"} | ${location} | ${evidence} | ${decision} |`);
 }
-lines.push("", "## Day 1 gate", "", "Full System test evidence remains absent until the staging database migration, authenticated deployment smoke, OAuth flow and requirement-specific tests run. The separate Day 1 log records the SQLite Demo regression results and external blockers.", "");
+lines.push("", "## Acceptance gate", "", "Full System acceptance remains pending until the authenticated staging flow, privacy notice, audit event coverage, cross-classroom security, and requirement-specific tests run. See day-01.md and day-02.md for actual commands and external blockers.", "");
 writeFileSync(join(root, "docs/full-system/prd-v2.1-execution-matrix.md"), lines.join("\n"));
 console.log(`Execution matrix written: ${rows.length} unique PRD IDs`);

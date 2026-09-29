@@ -2,7 +2,7 @@
 -- The application role must receive SELECT/INSERT only; never owner, UPDATE, DELETE or TRUNCATE.
 CREATE TABLE IF NOT EXISTS audit_event (
   id uuid PRIMARY KEY,
-  classroom_id uuid NOT NULL,
+  classroom_id uuid,
   assignment_id uuid,
   actor_user_id uuid,
   action text NOT NULL,
@@ -16,7 +16,9 @@ CREATE TABLE IF NOT EXISTS audit_event (
   occurred_at timestamptz NOT NULL DEFAULT now()
 );
 CREATE INDEX IF NOT EXISTS audit_event_scope_time_idx ON audit_event (classroom_id, occurred_at DESC);
+REVOKE ALL ON audit_event FROM PUBLIC;
 -- Grant only after creating a distinct non-owner application role, for example:
 -- REVOKE ALL ON audit_event FROM PUBLIC;
+-- GRANT USAGE ON SCHEMA public TO <audit_app_role>;
 -- GRANT SELECT, INSERT ON audit_event TO <audit_app_role>;
 -- Database ownership and integrity/retention controls require an approved account setup.
