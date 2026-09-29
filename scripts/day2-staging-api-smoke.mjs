@@ -10,7 +10,7 @@ if (process.env.PAIR_EVAL_ENV !== "staging" || !process.env.DATABASE_URL ||
   throw new Error("Staging operational database guard failed");
 }
 const origin = "https://paireval-full-staging.vercel.app";
-const pool = new Pool({ connectionString: process.env.DATABASE_URL, max: 1, connectionTimeoutMillis: 5000 });
+const pool = new Pool({ connectionString: process.env.DATABASE_URL, max: 1, connectionTimeoutMillis: 15000 });
 const marker = randomUUID().slice(0, 8);
 const ownerId = randomUUID();
 const outsiderId = randomUUID();

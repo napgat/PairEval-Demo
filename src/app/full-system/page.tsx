@@ -43,6 +43,7 @@ export default function FullSystemHome() {
     </> : !session.privacyAccepted ? <>
       <p className="notice" role="status">ระบบยังรอ Privacy Notice ที่ระบุข้อมูล ผู้เห็นข้อมูล และระยะเวลาเก็บรักษาให้ครบตาม PRD จึงยังไม่เปิดข้อมูลห้องเรียน</p>
       <p className="fine-print">บัญชีที่ตรวจพบ: {session.email}</p>
+      <form action="/api/auth/logout" method="post"><button className="secondary-button" type="submit">ออกจากระบบ</button></form>
     </> : <>
       <p className="lead">บัญชี {session.email}</p>
       {classrooms.length === 0 ? <p>ยังไม่มีห้องเรียนที่บัญชีนี้เข้าถึงได้</p> :
