@@ -216,15 +216,27 @@ try {
     WHERE assignment_id=$1 AND event_type='PAIRS_REGENERATED' AND generation=2`, [draftId]);
   if (regenerated.rows[0].n !== studentIds.length) throw new Error("Regeneration notification count mismatch");
   await pool.query("UPDATE assignment SET group_deadline_utc=now()+interval '24 hours' WHERE id=$1", [draftId]);
-  const runReminders = () => execFileSync(process.execPath,
-    ["scripts/day6-deadline-reminders.mjs", environment, draftId], { encoding: "utf8" });
-  const firstReminder = runReminders(), replayReminder = runReminders();
+  const runReminders = process.env.CRON_SECRET ? async () => {
+    const response = await fetch(`${origin}/api/full-system/cron/reminders`, {
+      headers: { Authorization: `Bearer ${process.env.CRON_SECRET}` },
+    });
+    const payload = await response.json();
+    if (response.status !== 200) throw new Error(`Reminder cron returned ${response.status}`);
+    return payload.data?.inserted;
+  } : async () => {
+    const output = execFileSync(process.execPath,
+      ["scripts/day6-deadline-reminders.mjs", environment, draftId], { encoding: "utf8" });
+    const match = output.match(/inserted=(\d+)/);
+    if (!match) throw new Error(`Reminder script output missing inserted count: ${output}`);
+    return Number(match[1]);
+  };
+  const firstReminder = await runReminders(), replayReminder = await runReminders();
   const expectedRecipients = await pool.query(`SELECT count(DISTINCT evaluator_user_id)::integer AS n
     FROM pair_assignment WHERE assignment_id=$1 AND generation=2`, [draftId]);
   const reminders = await pool.query(`SELECT count(*)::integer AS n FROM app_notification
     WHERE assignment_id=$1 AND event_type='DEADLINE_48H_GROUP'`, [draftId]);
-  if (!firstReminder.includes(`inserted=${expectedRecipients.rows[0].n}`) ||
-      !replayReminder.includes("inserted=0") || reminders.rows[0].n !== expectedRecipients.rows[0].n) {
+  if (firstReminder !== expectedRecipients.rows[0].n || replayReminder !== 0 ||
+      reminders.rows[0].n !== expectedRecipients.rows[0].n) {
     throw new Error("48-hour reminder retry was not idempotent");
   }
   const history = await pool.query(`SELECT generation,count(*)::integer AS n FROM pair_assignment
