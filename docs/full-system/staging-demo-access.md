@@ -13,10 +13,10 @@ Scope: two Google accounts supplied by the project owner for viewing the indepen
 
 - Local: 102/102 existing tests, typecheck, lint and build passed. A synthetic development browser/API smoke observed classroom read `428` before acknowledgement, origin `403`, wrong version `422`, clicked the notice in the browser, then observed saved version and classroom read `200`; fixture cleanup completed.
 - Staging: the same synthetic browser/API smoke passed after deployment. The Vercel deployment for `14dcad9` showed **Ready**, and the new route answered `405` to GET as expected for its POST-only implementation. The smoke test removed its synthetic user and session afterward.
-- Read-only staging database verification found the provided teacher account `PENDING`, `OWNER`, classroom creation enabled; the student account `PENDING`, `STUDENT`, classroom creation disabled. Neither account has acknowledged the notice yet.
+- The project owner's browser selected each account in the Google Account Chooser. Both real Google callbacks returned to `/full-system` and displayed the staging notice with the correct account address; each was then logged out without acknowledgement. A read-only staging database check found both accounts `ACTIVE`: teacher `OWNER` with classroom creation enabled, student `STUDENT` with classroom creation disabled. Neither account has acknowledged the notice yet.
 
 ## Current boundary and next check
 
-- The project owner must select each Google account on the staging sign-in page. The first successful callback should activate that account, show the notice, and require its own acknowledgement before classroom data appears. This end-to-end callback has not been verified for these two accounts yet.
+- The project owner can now select either Google account on the staging sign-in page. Each account holder must read and click the staging acknowledgement themselves before classroom data appears. The login callback and notice gate are verified; the account holders' subsequent acknowledgement and classroom screens have not been observed.
 - The preview classroom intentionally has no assignment or scores; the teacher can create and publish a synthetic assignment, after which the student can see assigned work. Existing scoring cron and QS-05 collection exclude mixed real-email cohorts by design.
 - The prototype acknowledgement is separate from the unapproved PRD Privacy Notice and OQ-6. It must not be presented as consent for real classroom use.
