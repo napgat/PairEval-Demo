@@ -1,8 +1,15 @@
 import { randomUUID } from "node:crypto";
+import { existsSync, mkdirSync, readFileSync, unlinkSync, writeFileSync } from "node:fs";
+import { join } from "node:path";
 import { Pool } from "pg";
 
 const environment = process.argv[2] ?? "development";
 if (!["development", "staging"].includes(environment)) throw new Error("Use development or staging");
+const mode = process.argv[3] ?? "direct";
+if (!["direct", "ui-prepare", "ui-verify"].includes(mode)) throw new Error("Use direct, ui-prepare or ui-verify");
+const stateFile = join(process.cwd(), ".verification", `scheduled-score-${environment}.json`);
+if (mode === "ui-prepare" && existsSync(stateFile)) throw new Error("Previous UI fixture must be verified and cleaned first");
+const saved = mode === "ui-verify" ? JSON.parse(readFileSync(stateFile, "utf8")) : null;
 process.loadEnvFile(environment === "development" ? ".env.local" : ".env.staging.local");
 if (process.env.PAIR_EVAL_ENV !== environment || !process.env.DATABASE_URL ||
     new URL(process.env.DATABASE_URL).hostname !== process.env.PAIR_EVAL_EXPECTED_DB_HOST) {
@@ -11,12 +18,15 @@ if (process.env.PAIR_EVAL_ENV !== environment || !process.env.DATABASE_URL ||
 const origin = process.env.PAIR_EVAL_SCORE_CRON_ORIGIN ?? (environment === "development" ?
   "http://localhost:3102" : "https://paireval-full-staging.vercel.app");
 const token = process.env.CRON_SECRET;
-if (!token || Buffer.byteLength(token) < 16) throw new Error("CRON_SECRET required for score smoke");
+if (mode === "direct" && (!token || Buffer.byteLength(token) < 16)) throw new Error("CRON_SECRET required for direct score smoke");
 const pool = new Pool({ connectionString: process.env.DATABASE_URL, max: 1,
   connectionTimeoutMillis: 30000 });
-const owner = randomUUID(), student = randomUUID(), room = randomUUID(), group = randomUUID();
-const assignment = randomUUID(), generation = randomUUID(), suffix = randomUUID().slice(0, 8);
-let fixtureCreated = false;
+const owner = saved?.owner ?? randomUUID(), student = saved?.student ?? randomUUID();
+const room = saved?.room ?? randomUUID(), group = saved?.group ?? randomUUID();
+const assignment = saved?.assignment ?? randomUUID(), generation = saved?.generation ?? randomUUID();
+const suffix = randomUUID().slice(0, 8);
+let fixtureCreated = mode === "ui-verify";
+let retainFixture = false;
 async function cron(authorization) {
   const response = await fetch(`${origin}/api/full-system/cron/scores`, { method: "POST",
     headers: { Authorization: `Bearer ${authorization}` } });
@@ -24,6 +34,7 @@ async function cron(authorization) {
   return { status: response.status, payload };
 }
 try {
+ if (mode !== "ui-verify") {
   const client = await pool.connect();
   try {
     await client.query("BEGIN");
@@ -48,7 +59,16 @@ try {
     await client.query("COMMIT"); fixtureCreated = true;
   } catch (error) { await client.query("ROLLBACK").catch(() => {}); throw error; }
   finally { client.release(); }
+ }
 
+ if (mode === "ui-prepare") {
+  mkdirSync(join(process.cwd(), ".verification"), { recursive: true });
+  writeFileSync(stateFile, JSON.stringify({ owner, student, room, group, assignment, generation,
+    preparedAt: new Date().toISOString() }));
+  retainFixture = true;
+  console.log(`${environment} synthetic score fixture ready for Vercel Cron Jobs > scores > Run`);
+ } else {
+ if (mode === "direct") {
   const denied = await cron(`${token}wrong`);
   if (denied.status !== 404) throw new Error(`Unauthorized scheduler returned ${denied.status}`);
   const parallel = await Promise.all([cron(token), cron(token)]);
@@ -60,6 +80,7 @@ try {
   if (second.status !== 200 || second.payload?.data?.failed !== 0 || second.payload?.data?.created !== 0) {
     throw new Error(`Scheduler replay was not idempotent: ${second.status}`);
   }
+ }
   const evidence = await pool.query(`SELECT r.local_date,r.snapshot_id,s.kind,s.created_by,
     (SELECT count(*)::integer FROM scheduled_score_run WHERE assignment_id=$1) AS runs,
     (SELECT count(*)::integer FROM score_snapshot WHERE assignment_id=$1) AS snapshots
@@ -70,9 +91,16 @@ try {
       row.created_by !== "00000000-0000-4000-8000-000000000026") {
     throw new Error("Scheduled score snapshot or idempotency evidence mismatched");
   }
-  console.log(`${environment} scheduled score smoke passed: denied token, concurrent due snapshot and retry`);
+  if (mode === "ui-verify") {
+    const invocation = await pool.query(`SELECT count(*)::integer AS n FROM score_job_invocation
+      WHERE origin='VERCEL_CRON' AND status='COMPLETED' AND started_at >= $1::timestamptz
+        AND (result_json->>'created')::integer >= 1`, [saved.preparedAt]);
+    if (invocation.rows[0].n < 1) throw new Error("No completed Vercel manual Run invocation for fixture");
+    console.log(`${environment} Vercel manual Cron Run passed: Interim snapshot, schedule key and invocation evidence`);
+  } else console.log(`${environment} scheduled score smoke passed: denied token, concurrent due snapshot and retry`);
+ }
 } finally {
-  if (fixtureCreated) {
+  if (fixtureCreated && !retainFixture) {
     const client = await pool.connect();
     try {
       await client.query("BEGIN");
@@ -89,6 +117,7 @@ try {
       await client.query("COMMIT");
     } catch (error) { await client.query("ROLLBACK").catch(() => {}); throw error; }
     finally { client.release(); }
+    if (mode === "ui-verify") unlinkSync(stateFile);
   }
   await pool.end();
 }
