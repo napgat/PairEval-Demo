@@ -1,6 +1,8 @@
 # Privacy Notice approval packet — draft for named owners
 
-Date: 29 September 2026. This packet is a reviewable proposal for `FR-PRIV-01` and `OQ-6`, not a legal determination, approved notice, or permission to enroll real users. The current staging gate remains closed except for synthetic test fixtures. PRD v2.1 and its traceability line numbers are unchanged.
+Date: 29 September 2026. This packet is a reviewable proposal for `FR-PRIV-01` and `OQ-6`, not a legal determination, approved notice, or permission to enroll real users for real coursework. The institutional policy gate remains closed. PRD v2.1 and its traceability line numbers are unchanged.
+
+**Student-project staging update (30 September 2026):** Two owner-supplied Google accounts were enrolled solely to view a synthetic preview classroom. They can acknowledge a separate `student-demo-staging-v1` notice themselves after login; see [staging demo access](staging-demo-access.md). That prototype acknowledgement is not approval of the PRD notice below, OQ-6, retention or real-grade processing. The institutional gate remains open.
 
 ## Proposed first-login text (`2026-09-paireval-v1`)
 

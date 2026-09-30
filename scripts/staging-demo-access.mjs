@@ -24,8 +24,16 @@ try {
   const existing = await pool.query(
     "SELECT email_lookup FROM app_user WHERE email_lookup=ANY($1::text[])", [[teacherEmail, studentEmail]]);
   if (action === "status") {
-    console.log(JSON.stringify({ teacherExists: existing.rows.some(row => row.email_lookup === teacherEmail),
-      studentExists: existing.rows.some(row => row.email_lookup === studentEmail),
+    const roles = await pool.query(`SELECT u.email_lookup,u.status,u.can_create_classroom,
+      m.role,c.name AS classroom_name,p.notice_version
+      FROM app_user u LEFT JOIN classroom_member m ON m.user_id=u.id
+      LEFT JOIN classroom c ON c.id=m.classroom_id AND c.status='ACTIVE'
+      LEFT JOIN privacy_notice_acceptance p ON p.user_id=u.id
+      WHERE u.email_lookup=ANY($1::text[])`, [[teacherEmail, studentEmail]]);
+    const account = email => roles.rows.filter(row => row.email_lookup === email).map(row => ({
+      status: row.status, role: row.role, canCreateClassroom: row.can_create_classroom,
+      classroom: row.classroom_name, noticeAcknowledged: row.notice_version === "student-demo-staging-v1" }));
+    console.log(JSON.stringify({ teacher: account(teacherEmail), student: account(studentEmail),
       localManifestExists: existsSync(manifestPath) }));
   } else {
     if (existing.rowCount || existsSync(manifestPath)) {
