@@ -55,6 +55,8 @@ try {
     }
     await client.query("INSERT INTO classroom (id,name,slug,created_by) VALUES ($1,$2,$3,$4)",
       [room, `Synthetic Day 5 ${suffix}`, `day5-${suffix}`, owner]);
+    await client.query(`INSERT INTO synthetic_quality_cohort(classroom_id,provenance)
+      VALUES ($1,'day5-score-smoke synthetic-only cohort')`, [room]);
     await client.query(`INSERT INTO classroom_member (id,classroom_id,user_id,role)
       VALUES ($1,$2,$3,'OWNER')`, [randomUUID(), room, owner]);
     await client.query(`INSERT INTO classroom_member (id,classroom_id,user_id,role)
@@ -92,6 +94,11 @@ try {
     "student recompute");
   expectStatus(await call(`/api/full-system/assignments/${assignment}/evaluation/group`, students[6],
     "PUT", { pairId: groupPair, choice: 1 }), 200, "group draft");
+  const groupLease = expectStatus(await call(`/api/full-system/assignments/${assignment}/evaluation/group/timing`,
+    students[6], "POST", { pairId: groupPair }), 200, "synthetic group timing lease");
+  expectStatus(await call(`/api/full-system/assignments/${assignment}/evaluation/group/timing`, students[6],
+    "PUT", { pairId: groupPair, leaseId: groupLease.leaseId, sequence: 1, deltaMs: 1000, close: true }),
+  200, "synthetic group timing close");
   const groupKey = randomUUID();
   expectStatus(await call(`/api/full-system/assignments/${assignment}/evaluation/group`, students[6],
     "POST", undefined, groupKey), 200, "group submit");
@@ -102,6 +109,11 @@ try {
     students[6], "POST", undefined, groupKey), 409, "key cannot move to another side");
   expectStatus(await call(`/api/full-system/assignments/${assignment}/evaluation/individual`, students[2],
     "PUT", { pairId: individualPair, choice: 1 }), 200, "individual draft");
+  const individualLease = expectStatus(await call(`/api/full-system/assignments/${assignment}/evaluation/individual/timing`,
+    students[2], "POST", { pairId: individualPair }), 200, "synthetic individual timing lease");
+  expectStatus(await call(`/api/full-system/assignments/${assignment}/evaluation/individual/timing`, students[2],
+    "PUT", { pairId: individualPair, leaseId: individualLease.leaseId, sequence: 1, deltaMs: 1000, close: true }),
+  200, "synthetic individual timing close");
   expectStatus(await call(`/api/full-system/assignments/${assignment}/evaluation/individual`, students[2],
     "POST"), 200, "individual submit");
   const first = expectStatus(await call(scorePath, owner, "POST", { kind: "INTERIM" }), 200,
@@ -117,8 +129,11 @@ try {
       read.output.pairSummary.find(row => row.side === "GROUP")?.meanForA !== 1) {
     throw new Error("Pair coverage aggregation mismatch");
   }
-  if (read.output.quality?.version !== "qs-02-04-v1" ||
+  if (read.output.quality?.version !== "qs-02-07-synthetic-v2" ||
       read.output.quality.measures.filter(row => row.id === "QS-02" && row.flagged).length !== 2 ||
+      read.output.quality.measures.filter(row => row.id === "QS-05" && row.flagged && row.ratio === 1).length !== 2 ||
+      read.output.quality.measures.filter(row => row.id === "QS-06" && row.ratio !== null).length !== 0 ||
+      read.output.quality.measures.filter(row => row.id === "QS-07" && row.ratio !== null).length !== 0 ||
       read.output.quality.measures.filter(row => row.id === "QS-04").some(row => row.ratio !== null) ||
       students.some(id => JSON.stringify(read.output.quality).includes(id))) {
     throw new Error("Advisory quality evidence or pseudonym scope mismatch");
@@ -190,9 +205,9 @@ try {
     await page.getByRole("tab", { name: "Individual Summary" }).click();
     await page.getByRole("columnheader", { name: "ส่ง/มอบหมาย" }).waitFor();
     await page.getByRole("tab", { name: "Quality", exact: true }).click();
-    await page.getByText("สัญญาณคุณภาพ QS-02–04", { exact: true }).waitFor();
+    await page.getByText("สัญญาณคุณภาพ QS-02–07", { exact: true }).waitFor();
     await page.getByText("QS-02 เลือกค่าเดิม", { exact: true }).first().waitFor();
-    await page.getByText("QS-05 ยังไม่เก็บเวลา", { exact: false }).waitFor();
+    await page.getByText("QS-05 เปิดเฉพาะชุดทดสอบสังเคราะห์", { exact: false }).waitFor();
     if (process.env.PAIR_EVAL_SMOKE_SCREENSHOT) {
       await page.screenshot({ path: process.env.PAIR_EVAL_SMOKE_SCREENSHOT, fullPage: true });
     }
@@ -415,6 +430,8 @@ try {
     await client.query("DELETE FROM score_override WHERE assignment_id=$1", [assignment]);
     await client.query(`DELETE FROM submission_answer WHERE revision_id IN
       (SELECT id FROM submission_revision WHERE assignment_id=$1)`, [assignment]);
+    await client.query(`DELETE FROM evaluation_active_session WHERE pair_assignment_id IN
+      (SELECT id FROM pair_assignment WHERE assignment_id=$1)`, [assignment]);
     await client.query("DELETE FROM submission_revision WHERE assignment_id=$1", [assignment]);
     await client.query("DELETE FROM evaluation_draft_answer WHERE assignment_id=$1", [assignment]);
     await client.query("DELETE FROM evaluation_draft WHERE assignment_id=$1", [assignment]);
@@ -426,6 +443,7 @@ try {
     await client.query("DELETE FROM assignment WHERE id=$1", [assignment]);
     await client.query("DELETE FROM classroom_member WHERE classroom_id=$1", [room]);
     await client.query("DELETE FROM group_entity WHERE classroom_id=$1", [room]);
+    await client.query("DELETE FROM synthetic_quality_cohort WHERE classroom_id=$1", [room]);
     await client.query("DELETE FROM classroom WHERE id=$1", [room]);
     await client.query("DELETE FROM app_session WHERE user_id=ANY($1::uuid[])", [users]);
     await client.query("DELETE FROM privacy_notice_acceptance WHERE user_id=ANY($1::uuid[])", [users]);

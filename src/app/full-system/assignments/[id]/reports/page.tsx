@@ -15,6 +15,15 @@ const tabs: Array<{ id: Tab; label: string }> = [
   { id: "group", label: "Group Summary" }, { id: "individual", label: "Individual Summary" },
   { id: "coverage", label: "Pair Coverage" }, { id: "quality", label: "Quality" }];
 const show = (value: number | null) => value === null ? "NO_DATA" : value.toFixed(3);
+const signalName = { "QS-02": "QS-02 เลือกค่าเดิม", "QS-03": "QS-03 เลือกฝั่งเดียว", "QS-04": "QS-04 คำตอบวนขัดกัน",
+  "QS-05": "QS-05 เวลาทำคำถาม", "QS-06": "QS-06 ให้คะแนนเพื่อนสังเคราะห์", "QS-07": "QS-07 ความเห็นตรงกัน" };
+const qualityReason: Record<string, string> = {
+  REAL_TELEMETRY_DISABLED: "ไม่เปิดเก็บเวลาของผู้ใช้จริง", INCOMPLETE_ACTIVE_DURATION: "เวลาบางคำตอบยังไม่ครบหรือไม่ได้รับการยืนยัน",
+  SYNTHETIC_FRIEND_SOURCE_REQUIRED: "ไม่มีชุดความสัมพันธ์เพื่อนสังเคราะห์", NO_EXPLICIT_FRIENDS: "ไม่มีความสัมพันธ์เพื่อนที่ระบุไว้",
+  MIN_3_MATCHED_COMPARISONS: "ต้องมีคำตอบตรงคู่กันอย่างน้อย 3 คู่", MIN_5_REFERENCE_RATERS: "ต้องมีผู้ประเมินอ้างอิงอย่างน้อย 5 คน",
+  ZERO_REFERENCE_VARIANCE: "ผู้ประเมินอ้างอิงให้ค่าเท่ากันทั้งหมด", MIN_3_COMPLETE_RATERS: "ต้องมีผู้ประเมินที่ตอบครบชุดอย่างน้อย 3 คน",
+  ALL_TIED_PANEL: "ทุกอันดับเสมอกันจึงคำนวณความเห็นตรงกันไม่ได้", INCOMPLETE_RANK_PANEL: "คำตอบยังไม่เป็นชุดรายการร่วมที่ครบทุกคู่",
+};
 
 export default function ReportsPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
@@ -183,18 +192,21 @@ export default function ReportsPage({ params }: { params: Promise<{ id: string }
           {output.quality ? <>
             <p className="fine-print">รหัสผู้ประเมินใช้เฉพาะ snapshot นี้ QS-02/03 แยกตามด้านและใช้คำตอบที่ส่งล่าสุด;
               QS-04 แยกตามเกณฑ์และนับเฉพาะชุดสามรายการที่ตอบครบ สัญญาณจากคำตอบจำนวนน้อยต้องทบทวนด้วยความระมัดระวัง</p>
-            <div className="table-wrap"><table><caption>สัญญาณคุณภาพ QS-02–04</caption><thead><tr>
+            <div className="table-wrap"><table><caption>{output.quality.version === "qs-02-04-v1" ? "สัญญาณคุณภาพ QS-02–04" : "สัญญาณคุณภาพ QS-02–07"}</caption><thead><tr>
               <th>สัญญาณ</th><th>รหัสผู้ประเมิน</th><th>ด้าน / เกณฑ์</th><th>พบ / ตรวจได้</th><th>สัดส่วน</th><th>เกณฑ์</th><th>ผล</th>
             </tr></thead><tbody>{output.quality.measures.map(row => <tr
               key={`${row.id}:${row.evaluatorCode}:${row.side}:${row.criterionId}`}>
-              <td>{row.id === "QS-02" ? "QS-02 เลือกค่าเดิม" : row.id === "QS-03" ? "QS-03 เลือกฝั่งเดียว" : "QS-04 คำตอบวนขัดกัน"}</td>
+              <td>{signalName[row.id]}</td>
               <td>{row.evaluatorCode}</td><td>{row.side}{row.criterionId ? ` / ${chartCriteria.find(c => c[0] === row.criterionId)?.[1] ?? row.criterionId.slice(0, 8)}` : ""}</td>
-              <td>{row.count} / {row.total}</td><td>{row.ratio === null ? "ข้อมูลไม่พอ" : `${(row.ratio * 100).toFixed(1)}%`}</td>
-              <td>&gt; {row.threshold * 100}%</td><td>{row.ratio === null ? "ตรวจไม่ได้" : row.flagged ? "ควรทบทวน" : "ไม่พบสัญญาณ"}</td>
+              <td>{row.id === "QS-05" ? `บันทึกเวลา ${row.count}/${row.total} คำตอบ` : row.id === "QS-06" ? `${row.count} คู่ / อ้างอิง ${row.total} คน` : row.id === "QS-07" ? `${row.count} คน / ${row.total} รายการ` : `${row.count} / ${row.total}`}</td>
+              <td>{row.ratio === null ? "ข้อมูลไม่พอ" : row.id === "QS-05" ? `${row.ratio.toFixed(3)} วินาที` : row.id === "QS-06" ? `z = ${row.ratio.toFixed(3)}` : row.id === "QS-07" ? `W = ${row.ratio.toFixed(3)}` : `${(row.ratio * 100).toFixed(1)}%`}</td>
+              <td>{row.operator ?? ">"} {row.id === "QS-05" ? `${row.threshold} วินาที` : row.id === "QS-06" || row.id === "QS-07" ? row.threshold : `${row.threshold * 100}%`}</td>
+              <td>{row.ratio === null ? `ตรวจไม่ได้ — ${qualityReason[row.reason ?? ""] ?? "ข้อมูลไม่พอ"}` : row.flagged ? "ควรทบทวน" : "ไม่พบสัญญาณ"}</td>
             </tr>)}</tbody></table></div>
             {output.quality.measures.length === 0 && <p>ยังไม่มีคำตอบที่ส่งสำหรับตรวจ QS-02–04</p>}
           </> : <p>Snapshot รุ่นนี้ยังไม่มี QS-02–04 โปรดคำนวณ Interim ใหม่หากต้องการตรวจ</p>}
-          <p className="fine-print">QS-05 ยังไม่เก็บเวลา; QS-06 และ QS-07 ยังไม่คำนวณ จึงยังสรุปคุณภาพครบชุดไม่ได้</p>
+          <p className="fine-print">QS-05 เปิดเฉพาะชุดทดสอบสังเคราะห์ที่ระบุไว้และต้องมีเวลาครบทุกคำตอบ; QS-06 ใช้ความสัมพันธ์เพื่อนสังเคราะห์ที่ระบุโดยตรง;
+            QS-07 ใช้ผู้ประเมินอย่างน้อย 3 คนที่ตอบครบทุกคู่ในชุดรายการเดียวกัน ไม่มีการเติมคำตอบที่ขาด สัญญาณทั้งหมดต้องทบทวนด้วยตา</p>
           <h3>คำตอบที่ผู้สอนตัดออกจากคะแนน</h3>
           {output.exclusions?.length ? <ul className="plain-list">{output.exclusions.map(row =>
             <li key={row.pairId}>{row.side} · {row.pairId.slice(0, 8)} · {row.reason}</li>)}</ul> : <p>ไม่มีคำตอบที่ถูกตัดออกใน snapshot นี้</p>}

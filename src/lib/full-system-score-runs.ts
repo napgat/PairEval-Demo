@@ -6,6 +6,8 @@ import { runAuditedMutation } from "./full-system-audit-outbox";
 import { enqueueAssignmentNotifications } from "./full-system-notifications";
 import { rawComparisonCsv, type RawScoreInput } from "./full-system-raw-export";
 import { qualityReport, type QualityReport } from "./full-system-quality";
+import type { SyntheticQualityContext } from "./full-system-quality-advanced";
+import { syntheticQualityEnabled } from "./full-system-synthetic-quality";
 import { AssignmentConflictError, AssignmentInputError, AssignmentNotFoundError } from "./full-system-assignments";
 import { calculateItemScores, choicePoints, mappedScore, participation, type ScoreAnswer, type ScoreItem,
   type ScorePair, type ScoreSettings } from "./full-system-scoring";
@@ -61,7 +63,8 @@ const four = (value: number) => Math.round((value + Number.EPSILON) * 10000) / 1
 export function assembleScoreRun(input: { assignmentId: string; generation: number;
   kind: "INTERIM" | "FINAL"; formulaVersion: string; settings: ScoreSettings;
   groups: Array<{ id: string; name: string }>; students: StudentRow[];
-  criteria: CriterionRow[]; pairs: ScorePair[]; answers: ScoreAnswer[]; overrides: OverrideRow[] }): ScoreRun {
+  criteria: CriterionRow[]; pairs: ScorePair[]; answers: ScoreAnswer[]; overrides: OverrideRow[];
+  qualityContext?: SyntheticQualityContext }): ScoreRun {
   const items = calculateItemScores({ criteria: input.criteria.map(c => ({ id: c.id, side: c.side,
     weightPct: Number(c.weight_pct) })), pairs: input.pairs, answers: input.answers,
     groupIds: input.groups.map(g => g.id), studentIds: input.students.map(s => s.id), settings: input.settings });
@@ -134,7 +137,7 @@ export function assembleScoreRun(input: { assignmentId: string; generation: numb
     pairSummary.set(key, row);
   }
   return { assignmentId: input.assignmentId, generation: input.generation, kind: input.kind,
-    quality: qualityReport(input.pairs, input.answers),
+    quality: qualityReport(input.pairs, input.answers, input.qualityContext),
     exclusions: input.answers.filter(a => a.excluded).map(a => {
       const pair = input.pairs.find(p => p.id === a.pairId)!;
       return { pairId: pair.id, side: pair.side, criterionId: pair.criterionId, reason: a.exclusionReason ?? "" };
@@ -167,7 +170,7 @@ async function scoreInputs(client: PoolClient, a: AssignmentRow, kind: "INTERIM"
     student_b_id,display_left,evaluator_user_id,source FROM active_pair_assignment
     WHERE assignment_id=$1 AND generation=$2 ORDER BY id`, [a.id, a.generation]);
   const answerRows = await client.query(`SELECT sa.pair_assignment_id,sa.choice,sr.evaluator_user_id,p.source,
-    review.excluded,review.reason AS exclusion_reason
+    review.excluded,review.reason AS exclusion_reason,sa.active_duration_ms
     FROM (SELECT DISTINCT ON (evaluator_user_id,side) id,evaluator_user_id,side
       FROM submission_revision WHERE assignment_id=$1 AND generation=$2
       ORDER BY evaluator_user_id,side,revision_number DESC) sr
@@ -186,12 +189,18 @@ async function scoreInputs(client: PoolClient, a: AssignmentRow, kind: "INTERIM"
   const answers: ScoreAnswer[] = answerRows.rows.map(row => ({ pairId: row.pair_assignment_id,
     choice: row.choice, evaluatorId: row.evaluator_user_id,
     weight: row.source === "INSTRUCTOR_SELF" ? Number(a.instructor_weight) : 1,
-    excluded: row.excluded === true, exclusionReason: row.excluded ? row.exclusion_reason : undefined }));
+    excluded: row.excluded === true, exclusionReason: row.excluded ? row.exclusion_reason : undefined,
+    activeDurationMs: row.active_duration_ms }));
   const settings: ScoreSettings = { groupMax: Number(a.group_max_score),
     individualMax: Number(a.individual_max_score), floor: Number(a.score_floor),
     ceiling: Number(a.score_ceiling), minComparisons: a.min_comparisons,
     kMin: 3, completionThreshold: Number(a.completion_threshold) };
-  const source = { groups: groups.rows, students: students.rows, criteria: criteria.rows, pairs, answers,
+  const synthetic = await syntheticQualityEnabled(client, a.classroom_id);
+  const friendshipRows = synthetic ? (await client.query<{ evaluatorId: string; friendId: string }>(
+    `SELECT evaluator_user_id AS "evaluatorId",friend_user_id AS "friendId" FROM synthetic_close_friend
+      WHERE classroom_id=$1 ORDER BY evaluator_user_id,friend_user_id`, [a.classroom_id])).rows : [];
+  const qualityContext: SyntheticQualityContext = { synthetic, students: students.rows.map(s => ({ id: s.id, groupId: s.group_id })), friendships: friendshipRows };
+  const source = { groups: groups.rows, students: students.rows, criteria: criteria.rows, pairs, answers, qualityContext,
     overrides: overrideRows.rows };
   const output = assembleScoreRun({ assignmentId: a.id, generation: a.generation, kind,
     formulaVersion: a.scoring_formula_version, settings, ...source });
@@ -234,6 +243,27 @@ async function persistScoreRun(client: PoolClient, actor: FullActor, a: Assignme
 export async function recomputeMutationScores(client: PoolClient, actor: FullActor, assignmentId: string) {
   const a = await editorScope(client, actor, assignmentId, true);
   if (a.status === "FINALIZED") throw new AssignmentConflictError("Reopen before recalculating scores");
+  return persistScoreRun(client, actor, a, "INTERIM");
+}
+
+/** Only the secret-guarded synthetic scheduler calls this inside its audited transaction. */
+export async function persistScheduledInterimScore(client: PoolClient, assignmentId: string, systemActorId: string) {
+  if (!["development", "staging"].includes(process.env.PAIR_EVAL_ENV ?? "") ||
+      systemActorId !== "00000000-0000-4000-8000-000000000026" || !validId(assignmentId)) {
+    throw new AssignmentConflictError("Synthetic scheduled scoring is disabled");
+  }
+  const found = await client.query<AssignmentRow>(`SELECT a.*,c.allowed_email_domains,c.slug AS classroom_slug
+    FROM assignment a JOIN classroom c ON c.id=a.classroom_id
+    WHERE a.id=$1 AND c.status='ACTIVE' AND EXISTS (SELECT 1 FROM assignment_generation g
+      WHERE g.assignment_id=a.id AND g.generation=a.generation AND g.status='ACTIVE') FOR UPDATE OF a`, [assignmentId]);
+  const a = found.rows[0];
+  if (!a || !["OPEN", "CLOSED"].includes(a.status)) throw new AssignmentConflictError("Assignment is not open for scheduled Interim");
+  const roster = await client.query<{ ok: boolean }>(`SELECT bool_and(u.email_lookup LIKE '%@example.test' OR u.email_lookup LIKE '%.invalid') AS ok
+    FROM classroom_member m JOIN app_user u ON u.id=m.user_id WHERE m.classroom_id=$1 AND m.role='STUDENT'`, [a.classroom_id]);
+  const service = await client.query(`SELECT 1 FROM app_user WHERE id=$1 AND status='DISABLED' AND email_lookup='score-scheduler@system.invalid'`, [systemActorId]);
+  if (!roster.rows[0].ok || !service.rowCount) throw new AssignmentConflictError("Scheduled scoring requires a synthetic roster and service identity");
+  const actor: FullActor = { id: systemActorId, email: "score-scheduler@system.invalid", hostedDomain: null,
+    platformRole: "USER", canCreateClassroom: false, privacyAccepted: false };
   return persistScoreRun(client, actor, a, "INTERIM");
 }
 

@@ -4,6 +4,7 @@ import { databasePool } from "./full-system-postgres";
 import { domainAllowed, type FullActor } from "./full-system-auth";
 import { runAuditedMutation } from "./full-system-audit-outbox";
 import { AssignmentConflictError, AssignmentInputError, AssignmentNotFoundError } from "./full-system-assignments";
+import { syntheticEmail, syntheticQualityEnabled } from "./full-system-synthetic-quality";
 
 export type EvaluationSide = "GROUP" | "INDIVIDUAL";
 const sideOk = (side: string): side is EvaluationSide => side === "GROUP" || side === "INDIVIDUAL";
@@ -71,6 +72,7 @@ export async function getEvaluation(actor: FullActor, assignmentId: string, side
     const draft = await client.query(`SELECT updated_at FROM evaluation_draft WHERE assignment_id=$1
       AND evaluator_user_id=$2 AND side=$3 AND generation=$4`, [assignmentId, actor.id, side, row.generation]);
     return { assignmentId, side, generation: row.generation, timezone: row.timezone,
+      syntheticTimingEnabled: row.role === "STUDENT" && syntheticEmail(actor.email) && await syntheticQualityEnabled(client, row.classroom_id),
       deadline: row.deadline?.toISOString() ?? null, readOnly: row.status !== "OPEN" || !row.deadline_open,
       disabledReason: side === "INDIVIDUAL" && pairs.rows.length === 0 ? "No individual pairs are assigned" : null,
       criteria: criteria.rows.map(c => ({ id: c.id, name: c.name, description: c.description, weightPct: Number(c.weight_pct) })),
@@ -81,6 +83,16 @@ export async function getEvaluation(actor: FullActor, assignmentId: string, side
       latestSubmission: submitted.rows[0] ? { revision: submitted.rows[0].revision_number,
         submittedAt: submitted.rows[0].submitted_at.toISOString() } : null };
   } finally { client.release(); }
+}
+
+export async function requireTimingPair(client: PoolClient, actor: FullActor, assignmentId: string, side: string, pairId: string) {
+  if (!idOk(assignmentId) || !sideOk(side) || !idOk(pairId)) throw new AssignmentInputError("Invalid timing scope");
+  const row = await scope(client, actor, assignmentId, side, true); writable(row);
+  await eligiblePair(client, assignmentId, actor.id, side, row.generation, pairId);
+  if (row.role !== "STUDENT" || !syntheticEmail(actor.email) || !await syntheticQualityEnabled(client, row.classroom_id)) {
+    throw new AssignmentConflictError("Timing is disabled outside an explicitly enrolled synthetic cohort");
+  }
+  return row.generation;
 }
 
 export async function listStudentAssignments(actor: FullActor, classroomId: string) {
@@ -184,8 +196,13 @@ export async function submitEvaluation(actor: FullActor, assignmentId: string, s
         (id,assignment_id,evaluator_user_id,side,generation,revision_number,idempotency_key)
         VALUES ($1,$2,$3,$4,$5,$6,$7)`, [revisionId, assignmentId, actor.id, side,
         row.generation, number.rows[0].n, idempotencyKey]);
+      const timingEnabled = row.role === "STUDENT" && syntheticEmail(actor.email) && await syntheticQualityEnabled(client, row.classroom_id);
       for (const answer of answers.rows) await client.query(`INSERT INTO submission_answer
-        (revision_id,pair_assignment_id,choice) VALUES ($1,$2,$3)`, [revisionId, answer.pair_assignment_id, answer.choice]);
+        (revision_id,pair_assignment_id,choice,active_duration_ms)
+        SELECT $1,$2,$3,CASE WHEN $4::boolean AND count(*)>0 AND bool_and(closed)
+          AND sum(active_ms)<=86400000 THEN sum(active_ms)::integer ELSE NULL END
+        FROM evaluation_active_session WHERE pair_assignment_id=$2 AND evaluator_user_id=$5 AND generation=$6`,
+        [revisionId, answer.pair_assignment_id, answer.choice, timingEnabled, actor.id, row.generation]);
       const assigned = await client.query<{ n: number }>(`SELECT count(*)::integer AS n FROM active_pair_assignment
         WHERE assignment_id=$1 AND evaluator_user_id=$2 AND side=$3 AND generation=$4`,
       [assignmentId, actor.id, side, row.generation]);

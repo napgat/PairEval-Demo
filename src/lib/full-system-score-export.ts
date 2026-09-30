@@ -34,15 +34,15 @@ export function reportRows(run: ScoreRun, report: Report): Cell[][] {
     ...run.pairSummary.map(pair => [pair.side, pair.criterionId, pair.aId, pair.bId,
       pair.answered, pair.assigned, scalar(pair.meanForA), pair.excluded ?? 0] as Cell[])];
   if (run.quality) return [["Side", "Subject", "Signal", "Count", "Total", "Ratio",
-    "Threshold (strictly greater)", "Review", "Suggested action"],
+    run.quality.version === "qs-02-04-v1" ? "Threshold (strictly greater)" : "Threshold (strict comparison)", "Review", "Suggested action"],
     ...[...run.groups.map(g => ({ side: "GROUP", id: g.id, flags: g.flags })),
       ...run.students.map(s => ({ side: "INDIVIDUAL", id: s.id, flags: s.flags }))]
       .flatMap(item => item.flags.map(flag => [item.side, item.id, flag, null, null, null,
         null, "REVIEW", "ตรวจข้อมูล/เหตุผลก่อนตัดสินคะแนน"] as Cell[])),
     ...run.quality.measures.map(row => [row.side, row.evaluatorCode, row.id,
       row.count, row.total, row.ratio === null ? "INSUFFICIENT_DATA" : scalar(row.ratio),
-      row.threshold, row.ratio === null ? "NOT_ASSESSABLE" : row.flagged ? "REVIEW" : "NO_SIGNAL",
-      `${row.criterionId ? `Criterion ${row.criterionId}; ` : ""}ทบทวนด้วยตา; ไม่ลดน้ำหนักอัตโนมัติ`] as Cell[]),
+      row.operator ? `${row.operator} ${row.threshold}` : row.threshold, row.ratio === null ? "NOT_ASSESSABLE" : row.flagged ? "REVIEW" : "NO_SIGNAL",
+      `${row.criterionId ? `Criterion ${row.criterionId}; ` : ""}${row.reason ? `${row.reason}; ${row.evidence}; ` : ""}ทบทวนด้วยตา; ไม่ลดน้ำหนักอัตโนมัติ`] as Cell[]),
     ...(run.exclusions ?? []).map(row => [row.side, row.pairId, "EXCLUDED", null, null, null,
       null, "INSTRUCTOR_DECISION", row.reason] as Cell[])];
   return [["Side", "Item ID", "Flag", "Suggested action"],
@@ -87,7 +87,8 @@ export async function reportWorkbook(run: ScoreRun, snapshot: { snapshotNo: numb
   ] as Cell[][]) meta.addRow(row.map(safeExportCell));
   if (run.quality) {
     meta.addRow(["Quality signal version", run.quality.version]);
-    meta.addRow(["Quality limitations", "QS-05/06/07 not computed; evaluator codes are snapshot-local; advisory only"]);
+    meta.addRow(["Quality limitations", run.quality.version === "qs-02-04-v1" ? "QS-05/06/07 not computed; evaluator codes are snapshot-local; advisory only" :
+      "QS-05 synthetic opted-in active time only; QS-06 explicit synthetic friends and matched reference cohort; QS-07 complete common panels with midranks/ties; missing data not assessed; no automatic penalties"]);
     meta.addRow([]);
     for (const row of reportRows(run, "quality")) meta.addRow(row.map(safeExportCell));
   }

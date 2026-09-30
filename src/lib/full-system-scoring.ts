@@ -3,7 +3,7 @@ export type ScoreCriterion = { id: string; side: ScoreSide; weightPct: number };
 export type ScorePair = { id: string; criterionId: string; side: ScoreSide; aId: string; bId: string;
   displayLeft: "A" | "B"; evaluatorId: string };
 export type ScoreAnswer = { pairId: string; choice: number; evaluatorId: string; weight: number;
-  excluded?: boolean; exclusionReason?: string };
+  excluded?: boolean; exclusionReason?: string; activeDurationMs?: number | null };
 export type ScoreItem = { itemId: string; side: ScoreSide; component: number | null;
   criteria: Array<{ criterionId: string; q: number | null; comparisons: number; lowConfidence: boolean }>;
   evaluatorCount: number; anonymous: boolean };

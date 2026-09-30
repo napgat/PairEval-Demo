@@ -1,7 +1,8 @@
 import type { ScoreAnswer, ScorePair, ScoreSide } from "./full-system-scoring";
+import { advancedQualityMeasures, type SyntheticQualityContext } from "./full-system-quality-advanced";
 
 export type QualityMeasure = {
-  id: "QS-02" | "QS-03" | "QS-04";
+  id: "QS-02" | "QS-03" | "QS-04" | "QS-05" | "QS-06" | "QS-07";
   evaluatorCode: string;
   side: ScoreSide;
   criterionId: string | null;
@@ -10,11 +11,14 @@ export type QualityMeasure = {
   ratio: number | null;
   threshold: number;
   flagged: boolean;
+  operator?: ">" | "<";
+  reason?: string;
+  evidence?: string;
 };
 export type QualityReport = { version: string; measures: QualityMeasure[] };
 
 /** Advisory only. Uses the same submitted revision inputs as scoring, without changing them. */
-export function qualityReport(pairs: ScorePair[], answers: ScoreAnswer[]): QualityReport {
+export function qualityReport(pairs: ScorePair[], answers: ScoreAnswer[], context?: SyntheticQualityContext): QualityReport {
   const pairById = new Map(pairs.map(pair => [pair.id, pair]));
   // Codes are local to this snapshot; no evaluator UUID or name is exposed in this report.
   const codes = new Map([...new Set(pairs.map(pair => pair.evaluatorId))].sort()
@@ -76,5 +80,6 @@ export function qualityReport(pairs: ScorePair[], answers: ScoreAnswer[]): Quali
       add("QS-04", cycles, total, .2, criterionId);
     }
   }
-  return { version: "qs-02-04-v1", measures };
+  measures.push(...advancedQualityMeasures(pairs, answers, codes, context));
+  return { version: "qs-02-07-synthetic-v2", measures };
 }
