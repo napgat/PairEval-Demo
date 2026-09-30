@@ -148,8 +148,26 @@ export default function ReportsPage({ params }: { params: Promise<{ id: string }
             <td>{p.criterionId.slice(0, 8)}</td><td>{p.aId.slice(0, 8)} / {p.bId.slice(0, 8)}</td>
             <td>{p.answered}/{p.assigned}</td><td>{show(p.meanForA)}</td></tr>)}
         </tbody></table>{!output.pairSummary && <p>Snapshot รุ่นนี้ยังไม่มีผลรวมต่อคู่ โปรดคำนวณ Interim ใหม่หากต้องการข้อมูลนี้</p>}</div>}
-        {tab === "quality" && <ul className="plain-list">{quality.flatMap(row => row.flags.map(flag =>
-          <li key={`${row.name}:${flag}`}>{row.name}: {flag}</li>))}</ul>}
+        {tab === "quality" && <>
+          <p>สัญญาณใช้ช่วยทบทวนคำตอบ ไม่ลดน้ำหนักหรือลบคำตอบอัตโนมัติ</p>
+          <ul className="plain-list">{quality.flatMap(row => row.flags.map(flag =>
+            <li key={`${row.name}:${flag}`}>{row.name}: {flag}</li>))}</ul>
+          {output.quality ? <>
+            <p className="fine-print">รหัสผู้ประเมินใช้เฉพาะ snapshot นี้ QS-02/03 แยกตามด้านและใช้คำตอบที่ส่งล่าสุด;
+              QS-04 แยกตามเกณฑ์และนับเฉพาะชุดสามรายการที่ตอบครบ สัญญาณจากคำตอบจำนวนน้อยต้องทบทวนด้วยความระมัดระวัง</p>
+            <div className="table-wrap"><table><caption>สัญญาณคุณภาพ QS-02–04</caption><thead><tr>
+              <th>สัญญาณ</th><th>รหัสผู้ประเมิน</th><th>ด้าน / เกณฑ์</th><th>พบ / ตรวจได้</th><th>สัดส่วน</th><th>เกณฑ์</th><th>ผล</th>
+            </tr></thead><tbody>{output.quality.measures.map(row => <tr
+              key={`${row.id}:${row.evaluatorCode}:${row.side}:${row.criterionId}`}>
+              <td>{row.id === "QS-02" ? "QS-02 เลือกค่าเดิม" : row.id === "QS-03" ? "QS-03 เลือกฝั่งเดียว" : "QS-04 คำตอบวนขัดกัน"}</td>
+              <td>{row.evaluatorCode}</td><td>{row.side}{row.criterionId ? ` / ${chartCriteria.find(c => c[0] === row.criterionId)?.[1] ?? row.criterionId.slice(0, 8)}` : ""}</td>
+              <td>{row.count} / {row.total}</td><td>{row.ratio === null ? "ข้อมูลไม่พอ" : `${(row.ratio * 100).toFixed(1)}%`}</td>
+              <td>&gt; {row.threshold * 100}%</td><td>{row.ratio === null ? "ตรวจไม่ได้" : row.flagged ? "ควรทบทวน" : "ไม่พบสัญญาณ"}</td>
+            </tr>)}</tbody></table></div>
+            {output.quality.measures.length === 0 && <p>ยังไม่มีคำตอบที่ส่งสำหรับตรวจ QS-02–04</p>}
+          </> : <p>Snapshot รุ่นนี้ยังไม่มี QS-02–04 โปรดคำนวณ Interim ใหม่หากต้องการตรวจ</p>}
+          <p className="fine-print">QS-05 ยังไม่เก็บเวลา; QS-06 และ QS-07 ยังไม่คำนวณ จึงยังสรุปคุณภาพครบชุดไม่ได้</p>
+        </>}
         <div className="actions"><button className="secondary-button" disabled={busy} onClick={() => download("csv")}>ดาวน์โหลด CSV</button>
           <button className="secondary-button" disabled={busy} onClick={() => download("xlsx")}>ดาวน์โหลด XLSX 4 sheet</button>
           {rawExportReady && <button className="secondary-button" disabled={busy}

@@ -114,6 +114,16 @@ try {
       read.output.pairSummary.find(row => row.side === "GROUP")?.meanForA !== 1) {
     throw new Error("Pair coverage aggregation mismatch");
   }
+  if (read.output.quality?.version !== "qs-02-04-v1" ||
+      read.output.quality.measures.filter(row => row.id === "QS-02" && row.flagged).length !== 2 ||
+      read.output.quality.measures.filter(row => row.id === "QS-04").some(row => row.ratio !== null) ||
+      students.some(id => JSON.stringify(read.output.quality).includes(id))) {
+    throw new Error("Advisory quality evidence or pseudonym scope mismatch");
+  }
+  const qualityCsv = await call(`/api/full-system/assignments/${assignment}/exports`, owner,
+    "POST", { format: "csv", report: "quality" });
+  expectStatus(qualityCsv, 200, "quality CSV export");
+  if (!new TextDecoder().decode(qualityCsv.data).includes("QS-02")) throw new Error("Quality CSV lacks signal evidence");
   expectStatus(await call(`/api/full-system/assignments/${assignment}/exports`, students[0],
     "POST", { format: "csv", report: "group" }), 404, "student export denial");
   expectStatus(await call(`/api/full-system/assignments/${assignment}/exports`, owner,
@@ -176,6 +186,13 @@ try {
     await page.getByText("รุ่น 2 · INTERIM").waitFor();
     await page.getByRole("tab", { name: "Individual Summary" }).click();
     await page.getByRole("columnheader", { name: "ส่ง/มอบหมาย" }).waitFor();
+    await page.getByRole("tab", { name: "Quality", exact: true }).click();
+    await page.getByText("สัญญาณคุณภาพ QS-02–04", { exact: true }).waitFor();
+    await page.getByText("QS-02 เลือกค่าเดิม", { exact: true }).first().waitFor();
+    await page.getByText("QS-05 ยังไม่เก็บเวลา", { exact: false }).waitFor();
+    if (process.env.PAIR_EVAL_SMOKE_SCREENSHOT) {
+      await page.screenshot({ path: process.env.PAIR_EVAL_SMOKE_SCREENSHOT, fullPage: true });
+    }
     await context.close();
   } finally { await browser.close(); }
   await pool.query(`UPDATE assignment SET group_deadline_utc=now()-interval '1 minute',
@@ -254,7 +271,7 @@ try {
     throw new Error("Reopened interim score ignored current override");
   }
   console.log(`${environment} Day 5 score smoke passed: snapshot 1/2/3, override and immutable history,
-    Finalize/Reopen, appeal, browser report, CSV BOM, 4-sheet XLSX, outsider/student/identity denials`);
+    Finalize/Reopen, appeal, browser report, QS-02–04 and quality CSV, CSV BOM, 4-sheet XLSX, outsider/student/identity denials`);
 } finally {
   const client = await pool.connect();
   try { await client.query("BEGIN");

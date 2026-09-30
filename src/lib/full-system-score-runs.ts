@@ -5,6 +5,7 @@ import { domainAllowed, type FullActor } from "./full-system-auth";
 import { runAuditedMutation } from "./full-system-audit-outbox";
 import { enqueueAssignmentNotifications } from "./full-system-notifications";
 import { rawComparisonCsv, type RawScoreInput } from "./full-system-raw-export";
+import { qualityReport, type QualityReport } from "./full-system-quality";
 import { AssignmentConflictError, AssignmentInputError, AssignmentNotFoundError } from "./full-system-assignments";
 import { calculateItemScores, choicePoints, mappedScore, participation, type ScoreAnswer, type ScoreItem,
   type ScorePair, type ScoreSettings } from "./full-system-scoring";
@@ -22,6 +23,7 @@ type OverrideRow = { side: "GROUP" | "INDIVIDUAL"; item_id: string; override_val
   reason: string; id: string };
 export type ScoreRun = { assignmentId: string; generation: number; kind: "INTERIM" | "FINAL";
   formulaVersion: string; settings: ScoreSettings; maxScore: number;
+  quality?: QualityReport;
   groups: Array<{ id: string; name: string; component: number | null;
     criteria: Array<ScoreItem["criteria"][number] & { name: string; weightedScore: number | null }>;
     flags: string[] }>;
@@ -128,6 +130,7 @@ export function assembleScoreRun(input: { assignmentId: string; generation: numb
     pairSummary.set(key, row);
   }
   return { assignmentId: input.assignmentId, generation: input.generation, kind: input.kind,
+    quality: qualityReport(input.pairs, input.answers),
     formulaVersion: input.formulaVersion, settings: input.settings,
     maxScore: input.settings.groupMax + input.settings.individualMax,
     groups, students,

@@ -65,6 +65,24 @@ describe("Day 5 score decisions and export", () => {
     expect(reportRows(earlier, "coverage")[0]).toEqual([
       "Pair ID", "Side", "Criterion ID", "Submitted"]);
   });
+  it("exports advisory signal evidence and preserves scores without automatic penalties", async () => {
+    const run = assembleScoreRun(base());
+    expect(run.groups[0].component).toBe(15);
+    expect(run.quality?.measures.find(row => row.id === "QS-02"))?.toMatchObject({ flagged: true, total: 1 });
+    const csv = reportCsv(run, "quality");
+    expect(csv).toContain("Evaluator 001");
+    expect(csv).toContain("QS-04");
+    expect(csv).toContain("NOT_ASSESSABLE");
+    const earlier = structuredClone(run);
+    delete earlier.quality;
+    expect(reportRows(earlier, "quality")[0]).toEqual(["Side", "Item ID", "Flag", "Suggested action"]);
+    const bytes = await reportWorkbook(run, { snapshotNo: 1, inputHash: "f".repeat(64), createdAt: "2026-09-30T00:00:00Z" });
+    const ExcelJS = await import("exceljs");
+    const book = new ExcelJS.default.Workbook();
+    await book.xlsx.load(bytes as unknown as Parameters<typeof book.xlsx.load>[0]);
+    expect(book.worksheets).toHaveLength(4);
+    expect(JSON.stringify(book.getWorksheet("Metadata")?.getSheetValues())).toContain("QS-02");
+  });
   it("writes exactly four XLSX sheets with the formula version", async () => {
     const run = assembleScoreRun(base());
     const bytes = await reportWorkbook(run, { snapshotNo: 2, inputHash: "f".repeat(64),
