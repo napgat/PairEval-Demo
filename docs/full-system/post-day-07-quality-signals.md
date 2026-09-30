@@ -16,7 +16,8 @@ Date: 30 September 2026 (Asia/Bangkok). Synthetic student prototype only. S7/S8,
 - Unit tests: **88/88**, 21 files. New tests cover strict 80%/20% boundaries, display inversion, complete/incomplete triangles, criterion/evaluator separation, no-answer cases, identity omission, unchanged inputs/scores, old snapshot exports and XLSX signal evidence.
 - Typecheck, lint and production build passed locally.
 - `node scripts/day5-score-smoke.mjs development` exited 0, including fixture cleanup. It exercised persisted QS-02–04 measurement scope and identity omission, the instructor Quality tab, quality CSV, the existing four-sheet XLSX, score snapshot 1/2/3, override/history, Finalize/Reopen, appeals and outsider/student denials. The intentionally small fixture flags its one-answer QS-02 samples and reports QS-04 as not assessable; cycle/threshold cases have the unit evidence above.
-- Staging smoke evidence: pending for this change.
+- `node scripts/day5-score-smoke.mjs staging` exited 0 against `36df334`, including fixture cleanup and the same QS/report checks, plus pseudonymous raw export with the rotated server key and student/outsider/identity-request denials. [CI #37](https://github.com/napgat/PairEval-Demo/actions/runs/36667071482) completed successfully. The [Vercel deployment](https://vercel.com/npaha/paireval-full-staging/SQwySvYiVSrzxDEcxbK58e2yEZg6) showed Ready and served the stable staging domain. The screenshot captured the synthetic Quality tab before fixture cleanup.
+- Read-only audit correlation verification exited 0 on both databases after the smokes: development committed=243, rejected=0, pending=0; staging committed=176, rejected=1 historical, pending=0. All Day 2/3/4/5/7 synthetic users and classrooms=0 on both databases.
 
 ## Open work
 
