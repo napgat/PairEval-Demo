@@ -152,42 +152,50 @@ export default function AssignmentsPage({ params }: { params: Promise<{ id: stri
   });
   const change = <K extends keyof Input>(key: K, value: Input[K]) => { setForm(current => ({ ...current, [key]: value })); setPlan(null); };
   const groups = [...new Map(roster.map(person => [person.groupId, person.groupName])).entries()];
-  return <main className="assignment-shell">
-    <p><a href="/full-system">← ห้องเรียน</a></p><span className="eyebrow">PairEval Full System · FS05–FS07</span>
-    <h1>งานประเมินและแผนจับคู่</h1>
-    <p className="lead">สร้างงานฉบับร่าง ตรวจจำนวนคู่และภาระงาน แล้วจึงเผยแพร่</p>
+  return <main className="fs-page fs-instructor-page">
+    <a className="fs-back-link" href="/full-system"><span aria-hidden="true">←</span> กลับไปหน้าห้องเรียน</a>
+    <header className="fs-page-heading"><div><span className="eyebrow">พื้นที่อาจารย์ · จัดการห้องเรียน</span>
+      <h1>งานประเมินและแผนจับคู่</h1><p>สร้างงาน ตรวจแผนการจับคู่ แล้วเผยแพร่ให้นักศึกษาทำ</p></div>
+      <span className="fs-teacher-mark" aria-hidden="true">▣</span></header>
     {message && <p className="notice" role="status">{message}</p>}
-    <section className="form-panel"><h2>งานในห้องเรียน</h2>
-      <div className="actions"><button className="secondary-button" onClick={() => { setSelected(null); setForm(empty); setPlan(null); }}>สร้างงานใหม่</button>
+    <section className="form-panel fs-assignment-list"><div className="fs-section-heading"><div><span className="eyebrow">ขั้นที่ 1</span><h2>งานในห้องเรียน</h2></div>
+      <button className="primary-button" onClick={() => { setSelected(null); setForm(empty); setPlan(null); }}>＋ สร้างงานใหม่</button></div>
+      {rows.length === 0 && <p className="fs-muted-copy">ยังไม่มีงาน สร้างงานแรกของห้องเรียนได้จากปุ่มด้านบน</p>}
+      <div className="fs-assignment-picker">
         {rows.map(row => <button className="secondary-button" key={row.id} onClick={() => action(() => open(row.id))}>
-          {row.name} · {row.status} · รุ่น {row.generation}</button>)}</div>
+          <span>{row.name}</span><small>{row.status === "OPEN" ? "กำลังเปิดรับ" : row.status === "DRAFT" ? "ฉบับร่าง" : row.status} · รุ่น {row.generation}</small></button>)}</div>
     </section>
-    {owner && <section className="form-panel"><h2>ทดลองถอนรายชื่อสังเคราะห์</h2>
-      <p className="fine-print">บันทึกเวลาปัจจุบันและเหตุผล จัดสรรงานใหม่และคำนวณคะแนนปัจจุบัน โดยเก็บคำตอบและ snapshot เดิม หากมีงาน Finalized ต้อง Reopen ก่อน นโยบายข้อมูลจริงยังรอ Registrar</p>
-      <label className="field">นักศึกษาที่จะถอน<select value={withdrawUser} onChange={e => setWithdrawUser(e.target.value)}>
-        <option value="">เลือกนักศึกษา</option>{roster.map(student => <option key={student.id} value={student.id}>{student.displayName} · {student.groupName}</option>)}
-      </select></label>
-      <label className="field">เหตุผลถอน (อย่างน้อย 10 ตัวอักษร)<textarea value={withdrawReason} onChange={e => setWithdrawReason(e.target.value)} /></label>
-      <button className="secondary-button" disabled={busy || !withdrawUser || withdrawReason.trim().length < 10}
-        onClick={() => action(async () => {
-          if (!window.confirm("ยืนยันถอนรายชื่อสังเคราะห์และจัดสรรงานปัจจุบันใหม่? ประวัติเดิมยังอยู่")) return;
-          await request(`/api/full-system/classrooms/${classroomId}/members/${withdrawUser}/withdraw`, "POST",
-            { reason: withdrawReason, effectiveAt: new Date().toISOString(), expectedRosterVersion: rosterVersion });
-          setWithdrawUser(""); setWithdrawReason("");
-          if (selected) await open(selected.id);
-          setMessage("ถอนรายชื่อสังเคราะห์และบันทึก snapshot ปัจจุบันใหม่แล้ว");
-        })}>ยืนยันถอนรายชื่อสังเคราะห์</button>
-    </section>}
-    <section className="form-panel"><h2>แก้กลุ่มหลังยกเลิกเผยแพร่</h2>
-      <p className="fine-print">รุ่นรายชื่อ {rosterVersion} · ต้องยกเลิกเผยแพร่ทุกงานที่ยังใช้งานอยู่ก่อนนำเข้า CSV; คู่และคำตอบรุ่นเดิมจะไม่มีผลกับคะแนนรุ่นใหม่ แต่ยังอยู่ในประวัติ</p>
-      <label className="field">CSV รายชื่อและกลุ่ม<textarea value={rosterCsv} placeholder="email,group_name,student_id,display_name"
-        onChange={e => { setRosterCsv(e.target.value); setRosterPreview(null); }} /></label>
-      <div className="actions"><button className="secondary-button" disabled={busy || !rosterCsv.trim()} onClick={previewCsv}>ตรวจ CSV และดูการย้ายกลุ่ม</button>
-        <button className="primary-button" disabled={busy || !rosterPreview || selected?.status !== "DRAFT"} onClick={importCsv}>ยืนยันนำเข้ารายชื่อ</button></div>
-      {rosterPreview && <p role="status" className="notice">เพิ่ม {rosterPreview.diff.added} · ย้ายกลุ่ม {rosterPreview.diff.moved} · คงเดิม {rosterPreview.diff.unchanged}
-        {rosterPreview.warnings.length ? ` · ${rosterPreview.warnings.join("; ")}` : ""}</p>}
-    </section>
-    <section className="form-panel"><h2>{selected ? `แก้ไข ${selected.name}` : "สร้าง DRAFT"}</h2>
+    <details className="fs-roster-tools"><summary><span><strong>จัดการรายชื่อนักศึกษาและกลุ่ม</strong><small>{roster.length} คน · รุ่นรายชื่อ {rosterVersion}</small></span><span aria-hidden="true">⌄</span></summary>
+      <section className="form-panel"><h2>นำเข้ารายชื่อหรือปรับกลุ่ม</h2>
+        <p className="fine-print">ต้องยกเลิกเผยแพร่งานที่ยังใช้งานอยู่ก่อน · คู่และคำตอบรุ่นเดิมจะยังอยู่ในประวัติ</p>
+        <label className="field">CSV รายชื่อ<textarea value={rosterCsv} placeholder="email,group_name,student_id,display_name"
+          onChange={e => { setRosterCsv(e.target.value); setRosterPreview(null); }} /></label>
+        <div className="actions"><button className="secondary-button" disabled={busy || !rosterCsv.trim()} onClick={previewCsv}>ตรวจข้อมูลและดูการเปลี่ยนกลุ่ม</button>
+          <button className="primary-button" disabled={busy || !rosterPreview || selected?.status !== "DRAFT"} onClick={importCsv}>ยืนยันนำเข้ารายชื่อ</button></div>
+        {rosterPreview && <p role="status" className="notice">เพิ่ม {rosterPreview.diff.added} · ย้ายกลุ่ม {rosterPreview.diff.moved} · คงเดิม {rosterPreview.diff.unchanged}
+          {rosterPreview.warnings.length ? ` · ${rosterPreview.warnings.join("; ")}` : ""}</p>}
+      </section>
+      {owner && <section className="form-panel fs-synthetic-tools"><h2>เครื่องมือทดสอบข้อมูลตัวอย่าง</h2>
+        <p className="fine-print">ใช้สำหรับทดสอบการถอนสมาชิกและจัดสรรงานใหม่ในข้อมูลสังเคราะห์เท่านั้น</p>
+        <label className="field">นักศึกษาที่จะถอน<select value={withdrawUser} onChange={e => setWithdrawUser(e.target.value)}>
+          <option value="">เลือกนักศึกษา</option>{roster.map(student => <option key={student.id} value={student.id}>{student.displayName} · {student.groupName}</option>)}
+        </select></label>
+        <label className="field">เหตุผลถอน<textarea value={withdrawReason} onChange={e => setWithdrawReason(e.target.value)} /></label>
+        <button className="secondary-button" disabled={busy || !withdrawUser || withdrawReason.trim().length < 10}
+          onClick={() => action(async () => {
+            if (!window.confirm("ยืนยันถอนสมาชิกข้อมูลตัวอย่างและจัดสรรงานปัจจุบันใหม่? ประวัติเดิมยังอยู่")) return;
+            await request(`/api/full-system/classrooms/${classroomId}/members/${withdrawUser}/withdraw`, "POST",
+              { reason: withdrawReason, effectiveAt: new Date().toISOString(), expectedRosterVersion: rosterVersion });
+            setWithdrawUser(""); setWithdrawReason("");
+            if (selected) await open(selected.id);
+            setMessage("ถอนสมาชิกข้อมูลตัวอย่างและบันทึกคะแนนปัจจุบันใหม่แล้ว");
+          })}>ถอนสมาชิกข้อมูลตัวอย่าง</button>
+      </section>}
+    </details>
+    <section className="form-panel fs-editor-panel"><div className="fs-section-heading"><div><span className="eyebrow">ขั้นที่ 2</span>
+      <h2>{selected ? `แก้ไข ${selected.name}` : "ตั้งค่างานประเมิน"}</h2></div>
+      {selected && <span className="fs-status-badge">{selected.status === "DRAFT" ? "ฉบับร่าง" : selected.status} · รุ่น {selected.generation}</span>}</div>
+      {!selected && <p className="fs-muted-copy">กรอกข้อมูลงาน เกณฑ์ และกำหนดส่ง จากนั้นบันทึกฉบับร่างก่อนตรวจแผนจับคู่</p>}
       {selected && <p className="fine-print">สถานะ {selected.status} · generation {selected.generation}</p>}
       <label className="field">ชื่องาน<input value={form.name} disabled={selected?.status !== undefined && selected.status !== "DRAFT"} onChange={e => change("name", e.target.value)} /></label>
       <label className="field">คำอธิบาย<textarea value={form.description} disabled={selected?.status !== undefined && selected.status !== "DRAFT"} onChange={e => change("description", e.target.value)} /></label>
@@ -215,7 +223,7 @@ export default function AssignmentsPage({ params }: { params: Promise<{ id: stri
         {selected && <button className="secondary-button" disabled={busy} onClick={clone}>คัดลอกเป็น DRAFT</button>}
         {selected && selected.status !== "DRAFT" && <button className="secondary-button" disabled={busy} onClick={unpublish}>ยกเลิกเผยแพร่</button>}</div>
     </section>
-    {selected && <section className="form-panel"><h2>ตรวจแผนจับคู่</h2>
+    {selected && <section className="form-panel fs-pairing-panel"><div className="fs-section-heading"><div><span className="eyebrow">ขั้นที่ 3</span><h2>ตรวจแผนจับคู่</h2></div></div>
       <label className="field">Seed สำหรับผลที่ทำซ้ำได้<input value={seed} onChange={e => { setSeed(e.target.value); setPlan(null); }} /></label>
       {selected.status === "DRAFT" && <button className="secondary-button" disabled={busy} onClick={feasible}>คำนวณ feasibility</button>}
       {plan && <div className={plan.feasible ? "preview-box" : "error-box"}>

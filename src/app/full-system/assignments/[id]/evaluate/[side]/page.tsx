@@ -10,8 +10,13 @@ type Evaluation = { assignmentId: string; side: string; timezone: string; deadli
   draftSavedAt: string | null; disabledReason: string | null };
 const labels = ["ซ้ายดีกว่ามาก", "ซ้ายดีกว่า", "ซ้ายดีกว่าเล็กน้อย", "ขวาดีกว่าเล็กน้อย", "ขวาดีกว่า", "ขวาดีกว่ามาก"];
 
-export default function EvaluationPage({ params }: { params: Promise<{ id: string; side: string }> }) {
+export default function EvaluationPage({ params, searchParams }: {
+  params: Promise<{ id: string; side: string }>;
+  searchParams: Promise<{ classroom?: string }>;
+}) {
   const { id, side } = use(params);
+  const { classroom } = use(searchParams);
+  const returnHref = classroom ? `/full-system/classrooms/${encodeURIComponent(classroom)}/work` : "/full-system";
   const path = `/api/full-system/assignments/${id}/evaluation/${side}`;
   const [data, setData] = useState<Evaluation | null>(null);
   const [message, setMessage] = useState("");
@@ -87,36 +92,52 @@ export default function EvaluationPage({ params }: { params: Promise<{ id: strin
   };
   const answered = data?.pairs.filter(pair => pair.choice !== null).length ?? 0;
   const remaining = data?.deadline ? Date.parse(data.deadline) - clock : null;
-  return <main className="assignment-shell"><p><a href="/full-system">← ห้องเรียน</a></p>
-    <span className="eyebrow">PairEval Full System · FS08–FS09</span>
-    <h1>{side === "group" ? "ประเมินผลงานกลุ่ม" : "ประเมินรายบุคคล"}</h1>
-    {message && <p className="notice" role="status" aria-live="polite">{message}</p>}
-    {!data ? <p>กำลังโหลด…</p> : <>
-      <p className="lead">ตอบแล้ว {answered}/{data.pairs.length} · {data.readOnly ? "พ้นกำหนดส่ง: อ่านอย่างเดียว" : "ระบบบันทึกฉบับร่างอัตโนมัติ"}</p>
-      <p className="fine-print">ครบกำหนด {data.deadline ? new Date(data.deadline).toLocaleString("th-TH", { timeZone: data.timezone }) : "ไม่กำหนด"} ({data.timezone})</p>
+  return <main className="fs-page fs-evaluation-page">
+    <a className="fs-back-link" href={returnHref}><span aria-hidden="true">←</span> กลับไปงานประเมิน</a>
+    {message && !data && <p className="notice" role="status" aria-live="polite">{message}</p>}
+    {!data ? <div className="fs-loading-card" role="status">กำลังเตรียมแบบประเมิน…</div> : <>
+      <header className="fs-page-heading fs-evaluation-heading"><div>
+        <span className="eyebrow">พื้นที่นักศึกษา · {side === "group" ? "ประเมินกลุ่ม" : "ประเมินรายบุคคล"}</span>
+        <h1>{side === "group" ? "เปรียบเทียบผลงานกลุ่ม" : "เปรียบเทียบผลงานรายบุคคล"}</h1>
+        <p>เลือกผลงานที่ทำได้ดีกว่าในแต่ละคู่ เกณฑ์แต่ละข้อจะบันทึกคำตอบให้อัตโนมัติ</p>
+      </div><span className="fs-student-mark" aria-hidden="true">✓</span></header>
+      <section className="fs-progress-card" aria-label="ความคืบหน้าการประเมิน">
+        <div className="fs-progress-heading"><div><strong>ความคืบหน้า</strong><span>{answered} จาก {data.pairs.length} คู่</span></div>
+          <span className={data.readOnly ? "fs-status-badge" : "fs-status-badge is-open"}>{data.readOnly ? "อ่านได้อย่างเดียว" : saving ? "กำลังบันทึก…" : "บันทึกอัตโนมัติ"}</span></div>
+        <div className="fs-progress-track" role="progressbar" aria-label="ตอบแล้ว" aria-valuemin={0} aria-valuemax={data.pairs.length} aria-valuenow={answered}>
+          <span style={{ width: `${data.pairs.length ? answered / data.pairs.length * 100 : 0}%` }} /></div>
+        <div className="fs-deadline-line"><span>ครบกำหนด</span><strong>{data.deadline ? new Date(data.deadline).toLocaleString("th-TH", { timeZone: data.timezone }) : "ไม่กำหนด"}</strong><small>{data.timezone}</small></div>
+      </section>
       {remaining !== null && remaining > 0 && remaining < 48 * 60 * 60 * 1000 &&
         <p className="evaluation-warning" role="status">เหลือเวลา {Math.floor(remaining / 3_600_000)} ชั่วโมง {Math.floor(remaining % 3_600_000 / 60_000)} นาที</p>}
-      <p className="fine-print">คะแนนส่วนตัวใช้คะแนนจากงานของคุณร่วมกับอัตราการส่งคำตอบ p และตัวคูณ M; draft ยังไม่ถูกนำไปคำนวณ</p>
-      {data.syntheticTimingEnabled && <p className="fine-print">ชุดทดสอบสังเคราะห์: นับเวลาที่คำถามอยู่ในจอและหน้าเว็บมี focus; หยุดเมื่อสลับหน้าหรือไม่มีการใช้งาน 30 วินาที เวลานี้ใช้ทบทวนเท่านั้น</p>}
-      {data.latestSubmission && <p className="notice">ส่งล่าสุดรุ่น {data.latestSubmission.revision} · ส่งซ้ำได้ก่อนครบกำหนด</p>}
+      {message && <p className="fs-save-status" role="status" aria-live="polite">{message}</p>}
+      {data.syntheticTimingEnabled && <p className="fs-timing-notice">ข้อมูลเวลาที่ใช้ดูหน้านี้เก็บเพื่อทบทวนต้นแบบเท่านั้น</p>}
+      {data.latestSubmission && <p className="notice">ส่งคำตอบแล้ว · ครั้งที่ {data.latestSubmission.revision} · ยังส่งฉบับแก้ไขได้ก่อนครบกำหนด</p>}
       {data.disabledReason && <p className="notice">{data.disabledReason}</p>}
+      <details className="fs-score-explainer"><summary>คำตอบของฉันถูกนำไปใช้คำนวณอย่างไร</summary>
+        <p>ระบบใช้เฉพาะฉบับที่ส่งแล้วในการคำนวณคะแนนส่วนตัว โดยพิจารณาร่วมกับอัตราการส่งงาน (p) และตัวคูณ (M) ฉบับร่างยังไม่นำไปคำนวณ</p>
+      </details>
       {data.criteria.map(criterion => <section className="criterion-section" key={criterion.id}>
         <div className="criterion-heading"><h2>{criterion.name}</h2><span>{data.pairs.filter(pair => pair.criterionId === criterion.id && pair.choice !== null).length} / {data.pairs.filter(pair => pair.criterionId === criterion.id).length}</span></div>
         {criterion.description && <p>{criterion.description}</p>}
-        {data.pairs.filter(pair => pair.criterionId === criterion.id).map(pair => <fieldset className="evaluation-pair" key={pair.id}
+        {data.pairs.filter(pair => pair.criterionId === criterion.id).map((pair, index) => <fieldset className="evaluation-pair fs-evaluation-pair" key={pair.id}
           data-pair-id={pair.id} onPointerEnter={() => timing.current?.select(pair.id)} onFocusCapture={() => timing.current?.select(pair.id)}>
-          <legend>{criterion.name}: {pair.leftName} เทียบกับ {pair.rightName} — เลือกหนึ่งคำตอบ</legend><div className="candidate-labels">
-            <strong>{pair.leftName}<br />{pair.leftArtifactUrl ? <a href={pair.leftArtifactUrl} target="_blank" rel="noopener noreferrer">ดูผลงาน ↗</a> : <small>อาจารย์ยังไม่ได้ระบุผลงาน</small>}</strong>
-            <span>เทียบกับ</span><strong>{pair.rightName}<br />{pair.rightArtifactUrl ? <a href={pair.rightArtifactUrl} target="_blank" rel="noopener noreferrer">ดูผลงาน ↗</a> : <small>อาจารย์ยังไม่ได้ระบุผลงาน</small>}</strong>
+          <legend>คู่ที่ {index + 1} · {criterion.name}: {pair.leftName} เทียบกับ {pair.rightName}</legend><div className="candidate-labels">
+            <div className="fs-candidate-card is-left"><span>ผลงาน A</span><strong>{pair.leftName}</strong>{pair.leftArtifactUrl ? <a href={pair.leftArtifactUrl} target="_blank" rel="noopener noreferrer">เปิดผลงาน ↗</a> : <small>ยังไม่มีลิงก์ผลงาน</small>}</div>
+            <span className="fs-versus-label">เทียบกับ</span>
+            <div className="fs-candidate-card is-right"><span>ผลงาน B</span><strong>{pair.rightName}</strong>{pair.rightArtifactUrl ? <a href={pair.rightArtifactUrl} target="_blank" rel="noopener noreferrer">เปิดผลงาน ↗</a> : <small>ยังไม่มีลิงก์ผลงาน</small>}</div>
           </div><div className="rating-options">{labels.map((label, index) => <label key={index}>
             <input type="radio" name={pair.id} checked={pair.choice === index + 1} disabled={data.readOnly || busy}
               onChange={() => answer(pair.id, index + 1)} aria-label={`${index + 1} ${label}`} />
             <span className="rating-number">{index + 1}</span><small>{label}</small></label>)}</div>
+          <p className="fs-scale-hint"><span>1 = ผลงาน A ดีกว่ามาก</span><span>6 = ผลงาน B ดีกว่ามาก</span></p>
           {!data.readOnly && <button className="clear-choice" type="button" onClick={() => answer(pair.id, null)}>ล้างคำตอบ</button>}
         </fieldset>)}
       </section>)}
-      {!data.readOnly && <button className="primary-button" disabled={busy || saving || answered === 0} onClick={submit}>ส่งคำตอบ{data.latestSubmission ? "อีกครั้ง" : ""}</button>}
-      <p><a className="text-link" href={`/full-system/assignments/${id}/my-score`}>ดูคะแนนของฉัน →</a></p>
+      <footer className="fs-submit-bar"><div><strong>{answered}/{data.pairs.length} คู่</strong><span>{data.readOnly ? "พ้นกำหนดส่งแล้ว" : saving ? "กำลังบันทึกคำตอบ…" : "ฉบับร่างบันทึกอัตโนมัติ"}</span></div>
+        <div className="fs-submit-actions">{!data.readOnly && <button className="primary-button" disabled={busy || saving || answered === 0} onClick={submit}>{busy ? "กำลังส่ง…" : data.latestSubmission ? "ส่งฉบับแก้ไข" : "ยืนยันส่งคำตอบ"}</button>}
+          <a className="secondary-button" href={`/full-system/assignments/${id}/my-score`}>ดูคะแนนของฉัน</a></div>
+      </footer>
     </>}
   </main>;
 }

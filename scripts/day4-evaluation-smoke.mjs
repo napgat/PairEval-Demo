@@ -27,7 +27,7 @@ async function api(path, user, method = "GET", body) {
   return { status: response.status, payload: await response.json() };
 }
 function check(result, status, name) {
-  if (result.status !== status) throw new Error(`${name}: expected ${status}, got ${result.status} (${result.payload?.error?.code ?? "none"})`);
+  if (result.status !== status) throw new Error(`${name}: expected ${status}, got ${result.status} (${result.payload?.error?.code ?? "none"}: ${result.payload?.error?.message ?? "no details"})`);
   return result.payload.data;
 }
 try {
@@ -61,11 +61,20 @@ try {
     const context = await browser.newContext({ viewport: { width: 1280, height: 900 } });
     await context.addCookies([{ name: "paireval_full_session", value: tokens.get(owner), url: origin }]);
     const page = await context.newPage(); page.setDefaultTimeout(60000);
-    await page.goto(`${origin}/full-system/classrooms/${room}/assignments`);
+    await page.goto(`${origin}/full-system`);
+    await page.getByRole("heading", { name: "เลือกห้องเรียน" }).waitFor();
+    await page.getByRole("link", { name: "จัดการห้องเรียน" }).click();
     await page.getByRole("heading", { name: "งานประเมินและแผนจับคู่" }).waitFor();
     await page.getByLabel("ชื่องาน").fill("Synthetic evaluation");
     await page.getByLabel(/กำหนดส่งกลุ่ม/).fill("2030-12-01T16:59");
+    await page.getByLabel(/กำหนดส่งรายบุคคล/).fill("2030-12-01T16:59");
+    await page.getByLabel("คะแนนรายบุคคล").fill("10");
     await page.getByLabel("ชื่อเกณฑ์").fill("Quality");
+    await page.getByRole("button", { name: "เพิ่มเกณฑ์", exact: true }).click();
+    const individualCriterion = page.locator(".criteria-row").nth(1);
+    await individualCriterion.locator("select").selectOption("INDIVIDUAL");
+    await individualCriterion.getByRole("textbox").fill("Individual quality");
+    await individualCriterion.locator("input[type=number]").fill("100");
     await page.getByLabel("ผู้ประเมินต่อคู่ที่ต้องการ").fill("1");
     await page.getByRole("button", { name: "บันทึก DRAFT" }).click();
     await page.getByText("บันทึก DRAFT แล้ว").waitFor();
@@ -78,6 +87,7 @@ try {
     await context.close();
   } finally { await browser.close(); }
   const path = `/api/full-system/assignments/${assignment}/evaluation/group`;
+  const individualPath = `/api/full-system/assignments/${assignment}/evaluation/individual`;
   const pairRow = await pool.query(`SELECT id,evaluator_user_id,display_left FROM pair_assignment
     WHERE assignment_id=$1 AND side='GROUP' AND (group_a_id=$2 OR group_b_id=$2) ORDER BY id LIMIT 1`,
   [assignment, groups[0]]);
@@ -87,6 +97,9 @@ try {
   if (!own.pairs.some(row => row.id === pair.id) || own.pairs.some(row => "evaluatorId" in row)) {
     throw new Error("Pair retrieval scope or anonymity failed");
   }
+  const ownIndividual = check(await api(individualPath, evaluator), 200, "assigned Individual pairs");
+  const individualPairId = ownIndividual.pairs[0]?.id;
+  if (!individualPairId) throw new Error("Fixture lacks an Individual pair for the evaluator");
   check(await api(path, outsider), 404, "outsider evaluation");
   check(await api(path, students.find(id => id !== evaluator), "PUT", { pairId: pair.id, choice: 1 }), 404, "other student's pair");
   const scorePath = `/api/full-system/assignments/${assignment}/my-score`;
@@ -99,14 +112,19 @@ try {
   if (check(await api(scorePath, targetStudent), 200, "score excludes draft").groupStatus !== "NO_DATA") {
     throw new Error("Unsubmitted draft affected score");
   }
+  let groupScoreAfterFirstSubmission = null;
   const studentBrowser = await chromium.launch({ headless: true });
   try {
     const context = await studentBrowser.newContext({ viewport: { width: 320, height: 700 } });
     await context.addCookies([{ name: "paireval_full_session", value: tokens.get(evaluator), url: origin }]);
     const page = await context.newPage(); page.setDefaultTimeout(60000);
     page.on("dialog", dialog => void dialog.accept());
-    await page.goto(`${origin}/full-system/assignments/${assignment}/evaluate/group`);
-    await page.getByRole("heading", { name: "ประเมินผลงานกลุ่ม" }).waitFor();
+    await page.goto(`${origin}/full-system`);
+    await page.getByRole("heading", { name: /สวัสดี,/ }).waitFor();
+    await page.getByRole("link", { name: "ดูงานของฉัน" }).click();
+    await page.getByRole("heading", { name: "งานประเมินของฉัน" }).waitFor();
+    await page.getByRole("link", { name: "เริ่มประเมินกลุ่ม" }).click();
+    await page.getByRole("heading", { name: "เปรียบเทียบผลงานกลุ่ม" }).waitFor();
     const firstRadio = page.locator(`input[name="${pair.id}"]`).first();
     await firstRadio.focus();
     await page.keyboard.press("ArrowRight");
@@ -128,16 +146,68 @@ try {
     await page.getByText(/บันทึกแล้ว เมื่อ/).waitFor();
     await page.reload();
     if (!await page.locator(`input[name="${pair.id}"]`).first().isChecked()) throw new Error("UI draft not restored after refresh");
-    await page.getByRole("button", { name: "ส่งคำตอบ" }).click();
+    await page.getByRole("button", { name: "ยืนยันส่งคำตอบ" }).click();
     await page.getByText(/ส่งคำตอบรุ่น 1 แล้ว/).waitFor();
+
+    const firstGroupScore = check(await api(scorePath, targetStudent), 200, "score after Group revision 1");
+    if (firstGroupScore.groupStatus !== "AVAILABLE" || firstGroupScore.groupComponent === null) {
+      throw new Error("Group revision 1 did not produce a visible score");
+    }
+    groupScoreAfterFirstSubmission = firstGroupScore.groupComponent;
+
+    await page.getByRole("link", { name: "กลับไปงานประเมิน" }).click();
+    await page.getByRole("heading", { name: "งานประเมินของฉัน" }).waitFor();
+    await page.getByRole("link", { name: "เริ่มประเมินรายบุคคล" }).click();
+    await page.getByRole("heading", { name: "เปรียบเทียบผลงานรายบุคคล" }).waitFor();
+    const individualCard = page.locator(".evaluation-pair").first();
+    if (await individualCard.getAttribute("data-pair-id") !== individualPairId) {
+      throw new Error(`Individual pair UI mismatch: expected ${individualPairId}, got ${await individualCard.getAttribute("data-pair-id")}`);
+    }
+    const individualRadios = individualCard.locator('input[type="radio"]');
+    if (await individualRadios.count() !== 6) throw new Error(`Individual pair rating controls missing: ${await individualRadios.count()}`);
+    const individualSaved = page.waitForResponse(response => response.url().endsWith(individualPath) &&
+      response.request().method() === "PUT" && response.status() === 200);
+    await individualRadios.first().check();
+    await individualSaved;
+    await page.getByText(/บันทึกแล้ว เมื่อ/).waitFor();
+    await page.reload();
+    if (!await individualRadios.first().isChecked()) throw new Error("Individual draft did not survive page reload");
+    await page.getByRole("button", { name: "ยืนยันส่งคำตอบ", exact: true }).click();
+    await page.getByText(/ส่งคำตอบรุ่น 1 แล้ว/).waitFor();
+    const individualChanged = page.waitForResponse(response => response.url().endsWith(individualPath) &&
+      response.request().method() === "PUT" && response.status() === 200);
+    await individualRadios.nth(1).check();
+    await individualChanged;
+    await page.getByRole("button", { name: "ส่งฉบับแก้ไข", exact: true }).click();
+    await page.getByText(/ส่งคำตอบรุ่น 2 แล้ว/).waitFor();
+    await page.reload();
+    if (!await individualRadios.nth(1).isChecked()) throw new Error("Individual revision 2 was not restored after reload");
+
+    await page.getByRole("link", { name: "กลับไปงานประเมิน" }).click();
+    await page.getByRole("heading", { name: "งานประเมินของฉัน" }).waitFor();
+    await page.getByRole("link", { name: "เริ่มประเมินกลุ่ม" }).click();
+    await page.getByRole("heading", { name: "เปรียบเทียบผลงานกลุ่ม" }).waitFor();
+    const groupRadios = page.locator(`input[name="${pair.id}"]`);
+    const changedGroupDraft = page.waitForResponse(response => response.url().endsWith(path) &&
+      response.request().method() === "PUT" && response.status() === 200);
+    await groupRadios.nth(5).check();
+    await changedGroupDraft;
+    await page.getByRole("button", { name: "ส่งฉบับแก้ไข", exact: true }).click();
+    await page.getByText(/ส่งคำตอบรุ่น 2 แล้ว/).waitFor();
+    await page.reload();
+    if (!await groupRadios.nth(5).isChecked()) throw new Error("Group revision 2 was not restored after reload");
     await context.close();
   } finally { await studentBrowser.close(); }
-  if (check(await api(path, evaluator), 200, "partial submit").latestSubmission?.revision !== 1) {
-    throw new Error("UI first submission missing");
+  if (check(await api(path, evaluator), 200, "Group UI submissions").latestSubmission?.revision !== 2 ||
+      check(await api(individualPath, evaluator), 200, "Individual UI submissions").latestSubmission?.revision !== 2) {
+    throw new Error("UI submission or re-submit missing for Group/Individual");
   }
   const score1 = check(await api(scorePath, targetStudent), 200, "score after submit");
   if (score1.groupStatus !== "AVAILABLE" || score1.groupComponent === null ||
       JSON.stringify(score1).includes("evaluatorId")) throw new Error("Published own score missing or identity leak");
+  if (groupScoreAfterFirstSubmission === null || score1.groupComponent === groupScoreAfterFirstSubmission) {
+    throw new Error("Group re-submit did not update the visible score");
+  }
   const scoreBrowser = await chromium.launch({ headless: true });
   try {
     const context = await scoreBrowser.newContext({ viewport: { width: 390, height: 844 } });
@@ -153,16 +223,46 @@ try {
     }
     await context.close();
   } finally { await scoreBrowser.close(); }
-  check(await api(path, evaluator, "PUT", { pairId: pair.id, choice: 6 }), 200, "save changed draft");
-  const second = check(await api(path, evaluator, "POST"), 200, "re-submit");
-  if (second.revision !== 2) throw new Error("Second revision missing");
-  const score2 = check(await api(scorePath, targetStudent), 200, "score from latest revision");
-  if (score1.groupComponent === score2.groupComponent) throw new Error("Latest submission did not change score");
-  const revisions = await pool.query(`SELECT r.revision_number,a.choice FROM submission_revision r
-    JOIN submission_answer a ON a.revision_id=r.id WHERE r.assignment_id=$1 ORDER BY r.revision_number`, [assignment]);
-  if (revisions.rows.length !== 2 || revisions.rows[0].choice !== 1 || revisions.rows[1].choice !== 6) {
-    throw new Error("Immutable revision history mismatch");
+  const revisions = await pool.query(`SELECT r.side,r.revision_number,a.choice FROM submission_revision r
+    JOIN submission_answer a ON a.revision_id=r.id
+    WHERE r.assignment_id=$1 AND r.evaluator_user_id=$2 ORDER BY r.side,r.revision_number`, [assignment, evaluator]);
+  const groupRevisions = revisions.rows.filter(row => row.side === "GROUP");
+  const individualRevisions = revisions.rows.filter(row => row.side === "INDIVIDUAL");
+  if (groupRevisions.length !== 2 || groupRevisions[0].choice !== 1 || groupRevisions[1].choice !== 6 ||
+      individualRevisions.length !== 2 || individualRevisions[0].choice !== 1 || individualRevisions[1].choice !== 2) {
+    throw new Error("Immutable Group/Individual revision history mismatch");
   }
+
+  const reportBrowser = await chromium.launch({ headless: true });
+  try {
+    const context = await reportBrowser.newContext({ viewport: { width: 1280, height: 900 } });
+    await context.addCookies([{ name: "paireval_full_session", value: tokens.get(owner), url: origin }]);
+    const page = await context.newPage(); page.setDefaultTimeout(60000);
+    await page.goto(`${origin}/full-system/assignments/${assignment}/reports`);
+    await page.getByRole("heading", { name: "รายงานและตัดสินคะแนน" }).waitFor();
+    await page.getByRole("button", { name: "คำนวณผลระหว่างดำเนินงานใหม่", exact: true }).click();
+    await page.getByText("คำนวณ Interim snapshot แล้ว", { exact: true }).waitFor();
+    await page.getByText(/รุ่น 1 · ผลระหว่างดำเนินงาน/).waitFor();
+    await page.getByRole("tab", { name: "คะแนนรายบุคคล", exact: true }).click();
+    await page.getByRole("columnheader", { name: "รายบุคคล", exact: true }).waitFor();
+    await context.close();
+  } finally { await reportBrowser.close(); }
+
+  const updatedScoreBrowser = await chromium.launch({ headless: true });
+  try {
+    const context = await updatedScoreBrowser.newContext({ viewport: { width: 390, height: 844 } });
+    await context.addCookies([{ name: "paireval_full_session", value: tokens.get(targetStudent), url: origin }]);
+    const page = await context.newPage(); page.setDefaultTimeout(60000);
+    await page.goto(`${origin}/full-system/assignments/${assignment}/my-score`);
+    await page.getByRole("heading", { name: "คะแนนของฉัน" }).waitFor();
+    await page.getByText(/ส่งคำตอบแล้ว \d+\/\d+/).waitFor();
+    await page.getByText("ส่วนกลุ่ม", { exact: true }).waitFor();
+    await page.getByText("ส่วนรายบุคคล", { exact: true }).waitFor();
+    if ((await page.locator("main").innerText()).includes("ผู้ประเมิน:")) {
+      throw new Error("Updated My Score UI exposed evaluator identity");
+    }
+    await context.close();
+  } finally { await updatedScoreBrowser.close(); }
   await pool.query("UPDATE assignment SET group_deadline_utc=now()-interval '5 minutes' WHERE id=$1", [assignment]);
   check(await api(path, evaluator, "PUT", { pairId: pair.id, choice: 2 }), 409, "deadline save");
   check(await api(path, evaluator, "POST"), 409, "deadline submit");
@@ -175,13 +275,19 @@ try {
     { reason: "synthetic invalidation check" }), 200, "unpublish");
   check(await api(path, evaluator), 409, "invalidated evaluation hidden");
   check(await api(scorePath, targetStudent), 409, "invalidated score hidden");
-  console.log(`${environment} Day 4 evaluation smoke passed: instructor/student/My Score UI, scope, draft refresh/exclusion, partial submit,
-    immutable re-submit, score change from latest revision, deadline denial/extension, invalidation, no identity leak`);
+  console.log(`${environment} Day 4 evaluation smoke passed: instructor creates/publishes, student Group/Individual GUI draft/reload/submit/re-submit,
+    instructor Interim report GUI, updated My Score GUI, scope, immutable revision history, deadline denial/extension, invalidation and no identity leak`);
 } finally {
   const client = await pool.connect();
   try { await client.query("BEGIN");
     assignment ??= (await client.query("SELECT id FROM assignment WHERE classroom_id=$1", [room])).rows[0]?.id;
     if (assignment) {
+      await client.query("DELETE FROM scheduled_score_run WHERE assignment_id=$1", [assignment]);
+      await client.query("DELETE FROM appeal WHERE assignment_id=$1", [assignment]);
+      await client.query(`DELETE FROM score_snapshot_item WHERE score_snapshot_id IN
+        (SELECT id FROM score_snapshot WHERE assignment_id=$1)`, [assignment]);
+      await client.query("DELETE FROM score_snapshot WHERE assignment_id=$1", [assignment]);
+      await client.query("DELETE FROM score_override WHERE assignment_id=$1", [assignment]);
       await client.query(`DELETE FROM submission_answer WHERE revision_id IN
         (SELECT id FROM submission_revision WHERE assignment_id=$1)`, [assignment]);
       await client.query("DELETE FROM submission_revision WHERE assignment_id=$1", [assignment]);

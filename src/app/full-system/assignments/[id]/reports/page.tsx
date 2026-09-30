@@ -12,9 +12,9 @@ type AuditRow = { action: string; resourceType: string; resourceId: string;
   requestId: string; occurredAt: string };
 type Tab = "group" | "individual" | "coverage" | "quality";
 const tabs: Array<{ id: Tab; label: string }> = [
-  { id: "group", label: "Group Summary" }, { id: "individual", label: "Individual Summary" },
-  { id: "coverage", label: "Pair Coverage" }, { id: "quality", label: "Quality" }];
-const show = (value: number | null) => value === null ? "NO_DATA" : value.toFixed(3);
+  { id: "group", label: "คะแนนกลุ่ม" }, { id: "individual", label: "คะแนนรายบุคคล" },
+  { id: "coverage", label: "ความครอบคลุมคู่" }, { id: "quality", label: "คุณภาพคำตอบ" }];
+const show = (value: number | null) => value === null ? "ยังมีข้อมูลไม่พอ" : value.toFixed(3);
 const signalName = { "QS-02": "QS-02 เลือกค่าเดิม", "QS-03": "QS-03 เลือกฝั่งเดียว", "QS-04": "QS-04 คำตอบวนขัดกัน",
   "QS-05": "QS-05 เวลาทำคำถาม", "QS-06": "QS-06 ให้คะแนนเพื่อนสังเคราะห์", "QS-07": "QS-07 ความเห็นตรงกัน" };
 const qualityReason: Record<string, string> = {
@@ -146,23 +146,25 @@ export default function ReportsPage({ params }: { params: Promise<{ id: string }
     .map(c => c.q!);
   const distribution = [0, 1, 2, 3, 4].map(index => chartValues.filter(value =>
     Math.min(4, Math.floor(value * 5)) === index).length);
-  return <main className="assignment-shell">
-    <p><a href="/full-system">← ห้องเรียน</a></p>
-    <span className="eyebrow">PairEval Full System · FS11–FS18</span>
-    <h1>รายงานและตัดสินคะแนน</h1>
+  return <main className="fs-page fs-report-page">
+    <a className="fs-back-link" href="/full-system"><span aria-hidden="true">←</span> กลับไปหน้าห้องเรียน</a>
+    <header className="fs-page-heading"><div><span className="eyebrow">พื้นที่อาจารย์ · ผลการประเมิน</span>
+      <h1>รายงานและตัดสินคะแนน</h1><p>ตรวจผล แบ่งดูตามด้าน และคำนวณคะแนนฉบับที่ต้องการ</p></div>
+      <span className="fs-teacher-mark" aria-hidden="true">▥</span></header>
     {message && <p className="notice" role="status">{message}</p>}
-    <section className="form-panel">
-      <h2>Score snapshot</h2>
-      <p>{snapshot ? `รุ่น ${snapshot.snapshotNo} · ${snapshot.kind} · สถานะ ${snapshot.assignmentStatus} · ${new Date(snapshot.createdAt).toLocaleString("th-TH")}` :
-        "ยังไม่มี snapshot — คำนวณก่อนดูรายงาน"}</p>
+    <section className="form-panel fs-snapshot-panel">
+      <div className="fs-section-heading"><div><span className="eyebrow">สถานะคะแนน</span><h2>ผลคำนวณล่าสุด</h2></div>
+        {snapshot && <span className={`fs-status-badge ${snapshot.assignmentStatus === "FINALIZED" ? "is-open" : ""}`}>{snapshot.kind === "FINAL" ? "ยืนยันแล้ว" : "ระหว่างดำเนินงาน"}</span>}</div>
+      <p>{snapshot ? `รุ่น ${snapshot.snapshotNo} · ${snapshot.kind === "INTERIM" ? "ผลระหว่างดำเนินงาน" : "ผลยืนยัน"} · สถานะ ${snapshot.assignmentStatus} · ${new Date(snapshot.createdAt).toLocaleString("th-TH")}` :
+        "ยังไม่มีผลคำนวณ — เริ่มจากคำนวณผลระหว่างดำเนินงาน"}</p>
       <div className="actions">
-        <button className="secondary-button" disabled={busy || snapshot?.assignmentStatus === "FINALIZED"} onClick={() => run("INTERIM")}>คำนวณ Interim ใหม่</button>
+        <button className="secondary-button" disabled={busy || snapshot?.assignmentStatus === "FINALIZED"} onClick={() => run("INTERIM")}>คำนวณผลระหว่างดำเนินงานใหม่</button>
         <button className="primary-button" disabled={busy || !snapshot || snapshot.assignmentStatus === "FINALIZED"}
-          onClick={() => run("FINAL")}>Finalize</button>
+          onClick={() => run("FINAL")}>ยืนยันผลคะแนน</button>
       </div>
       {snapshot?.assignmentStatus === "FINALIZED" && <div>
         <label className="field">เหตุผลที่เปิดคะแนนใหม่<textarea value={reason} onChange={e => setReason(e.target.value)} /></label>
-        <button className="secondary-button" disabled={busy || reason.trim().length < 10} onClick={reopen}>Reopen</button>
+        <button className="secondary-button" disabled={busy || reason.trim().length < 10} onClick={reopen}>เปิดคะแนนให้แก้ไข</button>
       </div>}
     </section>
     {output && <>
