@@ -74,9 +74,9 @@ const day7Progress = new Map([
 ]);
 const postDay7Progress = new Map([
   ["OQ-4", ["src/lib/full-system-withdrawal.ts; db/migrations/010_withdrawal_current_pairs.sql; docs/full-system/oq4-registrar-decision-request.md",
-    "Bounded synthetic development choice implemented with owner/environment/domain/version/Final gates; development browser/API smoke passed. Registrar approval/contact, future notices and reinstatement remain; staging evidence in post-day-07-withdrawal-review.md"]],
+    "Bounded synthetic development/staging browser/API smoke and CI #39 passed withdrawal with owner/environment/domain/version/Final gates, history/current-score isolation, rollback and draft republish. Registrar approval/contact, future notices and reinstatement remain. See post-day-07-withdrawal-review.md"]],
   ["FR-QS-02", ["src/lib/full-system-comparison-review.ts; db/migrations/011_comparison_review.sql; src/app/full-system/assignments/[id]/reports/page.tsx",
-    "92 local unit tests and development synthetic browser/API smoke passed instructor exclusion/restoration, atomic recompute, participation/history preservation and role/stale/Final denials; staging and broader acceptance in post-day-07-withdrawal-review.md"]],
+    "92 local unit tests, development/staging synthetic browser/API smoke and CI #39 passed instructor exclusion/restoration, atomic recompute, participation/history preservation, raw export status, role/stale/Final denials and staging audit-pending UI mock. Broader acceptance remains; see post-day-07-withdrawal-review.md"]],
   ...["QS-02", "QS-03", "QS-04", "FR-QS-01", "FR-REPORT-04"].map(id => [id,
     ["src/lib/full-system-quality.ts; src/lib/full-system-quality.test.ts; src/lib/full-system-score-runs.ts; src/app/full-system/assignments/[id]/reports/page.tsx; src/lib/full-system-score-export.ts",
       "Post-Day-7 88 unit tests passed: strict 80%/20% boundaries, reversed display, complete triangles, no-data and identity omission; synthetic development/staging snapshot/UI/CSV/XLSX smoke and CI #37 passed. QS-05/06/07 and full Quality acceptance remain; see post-day-07-quality-signals.md"]]),
@@ -89,7 +89,7 @@ const postDay7Progress = new Map([
   ["FR-EXPORT-03", ["src/lib/full-system-raw-export.ts; src/app/api/full-system/assignments/[id]/exports/raw/route.ts; scripts/day5-score-smoke.mjs", "Post-Day-7 unit and synthetic development/staging API smoke with dedicated staging key passed HMAC alias, BOM, outsider/student and identity-request denial; approved identity export and large asynchronous jobs remain"]],
 ]);
 postDay7Progress.set("FR-PAIR-11", ["src/lib/full-system-withdrawal.ts; src/lib/full-system-pairing.ts; db/migrations/010_withdrawal_current_pairs.sql; scripts/post-day7-withdrawal-smoke.mjs",
-  "Earlier synthetic group-change/republication smoke plus development submitted/pending/draft withdrawal, preserved history, fixed eligible pair planning, rollback, CSV reinstatement denial and concurrent version conflict passed; provisional OQ-4 only, staging and broader races/approval remain. See post-day-07-withdrawal-review.md"]);
+  "Earlier synthetic group-change/republication smoke plus development/staging submitted/pending/draft withdrawal, preserved history, fixed eligible pair planning, rollback, CSV reinstatement denial and concurrent version conflict passed; provisional OQ-4 only, broader races/approval remain. See post-day-07-withdrawal-review.md"]);
 const qualityGaps = new Map([
   ["QS-05", "Not implemented; OQ-6 time collection stays disabled. Duration/event/idle/retention definition remains; no Submit timestamp proxy. See post-day-07-withdrawal-review.md"],
   ["QS-06", "Not implemented; close-friend source, z-score reference population and minimum-sample/variance rules undefined. No friendship inferred from roster. See post-day-07-withdrawal-review.md"],
