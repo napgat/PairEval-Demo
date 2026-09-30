@@ -110,6 +110,10 @@ try {
   if (read.inputHash !== first.inputHash || read.output.students.length !== 9) {
     throw new Error("Snapshot report mismatch");
   }
+  if (read.output.pairSummary?.length !== 2 ||
+      read.output.pairSummary.find(row => row.side === "GROUP")?.meanForA !== 1) {
+    throw new Error("Pair coverage aggregation mismatch");
+  }
   expectStatus(await call(`/api/full-system/assignments/${assignment}/exports`, students[0],
     "POST", { format: "csv", report: "group" }), 404, "student export denial");
   expectStatus(await call(`/api/full-system/assignments/${assignment}/exports`, owner,
@@ -129,6 +133,22 @@ try {
       "Group Summary|Individual Summary|Pair Coverage|Metadata" ||
       workbook.getWorksheet("Metadata").getCell("B5").value !== "v2.1") {
     throw new Error("XLSX 4-sheet metadata mismatch");
+  }
+  if (process.env.PAIR_EVAL_EXPORT_KEY) {
+    const rawPath = `/api/full-system/assignments/${assignment}/exports/raw`;
+    expectStatus(await call(rawPath, outsider, "POST", { includeIdentities: false }), 404,
+      "outsider raw export denial");
+    expectStatus(await call(rawPath, students[0], "POST", { includeIdentities: false }), 404,
+      "student raw export denial");
+    expectStatus(await call(rawPath, owner, "POST", { includeIdentities: true }), 409,
+      "identity raw export denial");
+    const raw = await call(rawPath, owner, "POST", { includeIdentities: false });
+    expectStatus(raw, 200, "pseudonymous raw export");
+    const rawText = new TextDecoder().decode(raw.data);
+    if (new Uint8Array(raw.data)[0] !== 0xef || !rawText.includes("ev_") ||
+        rawText.includes(students[6]) || rawText.includes(students[2])) {
+      throw new Error("Raw export alias or identity protection mismatch");
+    }
   }
   expectStatus(await call(`${scorePath}/override`, students[0], "POST", {
     side: "GROUP", itemId: groups[0], value: 12, reason: "Synthetic review" }), 404,

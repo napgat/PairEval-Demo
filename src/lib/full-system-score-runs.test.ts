@@ -12,7 +12,7 @@ const base = () => ({ assignmentId: "00000000-0000-4000-8000-000000000001", gene
   criteria: [{ id: "c1", side: "GROUP" as const, name: "Group", weight_pct: "100" },
     { id: "c2", side: "INDIVIDUAL" as const, name: "Individual", weight_pct: "100" }],
   pairs: [{ id: "p1", criterionId: "c1", side: "GROUP" as const,
-    aId: "g1", bId: "g2", displayLeft: "A" as const, evaluatorId: "s1" },
+    aId: "g1", bId: "g2", displayLeft: "A" as "A" | "B", evaluatorId: "s1" },
     { id: "p2", criterionId: "c2", side: "INDIVIDUAL" as const,
       aId: "s1", bId: "s2", displayLeft: "A" as const, evaluatorId: "s2" }],
   answers: [{ pairId: "p1", choice: 1, evaluatorId: "s1", weight: 1 },
@@ -47,6 +47,23 @@ describe("Day 5 score decisions and export", () => {
     expect(csv).toContain("'=Unsafe");
     expect(reportRows(run, "coverage")).toHaveLength(3);
     expect(() => validateExport("xlsx", "group", true)).toThrow();
+  });
+  it("aggregates coverage and weighted mean for the same logical pair", () => {
+    const input = base();
+    input.pairs.push({ id: "p3", criterionId: "c1", side: "GROUP", aId: "g1", bId: "g2",
+      evaluatorId: "s2", displayLeft: "B" });
+    input.answers.push({ pairId: "p3", choice: 1, evaluatorId: "s2", weight: 0.5 });
+    const run = assembleScoreRun(input);
+    expect(run.pairSummary).toHaveLength(2);
+    expect(run.pairSummary[0]).toMatchObject({ assigned: 2, answered: 2, meanForA: 0.6667 });
+    expect(reportRows(run, "coverage")[1]).toEqual([
+      "GROUP", "c1", "g1", "g2", 2, 2, 0.6667]);
+  });
+  it("keeps earlier snapshots exportable before pair aggregation existed", () => {
+    const earlier = assembleScoreRun(base());
+    delete (earlier as Partial<typeof earlier>).pairSummary;
+    expect(reportRows(earlier, "coverage")[0]).toEqual([
+      "Pair ID", "Side", "Criterion ID", "Submitted"]);
   });
   it("writes exactly four XLSX sheets with the formula version", async () => {
     const run = assembleScoreRun(base());

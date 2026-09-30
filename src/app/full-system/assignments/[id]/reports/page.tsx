@@ -18,6 +18,7 @@ const show = (value: number | null) => value === null ? "NO_DATA" : value.toFixe
 export default function ReportsPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
   const [snapshot, setSnapshot] = useState<Snapshot | null>(null);
+  const [rawExportReady, setRawExportReady] = useState(false);
   const [tab, setTab] = useState<Tab>("group");
   const [chartCriterion, setChartCriterion] = useState("");
   const [message, setMessage] = useState("");
@@ -39,6 +40,7 @@ export default function ReportsPage({ params }: { params: Promise<{ id: string }
     const payload = await response.json();
     if (!response.ok) throw new Error(payload.error?.code ?? `HTTP ${response.status}`);
     setSnapshot(payload.data);
+    setRawExportReady(payload.meta?.rawExportReady === true);
     if (appealResponse.ok) setAppeals((await appealResponse.json()).data.appeals);
     if (auditResponse.ok) setAuditRows((await auditResponse.json()).data);
   }, [endpoint]);
@@ -80,10 +82,10 @@ export default function ReportsPage({ params }: { params: Promise<{ id: string }
     });
     setResolution(""); setAppealId(""); setMessage("บันทึกคำตอบอุทธรณ์แล้ว");
   });
-  const download = async (format: "csv" | "xlsx") => {
+  const download = async (format: "csv" | "xlsx", raw = false) => {
     setBusy(true); setMessage("");
     try {
-      const response = await fetch(`${endpoint}/exports`, { method: "POST",
+      const response = await fetch(`${endpoint}/exports${raw ? "/raw" : ""}`, { method: "POST",
         headers: { "Content-Type": "application/json", Origin: window.location.origin },
         body: JSON.stringify({ format, report: tab, includeIdentities: false }) });
       if (!response.ok) { const payload = await response.json();
@@ -141,14 +143,18 @@ export default function ReportsPage({ params }: { params: Promise<{ id: string }
             <td>{show(s.individualComponent)}</td><td>{s.answered}/{s.assigned}</td><td>{s.M.toFixed(3)}</td>
             <td>{show(s.total)}</td><td>{s.flags.join(", ")}</td></tr>)}
         </tbody></table></div>}
-        {tab === "coverage" && <div className="table-wrap"><table><thead><tr><th>Pair ID</th><th>ด้าน</th><th>Criterion ID</th><th>ส่งแล้ว</th></tr></thead><tbody>
-          {output.pairCoverage.map(p => <tr key={p.pairId}><td>{p.pairId.slice(0, 8)}</td><td>{p.side}</td>
-            <td>{p.criterionId.slice(0, 8)}</td><td>{p.answered ? "ใช่" : "ยัง"}</td></tr>)}
-        </tbody></table></div>}
+        {tab === "coverage" && <div className="table-wrap"><table><thead><tr><th>ด้าน</th><th>Criterion ID</th><th>คู่ A / B</th><th>ส่ง/มอบหมาย</th><th>ค่าเฉลี่ยของ A</th></tr></thead><tbody>
+          {output.pairSummary?.map(p => <tr key={`${p.side}:${p.criterionId}:${p.aId}:${p.bId}`}><td>{p.side}</td>
+            <td>{p.criterionId.slice(0, 8)}</td><td>{p.aId.slice(0, 8)} / {p.bId.slice(0, 8)}</td>
+            <td>{p.answered}/{p.assigned}</td><td>{show(p.meanForA)}</td></tr>)}
+        </tbody></table>{!output.pairSummary && <p>Snapshot รุ่นนี้ยังไม่มีผลรวมต่อคู่ โปรดคำนวณ Interim ใหม่หากต้องการข้อมูลนี้</p>}</div>}
         {tab === "quality" && <ul className="plain-list">{quality.flatMap(row => row.flags.map(flag =>
           <li key={`${row.name}:${flag}`}>{row.name}: {flag}</li>))}</ul>}
         <div className="actions"><button className="secondary-button" disabled={busy} onClick={() => download("csv")}>ดาวน์โหลด CSV</button>
-          <button className="secondary-button" disabled={busy} onClick={() => download("xlsx")}>ดาวน์โหลด XLSX 4 sheet</button></div>
+          <button className="secondary-button" disabled={busy} onClick={() => download("xlsx")}>ดาวน์โหลด XLSX 4 sheet</button>
+          {rawExportReady && <button className="secondary-button" disabled={busy}
+            onClick={() => download("csv", true)}>ดาวน์โหลดคำตอบดิบแบบรหัสผู้ประเมิน</button>}</div>
+        {rawExportReady && <p className="fine-print">ไฟล์คำตอบดิบใช้รหัสแทนตัวผู้ประเมินและบันทึก audit การส่งออก</p>}
       </section>
       <section className="form-panel"><h2>การกระจายค่า q ต่อเกณฑ์</h2>
         <label className="field">เกณฑ์<select value={chartCriterion || chartCriteria[0]?.[0] || ""}

@@ -4,8 +4,9 @@ import { databasePool } from "./full-system-postgres";
 import { domainAllowed, type FullActor } from "./full-system-auth";
 import { runAuditedMutation } from "./full-system-audit-outbox";
 import { enqueueAssignmentNotifications } from "./full-system-notifications";
+import { rawComparisonCsv, type RawScoreInput } from "./full-system-raw-export";
 import { AssignmentConflictError, AssignmentInputError, AssignmentNotFoundError } from "./full-system-assignments";
-import { calculateItemScores, mappedScore, participation, type ScoreAnswer, type ScoreItem,
+import { calculateItemScores, choicePoints, mappedScore, participation, type ScoreAnswer, type ScoreItem,
   type ScorePair, type ScoreSettings } from "./full-system-scoring";
 
 const validId = (id: string) => /^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/i.test(id);
@@ -29,6 +30,8 @@ export type ScoreRun = { assignmentId: string; generation: number; kind: "INTERI
     p: number; M: number; flags: string[];
     criteria: Array<ScoreItem["criteria"][number] & { name: string; weightedScore: number | null }> }>;
   pairCoverage: Array<{ pairId: string; side: string; criterionId: string; answered: boolean }>;
+  pairSummary: Array<{ side: string; criterionId: string; aId: string; bId: string;
+    assigned: number; answered: number; meanForA: number | null }>;
   overrides: Array<{ side: string; itemId: string; value: number; reason: string }> };
 
 async function editorScope(client: PoolClient, actor: FullActor, assignmentId: string,
@@ -107,12 +110,32 @@ export function assembleScoreRun(input: { assignmentId: string; generation: numb
         ...(total === null ? ["NO_DATA"] : [])] };
   });
   const answeredIds = new Set(input.answers.map(a => a.pairId));
+  const answerByPair = new Map(input.answers.map(answer => [answer.pairId, answer]));
+  const pairSummary = new Map<string, { side: string; criterionId: string; aId: string;
+    bId: string; assigned: number; answered: number; weightedPoints: number; weight: number }>();
+  for (const pair of input.pairs) {
+    const key = [pair.side, pair.criterionId, pair.aId, pair.bId].join(":");
+    const row = pairSummary.get(key) ?? { side: pair.side, criterionId: pair.criterionId,
+      aId: pair.aId, bId: pair.bId, assigned: 0, answered: 0, weightedPoints: 0, weight: 0 };
+    row.assigned++;
+    const answer = answerByPair.get(pair.id);
+    if (answer) {
+      const [left, right] = choicePoints(answer.choice);
+      row.answered++;
+      row.weightedPoints += (pair.displayLeft === "A" ? left : right) * answer.weight;
+      row.weight += answer.weight;
+    }
+    pairSummary.set(key, row);
+  }
   return { assignmentId: input.assignmentId, generation: input.generation, kind: input.kind,
     formulaVersion: input.formulaVersion, settings: input.settings,
     maxScore: input.settings.groupMax + input.settings.individualMax,
     groups, students,
     pairCoverage: input.pairs.map(p => ({ pairId: p.id, side: p.side, criterionId: p.criterionId,
       answered: answeredIds.has(p.id) })),
+    pairSummary: [...pairSummary.values()].map(row => ({ side: row.side,
+      criterionId: row.criterionId, aId: row.aId, bId: row.bId, assigned: row.assigned,
+      answered: row.answered, meanForA: row.weight === 0 ? null : four(row.weightedPoints / row.weight) })),
     overrides: [...overrides.values()].map(row => ({ side: row.side, itemId: row.item_id,
       value: Number(row.override_value), reason: row.reason })) };
 }
@@ -229,6 +252,37 @@ export async function latestScoreRun(actor: FullActor, assignmentId: string) {
       kind: result.rows[0].kind, inputHash: result.rows[0].input_hash,
       createdAt: result.rows[0].created_at.toISOString(), output: result.rows[0].output_json } : null;
   } finally { client.release(); }
+}
+
+/** Raw comparison export is pseudonymous and auditable; identity export is a separate policy gate. */
+export async function pseudonymousRawExport(actor: FullActor, assignmentId: string) {
+  const key = process.env.PAIR_EVAL_EXPORT_KEY;
+  if (!key || Buffer.byteLength(key, "utf8") < 32) {
+    throw new AssignmentConflictError("Pseudonymous export key is not configured");
+  }
+  return runAuditedMutation({
+    prepare: async client => {
+      const assignment = await editorScope(client, actor, assignmentId);
+      const snapshot = await client.query<{ input_json: RawScoreInput; snapshot_no: number }>(
+        `SELECT input_json,snapshot_no FROM score_snapshot WHERE assignment_id=$1 AND generation=$2
+          ORDER BY snapshot_no DESC LIMIT 1`, [assignmentId, assignment.generation]);
+      if (!snapshot.rows[0]) throw new AssignmentConflictError("Recompute scores before exporting");
+      if (snapshot.rows[0].input_json.answers.length > 10000) {
+        throw new AssignmentConflictError("Raw export is too large for synchronous download");
+      }
+      return { assignment, snapshot: snapshot.rows[0] };
+    },
+    intent: ({ assignment, snapshot }) => ({ actorUserId: actor.id,
+      classroomId: assignment.classroom_id, action: "RAW_EXPORT_REQUESTED",
+      resourceType: "assignment", resourceId: assignmentId,
+      before: { generation: assignment.generation, snapshotNo: snapshot.snapshot_no } }),
+    mutate: async (_client, { assignment, snapshot }) => ({
+      csv: rawComparisonCsv(snapshot.input_json, assignmentId, key),
+      filename: `${assignment.classroom_slug}_${assignment.slug}_raw_${new Date()
+        .toISOString().replace(/[-:]/g, "").slice(0, 13).replace("T", "-")}.csv`,
+      count: snapshot.input_json.answers.length }),
+    committedAfter: result => ({ rows: result.count, identity: false }),
+  });
 }
 
 export async function reopenScore(actor: FullActor, assignmentId: string, reason: string) {

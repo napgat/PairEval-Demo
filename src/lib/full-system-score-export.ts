@@ -25,10 +25,14 @@ export function reportRows(run: ScoreRun, report: Report): Cell[][] {
       scalar(student.groupComponent), scalar(student.individualComponent), student.answered,
       student.assigned, Number(student.p.toFixed(4)), Number(student.M.toFixed(4)),
       scalar(student.total), student.flags.join("|")] as Cell[]))];
-  if (report === "coverage") return [
+  if (report === "coverage" && !run.pairSummary) return [
     ["Pair ID", "Side", "Criterion ID", "Submitted"],
     ...run.pairCoverage.map(pair => [pair.pairId, pair.side, pair.criterionId,
       pair.answered ? "YES" : "NO"] as Cell[])];
+  if (report === "coverage") return [
+    ["Side", "Criterion ID", "Item A ID", "Item B ID", "Answered", "Assigned", "Mean for A"],
+    ...run.pairSummary.map(pair => [pair.side, pair.criterionId, pair.aId, pair.bId,
+      pair.answered, pair.assigned, scalar(pair.meanForA)] as Cell[])];
   return [["Side", "Item ID", "Flag", "Suggested action"],
     ...[...run.groups.map(g => ({ side: "GROUP", id: g.id, flags: g.flags })),
       ...run.students.map(s => ({ side: "INDIVIDUAL", id: s.id, flags: s.flags }))]
