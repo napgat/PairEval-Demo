@@ -260,7 +260,7 @@ export async function getAssignment(actor: FullActor, id: string) {
     const pairs = await client.query(`SELECT p.id,p.side,p.criterion_id,c.name AS criterion_name,
       p.group_a_id,p.group_b_id,p.student_a_id,p.student_b_id,count(*) OVER (
         PARTITION BY p.criterion_id,p.side,p.group_a_id,p.group_b_id,p.student_a_id,p.student_b_id) AS evaluator_count
-      FROM pair_assignment p JOIN criterion c ON c.id=p.criterion_id
+      FROM active_pair_assignment p JOIN criterion c ON c.id=p.criterion_id
       WHERE p.assignment_id=$1 AND p.generation=$2 ORDER BY p.side,c.display_order,p.id`,
     [id, row.generation]);
     await client.query("COMMIT");
@@ -343,7 +343,7 @@ export async function addPairEvaluators(actor: FullActor, id: string, raw: unkno
         throw new AssignmentConflictError("Only an OPEN assignment accepts additional evaluators");
       }
       const found = await client.query(`SELECT p.*,a.group_deadline_utc,a.individual_deadline_utc
-        FROM pair_assignment p JOIN assignment a ON a.id=p.assignment_id
+        FROM active_pair_assignment p JOIN assignment a ON a.id=p.assignment_id
         WHERE p.id=$1 AND p.assignment_id=$2 AND p.generation=$3`,
       [pairId, id, assignment.generation]);
       const pair = found.rows[0];
@@ -351,7 +351,7 @@ export async function addPairEvaluators(actor: FullActor, id: string, raw: unkno
       const due = pair.side === "GROUP" ? pair.group_deadline_utc : pair.individual_deadline_utc;
       if (!due || due.getTime() <= Date.now()) throw new AssignmentConflictError("Pair deadline passed");
       const existing = await client.query<{ evaluator_user_id: string }>(`SELECT evaluator_user_id
-        FROM pair_assignment WHERE assignment_id=$1 AND generation=$2 AND criterion_id=$3
+        FROM active_pair_assignment WHERE assignment_id=$1 AND generation=$2 AND criterion_id=$3
           AND side=$4 AND group_a_id IS NOT DISTINCT FROM $5::uuid
           AND group_b_id IS NOT DISTINCT FROM $6::uuid
           AND student_a_id IS NOT DISTINCT FROM $7::uuid

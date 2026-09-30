@@ -1,7 +1,7 @@
 # OQ-4 — Registrar decision request (withdrawn students)
 
 Date: 30 September 2026 (Asia/Bangkok)
-Status: **Awaiting Registrar decision**. This document is a review package, not an approval or an implemented policy. Only synthetic records may be used meanwhile.
+Status: **Awaiting Registrar decision**. This document is a review package, not institutional approval. The bounded development/staging implementation described in [the follow-up log](post-day-07-withdrawal-review.md) uses entirely synthetic student rosters under the development choice in Decisions Needed. It does not establish an approved policy for real student records.
 
 ## Decision requested
 

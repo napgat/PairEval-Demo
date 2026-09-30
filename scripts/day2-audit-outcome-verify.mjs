@@ -24,12 +24,19 @@ try {
   const pending = outbox.rows.filter(row => !row.delivered_at).length;
   let committed = 0; let rejected = 0;
   const actions = new Map();
+  const delivered = outbox.rows.filter(row => row.delivered_at);
+  const evidence = delivered.length ? await audit.query(`SELECT id,request_id,action FROM audit_event
+    WHERE request_id=ANY($1)`, [delivered.map(row => row.request_id)]) : { rows: [] };
+  const byRequest = new Map();
+  for (const event of evidence.rows) {
+    const values = byRequest.get(event.request_id) ?? [];
+    values.push(event); byRequest.set(event.request_id, values);
+  }
   for (const row of outbox.rows) {
     if (!row.delivered_at) continue;
-    const events = await audit.query(`SELECT id,action FROM audit_event
-      WHERE request_id=$1 AND (id=$2 OR action LIKE '%_REQUESTED')`, [row.request_id, row.id]);
-    const intent = events.rows.find(event => event.action.endsWith("_REQUESTED"));
-    const outcome = events.rows.find(event => event.id === row.id);
+    const events = byRequest.get(row.request_id) ?? [];
+    const intent = events.find(event => event.action.endsWith("_REQUESTED"));
+    const outcome = events.find(event => event.id === row.id);
     if (!intent || !outcome || outcome.action !== row.action ||
         intent.action.slice(0, -"_REQUESTED".length) !== row.action.replace(/_(COMMITTED|REJECTED)$/, "")) {
       throw new Error("Audit intent/outcome correlation mismatch");
@@ -50,6 +57,7 @@ try {
   console.log(`Assignment audit outcomes (${environment}): ${JSON.stringify(Object.fromEntries([...actions].filter(([action]) => action.startsWith("ASSIGNMENT_"))))}`);
   console.log(`Evaluation audit outcomes (${environment}): ${JSON.stringify(Object.fromEntries([...actions].filter(([action]) => action.startsWith("EVALUATION_"))))}`);
   console.log(`Score/appeal audit outcomes (${environment}): ${JSON.stringify(Object.fromEntries([...actions].filter(([action]) => action.startsWith("SCORE_") || action.startsWith("APPEAL_"))))}`);
+  console.log(`Withdrawal/review audit outcomes (${environment}): ${JSON.stringify(Object.fromEntries([...actions].filter(([action]) => action.startsWith("STUDENT_WITHDRAW_") || action.startsWith("COMPARISON_REVIEW_"))))}`);
   if (pending || residual.rows[0].users || residual.rows[0].day3_users || residual.rows[0].day4_users ||
       residual.rows[0].day5_users || residual.rows[0].day7_users || residual.rows[0].classrooms) process.exitCode = 1;
 } finally { await operational.end(); await audit.end(); }

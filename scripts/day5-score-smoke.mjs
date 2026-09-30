@@ -16,7 +16,8 @@ const pool = new Pool({ connectionString: process.env.DATABASE_URL, max: 1,
   connectionTimeoutMillis: 30000 });
 const suffix = randomUUID().slice(0, 8);
 const owner = randomUUID(), outsider = randomUUID(), students = Array.from({ length: 9 }, () => randomUUID());
-const users = [owner, outsider, ...students];
+const ta = randomUUID(), coTeacher = randomUUID();
+const users = [owner, outsider, ...students, ta, coTeacher];
 const room = randomUUID(), assignment = randomUUID(), generationId = randomUUID();
 const groups = Array.from({ length: 3 }, () => randomUUID()).sort();
 const criteria = [randomUUID(), randomUUID()];
@@ -56,6 +57,8 @@ try {
       [room, `Synthetic Day 5 ${suffix}`, `day5-${suffix}`, owner]);
     await client.query(`INSERT INTO classroom_member (id,classroom_id,user_id,role)
       VALUES ($1,$2,$3,'OWNER')`, [randomUUID(), room, owner]);
+    await client.query(`INSERT INTO classroom_member (id,classroom_id,user_id,role)
+      VALUES ($1,$3,$4,'TA'),($2,$3,$5,'CO_TEACHER')`, [randomUUID(), randomUUID(), room, ta, coTeacher]);
     for (const [index, id] of groups.entries()) await client.query(`INSERT INTO group_entity
       (id,classroom_id,name) VALUES ($1,$2,$3)`, [id, room, `G${index}`]);
     for (const [index, id] of students.entries()) await client.query(`INSERT INTO classroom_member
@@ -200,6 +203,15 @@ try {
   const final = expectStatus(await call(scorePath, owner, "POST", { kind: "FINAL" }), 200,
     "final snapshot");
   if (final.snapshotNo !== 3 || final.kind !== "FINAL") throw new Error("Finalize mismatch");
+  if (process.env.PAIR_EVAL_WITHDRAWAL_SMOKE) {
+    expectStatus(await call(`/api/full-system/classrooms/${room}/members/${students[6]}/withdraw`, owner,
+      "POST", { reason: "Synthetic withdrawal correction", effectiveAt: new Date().toISOString(), expectedRosterVersion: 0 }),
+    409, "withdrawal cannot rewrite a Final snapshot");
+  }
+  if (process.env.PAIR_EVAL_REVIEW_SMOKE) {
+    expectStatus(await call(`/api/full-system/assignments/${assignment}/comparison-reviews`, owner, "POST",
+      { pairId: individualPair, excluded: true, reason: "Synthetic comparison reviewed", expectedReviewId: null }), 409, "Final review requires Reopen");
+  }
   const noticePath = "/api/full-system/notifications";
   const notices = expectStatus(await call(noticePath, students[0]), 200, "own notification list");
   if (notices.length !== 1 || notices[0].event !== "SCORE_FINALIZED" ||
@@ -270,6 +282,127 @@ try {
   if (ownReopened.status !== "INTERIM" || ownReopened.groupComponent !== 12) {
     throw new Error("Reopened interim score ignored current override");
   }
+  if (process.env.PAIR_EVAL_REVIEW_SMOKE) {
+    const reviewPath = `/api/full-system/assignments/${assignment}/comparison-reviews`;
+    const reviewBody = { pairId: individualPair, excluded: true, reason: "Synthetic comparison reviewed", expectedReviewId: null };
+    for (const actor of [outsider, students[0], ta]) {
+      expectStatus(await call(reviewPath, actor), 404, "review read role denial");
+      expectStatus(await call(reviewPath, actor, "POST", reviewBody), 404, "review write role denial");
+    }
+    expectStatus(await call(reviewPath, owner, "POST", { ...reviewBody, reason: "short" }), 422, "review reason validation");
+    expectStatus(await call(reviewPath, owner, "POST", { ...reviewBody, pairId: randomUUID() }), 404, "review scope denial");
+    const list = expectStatus(await call(reviewPath, owner), 200, "review submitted comparison list");
+    if (list.items.length !== 2 || list.nextCursor !== null || list.items.some(row => /evaluator|createdBy|reviewer|@/.test(JSON.stringify(row)))) throw new Error("Review list leaked evaluator identity");
+    const oldFinal = JSON.stringify((await pool.query("SELECT input_json,output_json,input_hash FROM score_snapshot WHERE id=$1", [final.id])).rows[0]);
+    const browser = await chromium.launch({ headless: true });
+    let reviewId;
+    try {
+      const context = await browser.newContext({ viewport: { width: 390, height: 844 } });
+      await context.addCookies([{ name: "paireval_full_session", value: tokens.get(owner), url: origin }]);
+      const page = await context.newPage(); page.setDefaultTimeout(60000);
+      await page.goto(`${origin}/full-system/assignments/${assignment}/reports`);
+      await page.getByRole("tab", { name: "Quality", exact: true }).click();
+      await page.getByLabel("คำตอบที่จะทบทวน").selectOption(individualPair);
+      await page.getByLabel("เหตุผลทบทวน (อย่างน้อย 10 ตัวอักษร)").fill(reviewBody.reason);
+      await page.route("**/comparison-reviews", async route => {
+        if (route.request().method() === "POST") await route.fulfill({ status: 202, contentType: "application/json", body: JSON.stringify({ data: { status: "AUDIT_PENDING" } }) });
+        else await route.continue();
+      });
+      await page.getByRole("button", { name: "ตัดคำตอบออกและคำนวณใหม่", exact: true }).click();
+      await page.getByText("ยังรอยืนยันบันทึก audit โปรดโหลดข้อมูลใหม่ก่อนทำรายการซ้ำ", { exact: true }).waitFor();
+      await page.unroute("**/comparison-reviews");
+      const result = page.waitForResponse(r => r.url().endsWith("/comparison-reviews") && r.request().method() === "POST");
+      await page.getByRole("button", { name: "ตัดคำตอบออกและคำนวณใหม่", exact: true }).click();
+      const response = await result;
+      if (response.status() !== 200) throw new Error("Browser comparison exclusion failed");
+      reviewId = (await response.json()).data.reviewId;
+      await page.getByText("บันทึกการทบทวนคำตอบและคำนวณ snapshot ใหม่แล้ว", { exact: true }).waitFor();
+      if (process.env.PAIR_EVAL_REVIEW_SCREENSHOT) await page.screenshot({ path: process.env.PAIR_EVAL_REVIEW_SCREENSHOT, fullPage: true });
+      await context.close();
+    } finally { await browser.close(); }
+    const excluded = expectStatus(await call(scorePath, owner), 200, "reviewed snapshot");
+    const evaluator = excluded.output.students.find(row => row.id === students[2]);
+    if (excluded.snapshotNo !== 4 || excluded.output.exclusions[0]?.pairId !== individualPair || evaluator.answered !== 1 || evaluator.assigned !== 1 || evaluator.M !== 1 || excluded.output.students.find(row => row.id === students[0]).individualComponent !== null) throw new Error("Exclusion or participation mismatch");
+    if (process.env.PAIR_EVAL_EXPORT_KEY) {
+      const raw = await call(`/api/full-system/assignments/${assignment}/exports/raw`, owner, "POST", { includeIdentities: false });
+      expectStatus(raw, 200, "excluded raw answer export");
+      const text = new TextDecoder().decode(raw.data);
+      if (!text.includes(individualPair) || !text.includes("EXCLUDED") || !text.includes(reviewBody.reason)) throw new Error("Raw export silently removed excluded answer");
+    }
+    expectStatus(await call(reviewPath, owner, "POST", reviewBody), 409, "stale review conflict");
+    const restored = expectStatus(await call(reviewPath, coTeacher, "POST", { ...reviewBody, excluded: false, expectedReviewId: reviewId, reason: "Synthetic comparison restored" }), 200, "co-teacher restoration");
+    if (restored.snapshotNo !== 5) throw new Error("Restoration snapshot mismatch");
+    const now = expectStatus(await call(scorePath, owner), 200, "restored snapshot");
+    if (now.output.exclusions.length || now.output.students.find(row => row.id === students[0]).individualComponent === null || JSON.stringify((await pool.query("SELECT input_json,output_json,input_hash FROM score_snapshot WHERE id=$1", [final.id])).rows[0]) !== oldFinal) throw new Error("Review restoration rewrote history or score mismatch");
+    if ((await pool.query("SELECT count(*)::integer AS n FROM comparison_review_decision WHERE pair_assignment_id=$1", [individualPair])).rows[0].n !== 2) throw new Error("Review history was not append-only");
+    console.log(`${environment} FR-QS-02 smoke passed: owner browser exclusion, co-teacher restoration, atomic snapshots, participation unchanged, history retained and role/stale/Final denials`);
+  }
+  if (process.env.PAIR_EVAL_WITHDRAWAL_SMOKE) {
+    const withdrawPath = user => `/api/full-system/classrooms/${room}/members/${user}/withdraw`;
+    const body = version => ({ reason: "Synthetic withdrawal policy test", effectiveAt: new Date(Date.now() - 60000).toISOString(), expectedRosterVersion: version });
+    const oldFinal = JSON.stringify((await pool.query("SELECT input_json,output_json,input_hash FROM score_snapshot WHERE id=$1", [final.id])).rows[0]);
+    for (const actor of [outsider, students[0], ta, coTeacher]) expectStatus(await call(withdrawPath(students[6]), actor, "POST", body(0)), 404, "non-owner withdrawal denied");
+    expectStatus(await call(withdrawPath(students[6]), owner, "POST", { ...body(0), reason: "short" }), 422, "withdrawal reason required");
+    expectStatus(await call(withdrawPath(students[6]), owner, "POST", null), 422, "null withdrawal body rejected");
+    expectStatus(await call(withdrawPath(students[6]), owner, "POST", body(-1)), 422, "negative roster version rejected");
+    expectStatus(await call(withdrawPath(students[6]), owner, "POST", { ...body(0), effectiveAt: new Date(Date.now() + 86400000).toISOString() }), 409, "future withdrawal denied");
+    expectStatus(await call(withdrawPath(students[6]), owner, "POST", body(999)), 409, "stale roster withdrawal denied");
+    const noAuth = await fetch(`${origin}${withdrawPath(students[6])}`, { method: "POST", headers: { Origin: origin, "Content-Type": "application/json" }, body: JSON.stringify(body(0)) });
+    if (noAuth.status !== 401) throw new Error("Unauthenticated withdrawal not denied");
+    const badOrigin = await fetch(`${origin}${withdrawPath(students[6])}`, { method: "POST", headers: { Origin: "https://outside.example.test", Cookie: `paireval_full_session=${tokens.get(owner)}`, "Content-Type": "application/json" }, body: JSON.stringify(body(0)) });
+    if (badOrigin.status !== 403) throw new Error("Cross-origin withdrawal not denied");
+    const withdrawn = expectStatus(await call(withdrawPath(students[6]), owner, "POST", body(0)), 200, "submitted evaluator withdrawal");
+    if (withdrawn.rosterVersion !== 1 || withdrawn.assignments[0]?.snapshotNo !== (process.env.PAIR_EVAL_REVIEW_SMOKE ? 6 : 4)) throw new Error("Withdrawal did not recompute atomically");
+    const current = expectStatus(await call(scorePath, owner), 200, "withdrawal snapshot");
+    if (current.output.students.some(s => s.id === students[6]) || current.output.pairCoverage.some(p => p.pairId === groupPair)) throw new Error("Withdrawn evaluator appears in current score");
+    expectStatus(await call(`/api/full-system/assignments/${assignment}/my-score`, students[6]), 404, "withdrawn My Score denied");
+    expectStatus(await call(`/api/full-system/assignments/${assignment}/evaluation/group`, students[6]), 404, "withdrawn evaluation denied");
+    if (expectStatus(await call(noticePath, students[6]), 200, "withdrawn notifications").length) throw new Error("Withdrawn student received current notifications");
+    const retained = await pool.query(`SELECT count(*)::integer AS n FROM submission_answer WHERE pair_assignment_id=$1`, [groupPair]);
+    if (retained.rows[0].n !== 1 || JSON.stringify((await pool.query("SELECT input_json,output_json,input_hash FROM score_snapshot WHERE id=$1", [final.id])).rows[0]) !== oldFinal) throw new Error("Withdrawal rewrote submitted history or Final snapshot");
+    if (process.env.PAIR_EVAL_EXPORT_KEY) {
+      const raw = await call(`/api/full-system/assignments/${assignment}/exports/raw`, owner, "POST", { includeIdentities: false });
+      expectStatus(raw, 200, "withdrawal raw export");
+      if (new TextDecoder().decode(raw.data).includes(groupPair)) throw new Error("Raw export retained withdrawn answer");
+    }
+    const browser = await chromium.launch({ headless: true });
+    try {
+      const context = await browser.newContext({ viewport: { width: 390, height: 844 } });
+      await context.addCookies([{ name: "paireval_full_session", value: tokens.get(owner), url: origin }]);
+      const page = await context.newPage(); page.setDefaultTimeout(60000); page.on("dialog", dialog => dialog.accept());
+      await page.goto(`${origin}/full-system/classrooms/${room}/assignments`);
+      await page.getByRole("heading", { name: "ทดลองถอนรายชื่อสังเคราะห์" }).waitFor();
+      await page.getByLabel("นักศึกษาที่จะถอน").selectOption(students[7]);
+      await page.getByLabel("เหตุผลถอน (อย่างน้อย 10 ตัวอักษร)").fill("Synthetic pending evaluator withdrawal");
+      const response = page.waitForResponse(r => r.url().endsWith(`/members/${students[7]}/withdraw`) && r.request().method() === "POST");
+      await page.getByRole("button", { name: "ยืนยันถอนรายชื่อสังเคราะห์", exact: true }).click();
+      if ((await response).status() !== 200) throw new Error("Browser pending withdrawal failed");
+      await page.getByText("ถอนรายชื่อสังเคราะห์และบันทึก snapshot ปัจจุบันใหม่แล้ว", { exact: true }).waitFor();
+      if (process.env.PAIR_EVAL_WITHDRAWAL_SCREENSHOT) await page.screenshot({ path: process.env.PAIR_EVAL_WITHDRAWAL_SCREENSHOT, fullPage: false });
+      await context.close();
+    } finally { await browser.close(); }
+    expectStatus(await call(withdrawPath(students[6]), owner, "POST", body(2)), 409, "withdrawal cannot silently repeat");
+    const beforeFailure = await pool.query("SELECT roster_version,(SELECT count(*) FROM score_snapshot WHERE assignment_id=$2) AS snapshots FROM classroom WHERE id=$1", [room, assignment]);
+    expectStatus(await call(withdrawPath(students[8]), owner, "POST", body(2)), 409, "empty third group reassignment rolls back");
+    const afterFailure = await pool.query("SELECT roster_version,(SELECT count(*) FROM score_snapshot WHERE assignment_id=$2) AS snapshots FROM classroom WHERE id=$1", [room, assignment]);
+    if (JSON.stringify(beforeFailure.rows) !== JSON.stringify(afterFailure.rows) || (await pool.query("SELECT membership_status FROM classroom_member WHERE classroom_id=$1 AND user_id=$2", [room, students[8]])).rows[0].membership_status !== "ACTIVE") throw new Error("Infeasible withdrawal wrote partial changes");
+    const extended = new Date(Date.now() + 86400000).toISOString();
+    expectStatus(await call(`/api/full-system/assignments/${assignment}/deadlines`, owner, "PATCH", { groupDeadline: extended, individualDeadline: extended }), 200, "extend closed assignment before roster edit");
+    await call(`/api/full-system/assignments/${assignment}/unpublish`, owner, "POST", { reason: "Synthetic withdrawal before republish" }).then(r => expectStatus(r, 200, "unpublish for roster guard"));
+    const csv = ["email,group_name", ...students.map((_, i) => `day5-${i + 2}-${suffix}@example.test,G${Math.floor(i / 3)}`)].join("\n");
+    const preview = expectStatus(await call(`/api/full-system/classrooms/${room}/roster/preview`, owner, "POST", { csv }), 200, "withdrawn roster preview");
+    expectStatus(await call(`/api/full-system/classrooms/${room}/roster/import`, owner, "POST", { csv, expectedVersion: preview.version, confirmDigest: preview.digest }), 422, "CSV cannot reactivate withdrawn students");
+    const race = await Promise.all([students[0], students[1]].map(s => call(withdrawPath(s), owner, "POST", body(2))));
+    if (race.map(r => r.response.status).sort().join(",") !== "200,409") throw new Error("Concurrent withdrawal did not enforce roster version");
+    const draftWithdrawal = expectStatus(await call(withdrawPath(students[3]), owner, "POST", body(3)), 200, "withdrawal before assignment publish");
+    if (draftWithdrawal.assignments.length !== 0) throw new Error("Draft withdrawal unexpectedly changed snapshots");
+    await pool.query("UPDATE assignment SET group_deadline_utc=now()+interval '1 day',individual_deadline_utc=now()+interval '1 day' WHERE id=$1", [assignment]);
+    expectStatus(await call(`/api/full-system/assignments/${assignment}/publish`, owner, "POST", { seed: "withdrawal-republish" }), 200, "publish after withdrawal");
+    const forbidden = await pool.query(`SELECT count(*)::integer AS n FROM pair_assignment p JOIN assignment a ON a.id=p.assignment_id WHERE p.assignment_id=$1 AND p.generation=a.generation AND
+      (p.evaluator_user_id IN (SELECT user_id FROM classroom_member WHERE classroom_id=$2 AND membership_status='WITHDRAWN') OR p.student_a_id IN (SELECT user_id FROM classroom_member WHERE classroom_id=$2 AND membership_status='WITHDRAWN') OR p.student_b_id IN (SELECT user_id FROM classroom_member WHERE classroom_id=$2 AND membership_status='WITHDRAWN'))`, [assignment, room]);
+    if (forbidden.rows[0].n) throw new Error("Republish assigned a withdrawn evaluator/item");
+    console.log(`${environment} OQ-4 synthetic smoke passed: submitted/pending/draft withdrawal, Final/Reopen gate, history, atomic infeasibility rollback, CSV reinstatement denial, concurrent version and role/origin denial`);
+  }
   console.log(`${environment} Day 5 score smoke passed: snapshot 1/2/3, override and immutable history,
     Finalize/Reopen, appeal, browser report, QS-02–04 and quality CSV, CSV BOM, 4-sheet XLSX, outsider/student/identity denials`);
 } finally {
@@ -285,6 +418,8 @@ try {
     await client.query("DELETE FROM submission_revision WHERE assignment_id=$1", [assignment]);
     await client.query("DELETE FROM evaluation_draft_answer WHERE assignment_id=$1", [assignment]);
     await client.query("DELETE FROM evaluation_draft WHERE assignment_id=$1", [assignment]);
+    await client.query(`DELETE FROM comparison_review_decision WHERE pair_assignment_id IN
+      (SELECT id FROM pair_assignment WHERE assignment_id=$1)`, [assignment]);
     await client.query("DELETE FROM pair_assignment WHERE assignment_id=$1", [assignment]);
     await client.query("DELETE FROM criterion WHERE assignment_id=$1", [assignment]);
     await client.query("DELETE FROM assignment_generation WHERE assignment_id=$1", [assignment]);

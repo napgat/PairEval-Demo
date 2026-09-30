@@ -29,4 +29,13 @@ describe("pseudonymous raw comparison export", () => {
       answers: [{ pairId: "missing", choice: 1, evaluatorId: "e1", weight: 1 }] },
     assignment, key)).toThrow("scope mismatch");
   });
+  it("retains excluded raw answers with a safe reason instead of silently deleting them", () => {
+    const csv = rawComparisonCsv({ generation: 1,
+      pairs: [{ id: "p1", criterionId: "c1", side: "GROUP", aId: "a", bId: "b", displayLeft: "A", evaluatorId: "e1" }],
+      answers: [{ pairId: "p1", choice: 2, evaluatorId: "e1", weight: 1, excluded: true, exclusionReason: "=Unsafe reason" }] }, assignment, key);
+    expect(csv).toContain('"EXCLUDED"');
+    expect(csv).toContain('"\'=Unsafe reason"');
+    expect(csv).toContain('"p1"');
+    expect(csv).not.toContain('"e1"');
+  });
 });

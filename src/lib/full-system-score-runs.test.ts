@@ -57,13 +57,29 @@ describe("Day 5 score decisions and export", () => {
     expect(run.pairSummary).toHaveLength(2);
     expect(run.pairSummary[0]).toMatchObject({ assigned: 2, answered: 2, meanForA: 0.6667 });
     expect(reportRows(run, "coverage")[1]).toEqual([
-      "GROUP", "c1", "g1", "g2", 2, 2, 0.6667]);
+      "GROUP", "c1", "g1", "g2", 2, 2, 0.6667, 0]);
   });
   it("keeps earlier snapshots exportable before pair aggregation existed", () => {
     const earlier = assembleScoreRun(base());
     delete (earlier as Partial<typeof earlier>).pairSummary;
     expect(reportRows(earlier, "coverage")[0]).toEqual([
       "Pair ID", "Side", "Criterion ID", "Submitted"]);
+  });
+  it("excludes a reviewed answer from scores and k while retaining participation and evidence", () => {
+    const input = base();
+    const original = JSON.stringify(input);
+    const previous = assembleScoreRun(input);
+    const reviewed = assembleScoreRun({ ...input, answers: input.answers.map(a => ({ ...a,
+      excluded: a.pairId === "p2", exclusionReason: a.pairId === "p2" ? "Instructor reviewed artifact" : undefined })) });
+    expect(reviewed.students[0].individualComponent).toBeNull();
+    expect(reviewed.students[1]).toMatchObject({ answered: 1, assigned: 1, p: 1, M: 1 });
+    expect(reviewed.students[0].criteria[0].comparisons).toBe(0);
+    expect(reviewed.pairSummary[1]).toMatchObject({ answered: 1, excluded: 1, meanForA: null });
+    expect(reviewed.exclusions).toEqual([{ pairId: "p2", side: "INDIVIDUAL", criterionId: "c2", reason: "Instructor reviewed artifact" }]);
+    expect(reviewed.quality).toEqual(previous.quality);
+    expect(reportCsv(reviewed, "quality")).toContain("INSTRUCTOR_DECISION");
+    expect(previous.students[0].individualComponent).toBe(3);
+    expect(JSON.stringify(input)).toBe(original);
   });
   it("exports advisory signal evidence and preserves scores without automatic penalties", async () => {
     const run = assembleScoreRun(base());

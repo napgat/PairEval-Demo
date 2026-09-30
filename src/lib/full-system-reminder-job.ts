@@ -27,9 +27,9 @@ export async function runReminderSweep() {
       WHERE a.status='OPEN' AND c.status='ACTIVE' AND m.role='STUDENT'
         AND m.membership_status='ACTIVE' AND u.status='ACTIVE'
         AND s.deadline > now() AND s.deadline <= now() + interval '48 hours'
-        AND EXISTS (SELECT 1 FROM pair_assignment p WHERE p.assignment_id=a.id
+        AND EXISTS (SELECT 1 FROM active_pair_assignment p WHERE p.assignment_id=a.id
           AND p.generation=a.generation AND p.side=s.side AND p.evaluator_user_id=m.user_id)
-        AND (SELECT count(*) FROM pair_assignment p2 WHERE p2.assignment_id=a.id
+        AND (SELECT count(*) FROM active_pair_assignment p2 WHERE p2.assignment_id=a.id
           AND p2.generation=a.generation AND p2.side=s.side AND p2.evaluator_user_id=m.user_id)
           > (SELECT count(*) FROM submission_answer sa WHERE sa.revision_id=(
             SELECT r.id FROM submission_revision r WHERE r.assignment_id=a.id

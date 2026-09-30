@@ -49,14 +49,16 @@ export async function getMyScore(actor: FullActor, assignmentId: string) {
   const criteria = await client.query(`SELECT id,side,weight_pct FROM criterion
     WHERE assignment_id=$1 AND active`, [assignmentId]);
   const pairs = await client.query(`SELECT id,criterion_id,side,group_a_id,group_b_id,student_a_id,
-    student_b_id,display_left,evaluator_user_id,source FROM pair_assignment
+    student_b_id,display_left,evaluator_user_id,source FROM active_pair_assignment
     WHERE assignment_id=$1 AND generation=$2`, [assignmentId, a.generation]);
-  const answers = await client.query(`SELECT sa.pair_assignment_id,sa.choice,sr.evaluator_user_id,p.side,p.source
+  const answers = await client.query(`SELECT sa.pair_assignment_id,sa.choice,sr.evaluator_user_id,p.side,p.source,
+      review.excluded
       FROM (SELECT DISTINCT ON (evaluator_user_id,side) id,evaluator_user_id,side
         FROM submission_revision WHERE assignment_id=$1 AND generation=$2
         ORDER BY evaluator_user_id,side,revision_number DESC) sr
       JOIN submission_answer sa ON sa.revision_id=sr.id
-      JOIN pair_assignment p ON p.id=sa.pair_assignment_id
+      JOIN active_pair_assignment p ON p.id=sa.pair_assignment_id
+      LEFT JOIN latest_comparison_review review ON review.pair_assignment_id=p.id
       WHERE p.assignment_id=$1 AND p.generation=$2 AND p.evaluator_user_id=sr.evaluator_user_id
         AND p.side=sr.side`, [assignmentId, a.generation]);
   const scorePairs: ScorePair[] = pairs.rows.map(p => ({ id: p.id, criterionId: p.criterion_id,
@@ -65,7 +67,7 @@ export async function getMyScore(actor: FullActor, assignmentId: string) {
     displayLeft: p.display_left, evaluatorId: p.evaluator_user_id }));
   const scoreAnswers: ScoreAnswer[] = answers.rows.map(row => ({ pairId: row.pair_assignment_id,
     choice: row.choice, evaluatorId: row.evaluator_user_id,
-    weight: row.source === "INSTRUCTOR_SELF" ? Number(a.instructor_weight) : 1 }));
+    weight: row.source === "INSTRUCTOR_SELF" ? Number(a.instructor_weight) : 1, excluded: row.excluded === true }));
   const values = calculateItemScores({ criteria: criteria.rows.map(c => ({ id: c.id, side: c.side,
     weightPct: Number(c.weight_pct) })), pairs: scorePairs, answers: scoreAnswers,
     groupIds: groups.rows.map(g => g.id), studentIds: students.rows.map(s => s.id),

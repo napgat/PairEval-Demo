@@ -9,6 +9,34 @@ const plan = (sizes: number[], side: "GROUP" | "INDIVIDUAL", cap = 8, seed = "7"
     seed, groupEnabled: true, individualEnabled: true });
 
 describe("Full System deterministic bounded pairing", () => {
+  it("reassigns after a synthetic withdrawal while preserving surviving pairs and display", () => {
+    const initial = plan([7, 7, 7], "GROUP");
+    const people = students([7, 7, 7]).filter(s => s.id !== "u0-0");
+    const fixed = initial.comparisons.filter(p => p.evaluatorId !== "u0-0");
+    const before = JSON.stringify(fixed);
+    const result = planFullSystemPairs({ students: people, groups: ["g0", "g1", "g2"],
+      criteria: [{ id: "criterion", side: "GROUP" }], targetCoverage: 5, maxWorkload: 8,
+      seed: "withdrawal", groupEnabled: true, individualEnabled: false, fixed });
+    expect(result.feasible).toBe(true);
+    expect(result.parts[0].coverage).toBe(5);
+    for (const row of fixed) expect(result.comparisons).toContainEqual(row);
+    expect(result.comparisons.some(p => p.evaluatorId === "u0-0")).toBe(false);
+    expect(JSON.stringify(fixed)).toBe(before);
+    expect(new Set(result.comparisons.map(p => [p.aId, p.bId, p.evaluatorId].join(":"))).size).toBe(result.comparisons.length);
+  });
+  it("rejects impossible or ineligible fixed reassignment rather than changing submitted work", () => {
+    const initial = plan([4, 4, 4, 4], "GROUP");
+    const fixed = initial.comparisons.filter(p => p.evaluatorId !== "u0-0");
+    const result = planFullSystemPairs({ students: students([4, 4, 4, 4]).filter(s => s.id !== "u0-0"), groups: ["g0", "g1", "g2", "g3"],
+      criteria: [{ id: "criterion", side: "GROUP" }], targetCoverage: 5, maxWorkload: 1,
+      seed: "withdrawal", groupEnabled: true, individualEnabled: false, fixed });
+    expect(result.feasible).toBe(false);
+    expect(result.parts[0].reason).toContain("actual=0");
+    expect(() => planFullSystemPairs({ students: students([3, 3, 3]), groups: ["g0", "g1", "g2"],
+      criteria: [{ id: "criterion", side: "GROUP" }], targetCoverage: 5, maxWorkload: 8,
+      seed: "bad", groupEnabled: true, individualEnabled: false,
+      fixed: [{ ...fixed[0], evaluatorId: "outsider" }] })).toThrow("Ineligible fixed");
+  });
   it("gives each group pair exact feasible coverage with no self-group evaluator", () => {
     const result = plan([4, 4, 4], "GROUP");
     expect(result.feasible).toBe(true);

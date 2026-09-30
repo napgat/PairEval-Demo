@@ -30,10 +30,10 @@ async function upsertRoster(client: PoolClient, classroomId: string, rows: FullR
       (id,classroom_id,user_id,role,group_id,student_number)
       VALUES ($1,$2,$3,'STUDENT',$4,$5)
       ON CONFLICT (classroom_id,user_id) DO UPDATE SET group_id = EXCLUDED.group_id,
-        student_number = EXCLUDED.student_number, membership_status = 'ACTIVE', withdrawn_at = NULL
-      WHERE classroom_member.role = 'STUDENT' RETURNING id`,
+        student_number = EXCLUDED.student_number
+      WHERE classroom_member.role = 'STUDENT' AND classroom_member.membership_status='ACTIVE' RETURNING id`,
       [randomUUID(), classroomId, user.rows[0].id, groupId, row.studentId]);
-    if (member.rowCount !== 1) throw new ClassroomInputError(`row ${row.line}: user already has a staff role in this classroom`);
+    if (member.rowCount !== 1) throw new ClassroomInputError(`row ${row.line}: user has a staff role or is withdrawn; explicit reinstatement is required`);
   }
   await client.query("UPDATE classroom SET roster_version = roster_version + 1 WHERE id = $1", [classroomId]);
 }

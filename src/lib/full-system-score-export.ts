@@ -30,9 +30,9 @@ export function reportRows(run: ScoreRun, report: Report): Cell[][] {
     ...run.pairCoverage.map(pair => [pair.pairId, pair.side, pair.criterionId,
       pair.answered ? "YES" : "NO"] as Cell[])];
   if (report === "coverage") return [
-    ["Side", "Criterion ID", "Item A ID", "Item B ID", "Answered", "Assigned", "Mean for A"],
+    ["Side", "Criterion ID", "Item A ID", "Item B ID", "Answered", "Assigned", "Mean for A", "Excluded"],
     ...run.pairSummary.map(pair => [pair.side, pair.criterionId, pair.aId, pair.bId,
-      pair.answered, pair.assigned, scalar(pair.meanForA)] as Cell[])];
+      pair.answered, pair.assigned, scalar(pair.meanForA), pair.excluded ?? 0] as Cell[])];
   if (run.quality) return [["Side", "Subject", "Signal", "Count", "Total", "Ratio",
     "Threshold (strictly greater)", "Review", "Suggested action"],
     ...[...run.groups.map(g => ({ side: "GROUP", id: g.id, flags: g.flags })),
@@ -42,7 +42,9 @@ export function reportRows(run: ScoreRun, report: Report): Cell[][] {
     ...run.quality.measures.map(row => [row.side, row.evaluatorCode, row.id,
       row.count, row.total, row.ratio === null ? "INSUFFICIENT_DATA" : scalar(row.ratio),
       row.threshold, row.ratio === null ? "NOT_ASSESSABLE" : row.flagged ? "REVIEW" : "NO_SIGNAL",
-      `${row.criterionId ? `Criterion ${row.criterionId}; ` : ""}ทบทวนด้วยตา; ไม่ลดน้ำหนักอัตโนมัติ`] as Cell[])];
+      `${row.criterionId ? `Criterion ${row.criterionId}; ` : ""}ทบทวนด้วยตา; ไม่ลดน้ำหนักอัตโนมัติ`] as Cell[]),
+    ...(run.exclusions ?? []).map(row => [row.side, row.pairId, "EXCLUDED", null, null, null,
+      null, "INSTRUCTOR_DECISION", row.reason] as Cell[])];
   return [["Side", "Item ID", "Flag", "Suggested action"],
     ...[...run.groups.map(g => ({ side: "GROUP", id: g.id, flags: g.flags })),
       ...run.students.map(s => ({ side: "INDIVIDUAL", id: s.id, flags: s.flags }))]

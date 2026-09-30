@@ -39,7 +39,7 @@ function writable(row: Scope): void {
 }
 async function eligiblePair(client: PoolClient, assignmentId: string, evaluatorId: string,
     side: EvaluationSide, generation: number, pairId: string): Promise<void> {
-  const found = await client.query(`SELECT 1 FROM pair_assignment WHERE id=$1 AND assignment_id=$2
+  const found = await client.query(`SELECT 1 FROM active_pair_assignment WHERE id=$1 AND assignment_id=$2
     AND evaluator_user_id=$3 AND side=$4 AND generation=$5`, [pairId, assignmentId, evaluatorId, side, generation]);
   if (found.rowCount !== 1) throw new AssignmentNotFoundError("Pair not assigned to this evaluator");
 }
@@ -54,7 +54,7 @@ export async function getEvaluation(actor: FullActor, assignmentId: string, side
       CASE WHEN p.display_left='A' THEN COALESCE(ga.name,ua.display_name) ELSE COALESCE(gb.name,ub.display_name) END AS left_name,
       CASE WHEN p.display_left='A' THEN COALESCE(gb.name,ub.display_name) ELSE COALESCE(ga.name,ua.display_name) END AS right_name,
       d.choice AS draft_choice, sa.choice AS submitted_choice
-      FROM pair_assignment p
+      FROM active_pair_assignment p
       LEFT JOIN group_entity ga ON ga.id=p.group_a_id LEFT JOIN group_entity gb ON gb.id=p.group_b_id
       LEFT JOIN app_user ua ON ua.id=p.student_a_id LEFT JOIN app_user ub ON ub.id=p.student_b_id
       LEFT JOIN evaluation_draft_answer d ON d.pair_assignment_id=p.id AND d.assignment_id=p.assignment_id
@@ -161,16 +161,17 @@ export async function submitEvaluation(actor: FullActor, assignmentId: string, s
     mutate: async (client, { row, existing }) => {
       if (existing) {
         const answered = await client.query<{ n: number }>(`SELECT count(*)::integer AS n
-          FROM submission_answer WHERE revision_id=$1`, [existing.id]);
+          FROM submission_answer sa JOIN active_pair_assignment p ON p.id=sa.pair_assignment_id
+          WHERE sa.revision_id=$1`, [existing.id]);
         const assigned = await client.query<{ n: number }>(`SELECT count(*)::integer AS n
-          FROM pair_assignment WHERE assignment_id=$1 AND evaluator_user_id=$2 AND side=$3
+          FROM active_pair_assignment WHERE assignment_id=$1 AND evaluator_user_id=$2 AND side=$3
             AND generation=$4`, [assignmentId, actor.id, side, row.generation]);
         return { revision: existing.revision_number, answered: answered.rows[0].n,
           assigned: assigned.rows[0].n, replayed: true };
       }
       writable(await scope(client, actor, assignmentId, side, true));
       const answers = await client.query<{ pair_assignment_id: string; choice: number }>(`SELECT d.pair_assignment_id,d.choice
-        FROM evaluation_draft_answer d JOIN pair_assignment p ON p.id=d.pair_assignment_id
+        FROM evaluation_draft_answer d JOIN active_pair_assignment p ON p.id=d.pair_assignment_id
         WHERE d.assignment_id=$1 AND d.evaluator_user_id=$2 AND d.side=$3 AND d.generation=$4
           AND p.assignment_id=$1 AND p.evaluator_user_id=$2 AND p.side=$3 AND p.generation=$4`,
       [assignmentId, actor.id, side, row.generation]);
@@ -185,7 +186,7 @@ export async function submitEvaluation(actor: FullActor, assignmentId: string, s
         row.generation, number.rows[0].n, idempotencyKey]);
       for (const answer of answers.rows) await client.query(`INSERT INTO submission_answer
         (revision_id,pair_assignment_id,choice) VALUES ($1,$2,$3)`, [revisionId, answer.pair_assignment_id, answer.choice]);
-      const assigned = await client.query<{ n: number }>(`SELECT count(*)::integer AS n FROM pair_assignment
+      const assigned = await client.query<{ n: number }>(`SELECT count(*)::integer AS n FROM active_pair_assignment
         WHERE assignment_id=$1 AND evaluator_user_id=$2 AND side=$3 AND generation=$4`,
       [assignmentId, actor.id, side, row.generation]);
       return { revision: number.rows[0].n, answered: answers.rows.length,

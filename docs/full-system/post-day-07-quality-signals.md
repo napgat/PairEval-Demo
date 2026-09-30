@@ -25,3 +25,5 @@ Date: 30 September 2026 (Asia/Bangkok). Synthetic student prototype only. S7/S8,
 - Instructor exclusion with reason/recompute (`FR-QS-02`) is not implemented.
 - The per-side scope of QS-02/03 and the snapshot-local report codes are documented implementation choices for review; the baseline PRD has not been silently revised.
 - Other S7/S8, scheduled score recomputation, full security/accessibility and operational recovery gates remain as listed in [the preceding progress log](post-day-07-s7-s8-progress.md).
+
+Later follow-up on the same date: [synthetic withdrawal and instructor review](post-day-07-withdrawal-review.md) adds bounded FR-QS-02 exclusion/restoration. The statements above describe this log's earlier verification point; QS-05/06/07 remain unimplemented.

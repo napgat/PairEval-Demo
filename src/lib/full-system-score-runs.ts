@@ -24,6 +24,7 @@ type OverrideRow = { side: "GROUP" | "INDIVIDUAL"; item_id: string; override_val
 export type ScoreRun = { assignmentId: string; generation: number; kind: "INTERIM" | "FINAL";
   formulaVersion: string; settings: ScoreSettings; maxScore: number;
   quality?: QualityReport;
+  exclusions?: Array<{ pairId: string; side: string; criterionId: string; reason: string }>;
   groups: Array<{ id: string; name: string; component: number | null;
     criteria: Array<ScoreItem["criteria"][number] & { name: string; weightedScore: number | null }>;
     flags: string[] }>;
@@ -31,12 +32,12 @@ export type ScoreRun = { assignmentId: string; generation: number; kind: "INTERI
     individualComponent: number | null; total: number | null; answered: number; assigned: number;
     p: number; M: number; flags: string[];
     criteria: Array<ScoreItem["criteria"][number] & { name: string; weightedScore: number | null }> }>;
-  pairCoverage: Array<{ pairId: string; side: string; criterionId: string; answered: boolean }>;
+  pairCoverage: Array<{ pairId: string; side: string; criterionId: string; answered: boolean; excluded?: boolean }>;
   pairSummary: Array<{ side: string; criterionId: string; aId: string; bId: string;
-    assigned: number; answered: number; meanForA: number | null }>;
+    assigned: number; answered: number; excluded?: number; meanForA: number | null }>;
   overrides: Array<{ side: string; itemId: string; value: number; reason: string }> };
 
-async function editorScope(client: PoolClient, actor: FullActor, assignmentId: string,
+export async function editorScope(client: PoolClient, actor: FullActor, assignmentId: string,
     lock = false): Promise<AssignmentRow> {
   if (!validId(assignmentId)) throw new AssignmentInputError("Invalid assignment ID");
   const result = await client.query<AssignmentRow>(`SELECT a.*,c.allowed_email_domains,
@@ -114,31 +115,38 @@ export function assembleScoreRun(input: { assignmentId: string; generation: numb
   const answeredIds = new Set(input.answers.map(a => a.pairId));
   const answerByPair = new Map(input.answers.map(answer => [answer.pairId, answer]));
   const pairSummary = new Map<string, { side: string; criterionId: string; aId: string;
-    bId: string; assigned: number; answered: number; weightedPoints: number; weight: number }>();
+    bId: string; assigned: number; answered: number; excluded: number; weightedPoints: number; weight: number }>();
   for (const pair of input.pairs) {
     const key = [pair.side, pair.criterionId, pair.aId, pair.bId].join(":");
     const row = pairSummary.get(key) ?? { side: pair.side, criterionId: pair.criterionId,
-      aId: pair.aId, bId: pair.bId, assigned: 0, answered: 0, weightedPoints: 0, weight: 0 };
+      aId: pair.aId, bId: pair.bId, assigned: 0, answered: 0, excluded: 0, weightedPoints: 0, weight: 0 };
     row.assigned++;
     const answer = answerByPair.get(pair.id);
     if (answer) {
       const [left, right] = choicePoints(answer.choice);
       row.answered++;
-      row.weightedPoints += (pair.displayLeft === "A" ? left : right) * answer.weight;
-      row.weight += answer.weight;
+      if (answer.excluded) row.excluded++;
+      else {
+        row.weightedPoints += (pair.displayLeft === "A" ? left : right) * answer.weight;
+        row.weight += answer.weight;
+      }
     }
     pairSummary.set(key, row);
   }
   return { assignmentId: input.assignmentId, generation: input.generation, kind: input.kind,
     quality: qualityReport(input.pairs, input.answers),
+    exclusions: input.answers.filter(a => a.excluded).map(a => {
+      const pair = input.pairs.find(p => p.id === a.pairId)!;
+      return { pairId: pair.id, side: pair.side, criterionId: pair.criterionId, reason: a.exclusionReason ?? "" };
+    }),
     formulaVersion: input.formulaVersion, settings: input.settings,
     maxScore: input.settings.groupMax + input.settings.individualMax,
     groups, students,
     pairCoverage: input.pairs.map(p => ({ pairId: p.id, side: p.side, criterionId: p.criterionId,
-      answered: answeredIds.has(p.id) })),
+      answered: answeredIds.has(p.id), excluded: answerByPair.get(p.id)?.excluded === true })),
     pairSummary: [...pairSummary.values()].map(row => ({ side: row.side,
       criterionId: row.criterionId, aId: row.aId, bId: row.bId, assigned: row.assigned,
-      answered: row.answered, meanForA: row.weight === 0 ? null : four(row.weightedPoints / row.weight) })),
+      answered: row.answered, excluded: row.excluded, meanForA: row.weight === 0 ? null : four(row.weightedPoints / row.weight) })),
     overrides: [...overrides.values()].map(row => ({ side: row.side, itemId: row.item_id,
       value: Number(row.override_value), reason: row.reason })) };
 }
@@ -156,14 +164,16 @@ async function scoreInputs(client: PoolClient, a: AssignmentRow, kind: "INTERIM"
   const criteria = await client.query<CriterionRow>(`SELECT id,side,name,weight_pct FROM criterion
     WHERE assignment_id=$1 AND active ORDER BY id`, [a.id]);
   const pairRows = await client.query(`SELECT id,criterion_id,side,group_a_id,group_b_id,student_a_id,
-    student_b_id,display_left,evaluator_user_id,source FROM pair_assignment
+    student_b_id,display_left,evaluator_user_id,source FROM active_pair_assignment
     WHERE assignment_id=$1 AND generation=$2 ORDER BY id`, [a.id, a.generation]);
-  const answerRows = await client.query(`SELECT sa.pair_assignment_id,sa.choice,sr.evaluator_user_id,p.source
+  const answerRows = await client.query(`SELECT sa.pair_assignment_id,sa.choice,sr.evaluator_user_id,p.source,
+    review.excluded,review.reason AS exclusion_reason
     FROM (SELECT DISTINCT ON (evaluator_user_id,side) id,evaluator_user_id,side
       FROM submission_revision WHERE assignment_id=$1 AND generation=$2
       ORDER BY evaluator_user_id,side,revision_number DESC) sr
     JOIN submission_answer sa ON sa.revision_id=sr.id
-    JOIN pair_assignment p ON p.id=sa.pair_assignment_id
+    JOIN active_pair_assignment p ON p.id=sa.pair_assignment_id
+    LEFT JOIN latest_comparison_review review ON review.pair_assignment_id=p.id
     WHERE p.assignment_id=$1 AND p.generation=$2 AND p.evaluator_user_id=sr.evaluator_user_id
       AND p.side=sr.side ORDER BY sa.pair_assignment_id`, [a.id, a.generation]);
   const overrideRows = await client.query<OverrideRow>(`SELECT id,side,item_id,override_value,reason
@@ -175,7 +185,8 @@ async function scoreInputs(client: PoolClient, a: AssignmentRow, kind: "INTERIM"
     displayLeft: p.display_left, evaluatorId: p.evaluator_user_id }));
   const answers: ScoreAnswer[] = answerRows.rows.map(row => ({ pairId: row.pair_assignment_id,
     choice: row.choice, evaluatorId: row.evaluator_user_id,
-    weight: row.source === "INSTRUCTOR_SELF" ? Number(a.instructor_weight) : 1 }));
+    weight: row.source === "INSTRUCTOR_SELF" ? Number(a.instructor_weight) : 1,
+    excluded: row.excluded === true, exclusionReason: row.excluded ? row.exclusion_reason : undefined }));
   const settings: ScoreSettings = { groupMax: Number(a.group_max_score),
     individualMax: Number(a.individual_max_score), floor: Number(a.score_floor),
     ceiling: Number(a.score_ceiling), minComparisons: a.min_comparisons,
@@ -185,6 +196,45 @@ async function scoreInputs(client: PoolClient, a: AssignmentRow, kind: "INTERIM"
   const output = assembleScoreRun({ assignmentId: a.id, generation: a.generation, kind,
     formulaVersion: a.scoring_formula_version, settings, ...source });
   return { source, settings, output };
+}
+
+async function persistScoreRun(client: PoolClient, actor: FullActor, a: AssignmentRow, kind: "INTERIM" | "FINAL") {
+  const assignmentId = a.id;
+  const { source, settings, output } = await scoreInputs(client, a, kind);
+  const input = { generation: a.generation, ...source };
+  const inputHash = createHash("sha256").update(JSON.stringify(input)).digest("hex");
+  const number = await client.query<{ next: number }>(`SELECT COALESCE(max(snapshot_no),0)::integer+1 AS next
+    FROM score_snapshot WHERE assignment_id=$1`, [assignmentId]);
+  const snapshotId = randomUUID();
+  await client.query(`INSERT INTO score_snapshot
+    (id,assignment_id,generation,snapshot_no,kind,formula_version,config_json,input_json,input_hash,
+      output_json,created_by) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)`,
+  [snapshotId, assignmentId, a.generation, number.rows[0].next, kind, a.scoring_formula_version,
+    settings, input, inputHash, output, actor.id]);
+  for (const entry of [...output.groups.map(row => ({ ...row, side: "GROUP" as const })),
+    ...output.students.map(row => ({ ...row, side: "INDIVIDUAL" as const }))]) {
+    for (const criterion of entry.criteria) {
+      await client.query(`INSERT INTO score_snapshot_item
+        (id,score_snapshot_id,criterion_id,side,item_id,comparison_count,quality_index,
+          weighted_score,flags) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)`,
+      [randomUUID(), snapshotId, criterion.criterionId, entry.side, entry.id,
+        criterion.comparisons, criterion.q, criterion.weightedScore,
+        criterion.lowConfidence ? ["LOW_CONFIDENCE"] : []]);
+    }
+  }
+  if (kind === "FINAL") {
+    await client.query(`UPDATE assignment SET status='FINALIZED',finalized_at=now()
+      WHERE id=$1`, [assignmentId]);
+    await enqueueAssignmentNotifications(client, { assignmentId, classroomId: a.classroom_id,
+      generation: a.generation, event: "SCORE_FINALIZED", keySuffix: snapshotId });
+  }
+  return { id: snapshotId, snapshotNo: number.rows[0].next, kind, inputHash, output };
+}
+
+export async function recomputeMutationScores(client: PoolClient, actor: FullActor, assignmentId: string) {
+  const a = await editorScope(client, actor, assignmentId, true);
+  if (a.status === "FINALIZED") throw new AssignmentConflictError("Reopen before recalculating scores");
+  return persistScoreRun(client, actor, a, "INTERIM");
 }
 
 export async function createScoreRun(actor: FullActor, assignmentId: string, kind: "INTERIM" | "FINAL") {
@@ -206,35 +256,7 @@ export async function createScoreRun(actor: FullActor, assignmentId: string, kin
       resourceType: "assignment", resourceId: assignmentId,
       before: { status: a.status, generation: a.generation } }),
     mutate: async (client, a) => {
-      const { source, settings, output } = await scoreInputs(client, a, kind);
-      const input = { generation: a.generation, ...source };
-      const inputHash = createHash("sha256").update(JSON.stringify(input)).digest("hex");
-      const number = await client.query<{ next: number }>(`SELECT COALESCE(max(snapshot_no),0)::integer+1 AS next
-        FROM score_snapshot WHERE assignment_id=$1`, [assignmentId]);
-      const snapshotId = randomUUID();
-      await client.query(`INSERT INTO score_snapshot
-        (id,assignment_id,generation,snapshot_no,kind,formula_version,config_json,input_json,input_hash,
-          output_json,created_by) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)`,
-      [snapshotId, assignmentId, a.generation, number.rows[0].next, kind, a.scoring_formula_version,
-        settings, input, inputHash, output, actor.id]);
-      for (const entry of [...output.groups.map(row => ({ ...row, side: "GROUP" as const })),
-        ...output.students.map(row => ({ ...row, side: "INDIVIDUAL" as const }))]) {
-        for (const criterion of entry.criteria) {
-          await client.query(`INSERT INTO score_snapshot_item
-            (id,score_snapshot_id,criterion_id,side,item_id,comparison_count,quality_index,
-              weighted_score,flags) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)`,
-          [randomUUID(), snapshotId, criterion.criterionId, entry.side, entry.id,
-            criterion.comparisons, criterion.q, criterion.weightedScore,
-            criterion.lowConfidence ? ["LOW_CONFIDENCE"] : []]);
-        }
-      }
-      if (kind === "FINAL") {
-        await client.query(`UPDATE assignment SET status='FINALIZED',finalized_at=now()
-          WHERE id=$1`, [assignmentId]);
-        await enqueueAssignmentNotifications(client, { assignmentId, classroomId: a.classroom_id,
-          generation: a.generation, event: "SCORE_FINALIZED", keySuffix: snapshotId });
-      }
-      return { id: snapshotId, snapshotNo: number.rows[0].next, kind, inputHash, output };
+      return persistScoreRun(client, actor, a, kind);
     },
     committedAfter: result => ({ snapshotId: result.id, snapshotNo: result.snapshotNo,
       kind: result.kind, inputHash: result.inputHash }),

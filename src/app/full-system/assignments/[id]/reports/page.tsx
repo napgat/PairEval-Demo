@@ -2,6 +2,7 @@
 
 import { use, useCallback, useEffect, useState } from "react";
 import type { ScoreRun } from "@/lib/full-system-score-runs";
+import type { ComparisonReview } from "@/lib/full-system-comparison-review";
 
 type Snapshot = { id: string; snapshotNo: number; kind: "INTERIM" | "FINAL"; assignmentStatus: string;
   inputHash: string; createdAt: string; output: ScoreRun };
@@ -31,18 +32,27 @@ export default function ReportsPage({ params }: { params: Promise<{ id: string }
   const [auditRows, setAuditRows] = useState<AuditRow[]>([]);
   const [appealId, setAppealId] = useState("");
   const [resolution, setResolution] = useState("");
+  const [reviews, setReviews] = useState<ComparisonReview[]>([]);
+  const [reviewCursor, setReviewCursor] = useState<string | null>(null);
+  const [reviewPair, setReviewPair] = useState("");
+  const [reviewReason, setReviewReason] = useState("");
   const endpoint = `/api/full-system/assignments/${id}`;
   const refresh = useCallback(async () => {
-    const [response, appealResponse, auditResponse] = await Promise.all([
+    const [response, appealResponse, auditResponse, reviewResponse] = await Promise.all([
       fetch(`${endpoint}/score-runs`, { cache: "no-store" }),
       fetch(`${endpoint}/appeals`, { cache: "no-store" }),
-      fetch(`${endpoint}/audit`, { cache: "no-store" })]);
+      fetch(`${endpoint}/audit`, { cache: "no-store" }),
+      fetch(`${endpoint}/comparison-reviews`, { cache: "no-store" })]);
     const payload = await response.json();
     if (!response.ok) throw new Error(payload.error?.code ?? `HTTP ${response.status}`);
     setSnapshot(payload.data);
     setRawExportReady(payload.meta?.rawExportReady === true);
     if (appealResponse.ok) setAppeals((await appealResponse.json()).data.appeals);
     if (auditResponse.ok) setAuditRows((await auditResponse.json()).data);
+    if (reviewResponse.ok) {
+      const reviewData = (await reviewResponse.json()).data;
+      setReviews(reviewData.items); setReviewCursor(reviewData.nextCursor);
+    }
   }, [endpoint]);
   useEffect(() => {
     void (async () => { try { await refresh(); } catch (error) { setMessage(String(error)); } })();
@@ -52,6 +62,7 @@ export default function ReportsPage({ params }: { params: Promise<{ id: string }
       headers: { "Content-Type": "application/json", Origin: window.location.origin },
       body: JSON.stringify(body) });
     const payload = await response.json();
+    if (response.status === 202) throw new Error("ยังรอยืนยันบันทึก audit โปรดโหลดข้อมูลใหม่ก่อนทำรายการซ้ำ");
     if (!response.ok) throw new Error(payload.error?.message ?? payload.error?.code ?? `HTTP ${response.status}`);
     return payload.data;
   };
@@ -82,6 +93,23 @@ export default function ReportsPage({ params }: { params: Promise<{ id: string }
     });
     setResolution(""); setAppealId(""); setMessage("บันทึกคำตอบอุทธรณ์แล้ว");
   });
+  const selectedReview = reviews.find(row => row.pairId === reviewPair);
+  const reviewComparison = () => action(async () => {
+    if (!selectedReview) return;
+    await post("comparison-reviews", { pairId: selectedReview.pairId, excluded: !selectedReview.excluded,
+      reason: reviewReason, expectedReviewId: selectedReview.reviewId });
+    setReviewPair(""); setReviewReason(""); setMessage("บันทึกการทบทวนคำตอบและคำนวณ snapshot ใหม่แล้ว");
+  });
+  const loadMoreReviews = async () => {
+    setBusy(true);
+    try {
+      const response = await fetch(`${endpoint}/comparison-reviews?cursor=${reviewCursor}`, { cache: "no-store" });
+      const payload = await response.json();
+      if (!response.ok) throw new Error(payload.error?.code ?? `HTTP ${response.status}`);
+      setReviews(current => [...current, ...payload.data.items]); setReviewCursor(payload.data.nextCursor);
+    } catch (error) { setMessage(error instanceof Error ? error.message : String(error)); }
+    finally { setBusy(false); }
+  };
   const download = async (format: "csv" | "xlsx", raw = false) => {
     setBusy(true); setMessage("");
     try {
@@ -143,10 +171,10 @@ export default function ReportsPage({ params }: { params: Promise<{ id: string }
             <td>{show(s.individualComponent)}</td><td>{s.answered}/{s.assigned}</td><td>{s.M.toFixed(3)}</td>
             <td>{show(s.total)}</td><td>{s.flags.join(", ")}</td></tr>)}
         </tbody></table></div>}
-        {tab === "coverage" && <div className="table-wrap"><table><thead><tr><th>ด้าน</th><th>Criterion ID</th><th>คู่ A / B</th><th>ส่ง/มอบหมาย</th><th>ค่าเฉลี่ยของ A</th></tr></thead><tbody>
+        {tab === "coverage" && <div className="table-wrap"><table><thead><tr><th>ด้าน</th><th>Criterion ID</th><th>คู่ A / B</th><th>ส่ง/มอบหมาย</th><th>ตัดออก</th><th>ค่าเฉลี่ยของ A</th></tr></thead><tbody>
           {output.pairSummary?.map(p => <tr key={`${p.side}:${p.criterionId}:${p.aId}:${p.bId}`}><td>{p.side}</td>
             <td>{p.criterionId.slice(0, 8)}</td><td>{p.aId.slice(0, 8)} / {p.bId.slice(0, 8)}</td>
-            <td>{p.answered}/{p.assigned}</td><td>{show(p.meanForA)}</td></tr>)}
+            <td>{p.answered}/{p.assigned}</td><td>{p.excluded ?? 0}</td><td>{show(p.meanForA)}</td></tr>)}
         </tbody></table>{!output.pairSummary && <p>Snapshot รุ่นนี้ยังไม่มีผลรวมต่อคู่ โปรดคำนวณ Interim ใหม่หากต้องการข้อมูลนี้</p>}</div>}
         {tab === "quality" && <>
           <p>สัญญาณใช้ช่วยทบทวนคำตอบ ไม่ลดน้ำหนักหรือลบคำตอบอัตโนมัติ</p>
@@ -167,6 +195,9 @@ export default function ReportsPage({ params }: { params: Promise<{ id: string }
             {output.quality.measures.length === 0 && <p>ยังไม่มีคำตอบที่ส่งสำหรับตรวจ QS-02–04</p>}
           </> : <p>Snapshot รุ่นนี้ยังไม่มี QS-02–04 โปรดคำนวณ Interim ใหม่หากต้องการตรวจ</p>}
           <p className="fine-print">QS-05 ยังไม่เก็บเวลา; QS-06 และ QS-07 ยังไม่คำนวณ จึงยังสรุปคุณภาพครบชุดไม่ได้</p>
+          <h3>คำตอบที่ผู้สอนตัดออกจากคะแนน</h3>
+          {output.exclusions?.length ? <ul className="plain-list">{output.exclusions.map(row =>
+            <li key={row.pairId}>{row.side} · {row.pairId.slice(0, 8)} · {row.reason}</li>)}</ul> : <p>ไม่มีคำตอบที่ถูกตัดออกใน snapshot นี้</p>}
         </>}
         <div className="actions"><button className="secondary-button" disabled={busy} onClick={() => download("csv")}>ดาวน์โหลด CSV</button>
           <button className="secondary-button" disabled={busy} onClick={() => download("xlsx")}>ดาวน์โหลด XLSX 4 sheet</button>
@@ -174,6 +205,22 @@ export default function ReportsPage({ params }: { params: Promise<{ id: string }
             onClick={() => download("csv", true)}>ดาวน์โหลดคำตอบดิบแบบรหัสผู้ประเมิน</button>}</div>
         {rawExportReady && <p className="fine-print">ไฟล์คำตอบดิบใช้รหัสแทนตัวผู้ประเมินและบันทึก audit การส่งออก</p>}
       </section>
+      {tab === "quality" && snapshot.assignmentStatus !== "FINALIZED" && <section className="form-panel">
+        <h2>ทบทวนคำตอบที่ส่ง</h2>
+        <p>ผู้สอนตัดคำตอบออกจากคะแนนหรือคืนคำตอบได้พร้อมเหตุผล ระบบเก็บประวัติและคำนวณ snapshot ใหม่
+          จำนวนงานที่ส่งและตัวคูณการมีส่วนร่วมยังนับคำตอบที่ส่งแล้ว</p>
+        <label className="field">คำตอบที่จะทบทวน<select value={reviewPair} onChange={e => setReviewPair(e.target.value)}>
+          <option value="">เลือกคำตอบ</option>{reviews.map(row => <option key={row.pairId} value={row.pairId}>
+            {row.side} · {row.criterion} · {row.itemA} / {row.itemB} · {row.pairId.slice(0, 8)}{row.excluded ? " · EXCLUDED" : ""}
+          </option>)}</select></label>
+        {selectedReview && <p>ค่าที่เลือก: {selectedReview.choice} · ฝั่งซ้ายแสดงรายการ {selectedReview.displayLeft}
+          {selectedReview.reason ? ` · เหตุผลครั้งล่าสุด: ${selectedReview.reason}` : ""}</p>}
+        {reviewCursor && <button className="secondary-button" disabled={busy} onClick={loadMoreReviews}>โหลดคำตอบเพิ่ม</button>}
+        <label className="field">เหตุผลทบทวน (อย่างน้อย 10 ตัวอักษร)<textarea value={reviewReason} onChange={e => setReviewReason(e.target.value)} /></label>
+        <p className="fine-print">หลีกเลี่ยงการใส่ชื่อผู้ประเมินในเหตุผล เพราะเหตุผลจะแสดงในรายงานของผู้สอนและไฟล์ส่งออก</p>
+        <button className="primary-button" disabled={busy || !selectedReview || reviewReason.trim().length < 10} onClick={reviewComparison}>
+          {selectedReview?.excluded ? "คืนคำตอบและคำนวณใหม่" : "ตัดคำตอบออกและคำนวณใหม่"}</button>
+      </section>}
       <section className="form-panel"><h2>การกระจายค่า q ต่อเกณฑ์</h2>
         <label className="field">เกณฑ์<select value={chartCriterion || chartCriteria[0]?.[0] || ""}
           onChange={e => setChartCriterion(e.target.value)}>{chartCriteria.map(([criterionId, name]) =>

@@ -7,7 +7,7 @@ export class MemberInputError extends Error {}
 export class MemberNotFoundError extends Error {}
 export class MemberConflictError extends Error {}
 
-async function requireOwner(client: PoolClient, actor: FullActor, classroomId: string) {
+export async function requireOwner(client: PoolClient, actor: FullActor, classroomId: string) {
   const found = await client.query<{ role: string; allowed_email_domains: string[] }>(
     `SELECT m.role,c.allowed_email_domains FROM classroom c
      JOIN classroom_member m ON m.classroom_id=c.id

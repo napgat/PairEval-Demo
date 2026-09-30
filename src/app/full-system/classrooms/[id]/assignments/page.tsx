@@ -38,6 +38,9 @@ export default function AssignmentsPage({ params }: { params: Promise<{ id: stri
   const [rows, setRows] = useState<Array<{ id: string; name: string; status: string; generation: number }>>([]);
   const [roster, setRoster] = useState<RosterRow[]>([]);
   const [rosterVersion, setRosterVersion] = useState(0);
+  const [owner, setOwner] = useState(false);
+  const [withdrawUser, setWithdrawUser] = useState("");
+  const [withdrawReason, setWithdrawReason] = useState("");
   const [rosterCsv, setRosterCsv] = useState("");
   const [rosterPreview, setRosterPreview] = useState<RosterPreview | null>(null);
   const [timezone, setTimezone] = useState("Asia/Bangkok");
@@ -53,6 +56,7 @@ export default function AssignmentsPage({ params }: { params: Promise<{ id: stri
     const response = await fetch(path, { method, cache: "no-store", headers: method === "GET" ? {} :
       { "Content-Type": "application/json", Origin: window.location.origin }, body: body === undefined ? undefined : JSON.stringify(body) });
     const payload = await response.json();
+    if (response.status === 202) throw new Error("ยังรอยืนยันบันทึก audit โปรดโหลดข้อมูลใหม่ก่อนทำรายการซ้ำ");
     if (!response.ok) throw new Error(payload.error?.message ?? payload.error?.code ?? `HTTP ${response.status}`);
     return payload.data;
   }, []);
@@ -63,6 +67,7 @@ export default function AssignmentsPage({ params }: { params: Promise<{ id: stri
       request("/api/full-system/classrooms")]);
     setRows(assignments); setRoster(people);
     setRosterVersion(classrooms.find((room: { id: string }) => room.id === classroomId)?.rosterVersion ?? 0);
+    setOwner(classrooms.find((room: { id: string }) => room.id === classroomId)?.role === "OWNER");
   }, [classroomId, request]);
   useEffect(() => {
     let active = true;
@@ -73,6 +78,7 @@ export default function AssignmentsPage({ params }: { params: Promise<{ id: stri
           request(`/api/full-system/classrooms/${classroomId}/roster`),
           request("/api/full-system/classrooms")]);
         if (active) { setRows(assignments); setRoster(people);
+          setOwner(classrooms.find((room: { id: string }) => room.id === classroomId)?.role === "OWNER");
           setRosterVersion(classrooms.find((room: { id: string }) => room.id === classroomId)?.rosterVersion ?? 0);
           setTimezone(classrooms.find((room: { id: string }) => room.id === classroomId)?.timezone ?? "Asia/Bangkok"); }
       } catch (error) { if (active) setMessage(error instanceof Error ? error.message : "โหลดข้อมูลไม่สำเร็จ"); }
@@ -156,6 +162,22 @@ export default function AssignmentsPage({ params }: { params: Promise<{ id: stri
         {rows.map(row => <button className="secondary-button" key={row.id} onClick={() => action(() => open(row.id))}>
           {row.name} · {row.status} · รุ่น {row.generation}</button>)}</div>
     </section>
+    {owner && <section className="form-panel"><h2>ทดลองถอนรายชื่อสังเคราะห์</h2>
+      <p className="fine-print">บันทึกเวลาปัจจุบันและเหตุผล จัดสรรงานใหม่และคำนวณคะแนนปัจจุบัน โดยเก็บคำตอบและ snapshot เดิม หากมีงาน Finalized ต้อง Reopen ก่อน นโยบายข้อมูลจริงยังรอ Registrar</p>
+      <label className="field">นักศึกษาที่จะถอน<select value={withdrawUser} onChange={e => setWithdrawUser(e.target.value)}>
+        <option value="">เลือกนักศึกษา</option>{roster.map(student => <option key={student.id} value={student.id}>{student.displayName} · {student.groupName}</option>)}
+      </select></label>
+      <label className="field">เหตุผลถอน (อย่างน้อย 10 ตัวอักษร)<textarea value={withdrawReason} onChange={e => setWithdrawReason(e.target.value)} /></label>
+      <button className="secondary-button" disabled={busy || !withdrawUser || withdrawReason.trim().length < 10}
+        onClick={() => action(async () => {
+          if (!window.confirm("ยืนยันถอนรายชื่อสังเคราะห์และจัดสรรงานปัจจุบันใหม่? ประวัติเดิมยังอยู่")) return;
+          await request(`/api/full-system/classrooms/${classroomId}/members/${withdrawUser}/withdraw`, "POST",
+            { reason: withdrawReason, effectiveAt: new Date().toISOString(), expectedRosterVersion: rosterVersion });
+          setWithdrawUser(""); setWithdrawReason("");
+          if (selected) await open(selected.id);
+          setMessage("ถอนรายชื่อสังเคราะห์และบันทึก snapshot ปัจจุบันใหม่แล้ว");
+        })}>ยืนยันถอนรายชื่อสังเคราะห์</button>
+    </section>}
     <section className="form-panel"><h2>แก้กลุ่มหลังยกเลิกเผยแพร่</h2>
       <p className="fine-print">รุ่นรายชื่อ {rosterVersion} · ต้องยกเลิกเผยแพร่ทุกงานที่ยังใช้งานอยู่ก่อนนำเข้า CSV; คู่และคำตอบรุ่นเดิมจะไม่มีผลกับคะแนนรุ่นใหม่ แต่ยังอยู่ในประวัติ</p>
       <label className="field">CSV รายชื่อและกลุ่ม<textarea value={rosterCsv} placeholder="email,group_name,student_id,display_name"

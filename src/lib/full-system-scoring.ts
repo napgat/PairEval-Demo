@@ -2,7 +2,8 @@ export type ScoreSide = "GROUP" | "INDIVIDUAL";
 export type ScoreCriterion = { id: string; side: ScoreSide; weightPct: number };
 export type ScorePair = { id: string; criterionId: string; side: ScoreSide; aId: string; bId: string;
   displayLeft: "A" | "B"; evaluatorId: string };
-export type ScoreAnswer = { pairId: string; choice: number; evaluatorId: string; weight: number };
+export type ScoreAnswer = { pairId: string; choice: number; evaluatorId: string; weight: number;
+  excluded?: boolean; exclusionReason?: string };
 export type ScoreItem = { itemId: string; side: ScoreSide; component: number | null;
   criteria: Array<{ criterionId: string; q: number | null; comparisons: number; lowConfidence: boolean }>;
   evaluatorCount: number; anonymous: boolean };
@@ -38,6 +39,7 @@ export function calculateItemScores(input: { criteria: ScoreCriterion[]; pairs: 
     const pair = pairById.get(answer.pairId);
     if (!pair || pair.evaluatorId !== answer.evaluatorId || answer.weight < 0) throw new Error("Invalid score answer scope");
     const [left, right] = choicePoints(answer.choice);
+    if (answer.excluded) continue;
     const aPoints = pair.displayLeft === "A" ? left : right;
     for (const [itemId, points] of [[pair.aId, aPoints], [pair.bId, 1 - aPoints]] as const) {
       const key = `${pair.criterionId}:${itemId}`;

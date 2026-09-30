@@ -55,17 +55,25 @@ function pairs(ids: string[]): Array<[string, string]> {
 }
 
 /** Exact lower/upper bounded bipartite flow: each pair receives R distinct evaluators; loads differ by ≤1. */
-function allocate(items: Item[], evaluators: string[], requested: number, cap: number, seed: string): {
+function allocate(items: Item[], evaluators: string[], requested: number, cap: number, seed: string,
+    fixed: PlannedComparison[] = []): {
   coverage: number; rows: Array<{ item: Item; evaluatorId: string }>; reason: string | null;
 } {
   const people = [...evaluators].sort();
   if (!items.length) return { coverage: 0, rows: [], reason: "no eligible pairs" };
+  const preserved = fixed.map(row => ({ item: items.find(item => item.a === row.aId && item.b === row.bId), evaluatorId: row.evaluatorId }));
+  if (preserved.some(row => !row.item?.eligible.includes(row.evaluatorId))) throw new Error("Ineligible fixed comparison");
+  const existing = preserved as Array<{ item: Item; evaluatorId: string }>;
+  const used = (item: Item, id: string) => existing.some(row => row.item === item && row.evaluatorId === id);
+  const fixedLoad = people.map(id => existing.filter(row => row.evaluatorId === id).length);
   const minEligible = Math.min(...items.map(item => item.eligible.length));
   for (let coverage = Math.min(requested, minEligible); coverage >= 1; coverage--) {
-    const total = items.length * coverage;
+    const targets = items.map(item => Math.max(coverage, existing.filter(row => row.item === item).length));
+    const total = targets.reduce((sum, count) => sum + count, 0);
+    const remaining = total - existing.length;
     const base = Math.floor(total / people.length);
     const peak = Math.ceil(total / people.length);
-    if (peak > cap) continue;
+    if (peak > cap || fixedLoad.some(count => count > peak)) continue;
     const source = 0, pairStart = 1, evaluatorStart = pairStart + items.length;
     const sink = evaluatorStart + people.length, superSource = sink + 1, superSink = sink + 2;
     const flow = new Flow(superSink + 1);
@@ -76,22 +84,24 @@ function allocate(items: Item[], evaluators: string[], requested: number, cap: n
     };
     const selected: Array<{ edge: Edge; item: Item; evaluatorId: string }> = [];
     items.forEach((item, index) => {
-      bounded(source, pairStart + index, coverage, coverage);
-      const eligible = item.eligible.filter(id => people.includes(id)).sort((a, b) =>
+      const needed = targets[index] - existing.filter(row => row.item === item).length;
+      bounded(source, pairStart + index, needed, needed);
+      const eligible = item.eligible.filter(id => people.includes(id) && !used(item, id)).sort((a, b) =>
         hash(seed, item.a, item.b, a).localeCompare(hash(seed, item.a, item.b, b)));
       for (const id of eligible) selected.push({ edge: bounded(pairStart + index,
         evaluatorStart + people.indexOf(id), 0, 1), item, evaluatorId: id });
     });
-    people.forEach((_, index) => bounded(evaluatorStart + index, sink, base, peak));
-    bounded(sink, source, 0, total);
+    people.forEach((_, index) => bounded(evaluatorStart + index, sink,
+      Math.max(0, base - fixedLoad[index]), peak - fixedLoad[index]));
+    bounded(sink, source, 0, remaining);
     let demand = 0;
     balance.forEach((value, node) => {
       if (value > 0) { flow.add(superSource, node, value); demand += value; }
       if (value < 0) flow.add(node, superSink, -value);
     });
     if (flow.max(superSource, superSink) !== demand) continue;
-    return { coverage, rows: selected.filter(row => row.edge.original - row.edge.capacity === 1)
-      .map(({ item, evaluatorId }) => ({ item, evaluatorId })),
+    return { coverage, rows: [...existing, ...selected.filter(row => row.edge.original - row.edge.capacity === 1)
+      .map(({ item, evaluatorId }) => ({ item, evaluatorId }))],
       reason: coverage < requested ? `requested=${requested}; actual=${coverage}; minEligible=${minEligible}; workloadCap=${cap}` : null };
   }
   return { coverage: 0, rows: [],
@@ -100,7 +110,7 @@ function allocate(items: Item[], evaluators: string[], requested: number, cap: n
 
 export function planFullSystemPairs(input: { students: PairStudent[]; groups: string[];
   criteria: PairCriterion[]; targetCoverage: number; maxWorkload: number; seed: string;
-  groupEnabled: boolean; individualEnabled: boolean }): PairPlan {
+  groupEnabled: boolean; individualEnabled: boolean; fixed?: PlannedComparison[] }): PairPlan {
   if (!Number.isSafeInteger(input.targetCoverage) || input.targetCoverage < 1 ||
       !Number.isSafeInteger(input.maxWorkload) || input.maxWorkload < 1) throw new Error("Invalid pairing limits");
   const students = [...input.students].sort((a, b) => a.id.localeCompare(b.id));
@@ -124,13 +134,17 @@ export function planFullSystemPairs(input: { students: PairStudent[]; groups: st
         continue;
       }
       const plan = allocate(items, local.map(student => student.id), input.targetCoverage,
-        input.maxWorkload, `${input.seed}:${criterion.id}:${groupId ?? "all"}`);
+        input.maxWorkload, `${input.seed}:${criterion.id}:${groupId ?? "all"}`,
+        input.fixed?.filter(row => row.criterionId === criterion.id && row.side === criterion.side &&
+          (criterion.side === "GROUP" || local.some(student => student.id === row.aId))));
       const workload = Object.fromEntries(local.map(student => [student.id, 0]));
       for (const row of plan.rows) {
         workload[row.evaluatorId]++;
         comparisons.push({ criterionId: criterion.id, side: criterion.side, aId: row.item.a,
           bId: row.item.b, evaluatorId: row.evaluatorId,
-          displayLeft: hash(input.seed, criterion.id, row.item.a, row.item.b, row.evaluatorId)[0] < "8" ? "A" : "B" });
+          displayLeft: input.fixed?.find(p => p.criterionId === criterion.id && p.side === criterion.side &&
+            p.aId === row.item.a && p.bId === row.item.b && p.evaluatorId === row.evaluatorId)?.displayLeft ??
+            (hash(input.seed, criterion.id, row.item.a, row.item.b, row.evaluatorId)[0] < "8" ? "A" : "B") });
       }
       parts.push({ criterionId: criterion.id, side: criterion.side, groupId,
         pairCount: items.length, requested: input.targetCoverage, coverage: plan.coverage,
