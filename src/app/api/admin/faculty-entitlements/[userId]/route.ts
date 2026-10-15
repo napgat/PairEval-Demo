@@ -1,3 +1,4 @@
+import { observeRoute } from "@/lib/observe-route";
 import { NextResponse, type NextRequest } from "next/server";
 import { actorForRequest, sameOrigin } from "@/lib/full-system-auth";
 import { AuditOutcomePendingError, AuditUnavailableError } from "@/lib/full-system-audit";
@@ -5,7 +6,7 @@ import { EntitlementInputError, EntitlementNotFoundError, setFacultyEntitlement 
 
 export const runtime = "nodejs";
 
-export async function PUT(request: NextRequest, context: { params: Promise<{ userId: string }> }) {
+async function PUTHandler(request: NextRequest, context: { params: Promise<{ userId: string }> }) {
   if (!sameOrigin(request)) return NextResponse.json({ error: { code: "ORIGIN_INVALID" } }, { status: 403 });
   const actor = await actorForRequest(request);
   if (!actor) return NextResponse.json({ error: { code: "UNAUTHENTICATED" } }, { status: 401 });
@@ -26,3 +27,5 @@ export async function PUT(request: NextRequest, context: { params: Promise<{ use
     return NextResponse.json({ error: { code: "ENTITLEMENT_UPDATE_FAILED" } }, { status: 500 });
   }
 }
+
+export const PUT = observeRoute(PUTHandler);

@@ -2,6 +2,8 @@ import { createHash, randomBytes, randomUUID } from "node:crypto";
 import type { NextRequest } from "next/server";
 import { databasePool } from "./full-system-postgres";
 import { NOTICE_VERSION, SYNTHETIC_NOTICE_VERSION } from "./full-system-notice-version";
+import { captureRequestContext } from "./request-context";
+import { enforceUserLimit } from "./full-system-rate-limit";
 
 export const FULL_SESSION_COOKIE = "paireval_full_session";
 export const SESSION_SECONDS = 12 * 60 * 60;
@@ -15,10 +17,18 @@ export type FullActor = {
   privacyAccepted: boolean;
 };
 
-export function normalizeEmail(email: string): string { return email.trim().toLowerCase(); }
+/** PRD v2.0 FR-AUTH-03, including its university-address acceptance example. */
+export function normalizeEmail(email: string): string {
+  const value = email.trim().toLowerCase();
+  const at = value.lastIndexOf("@");
+  if (at < 1) return value;
+  const local = value.slice(0, at).split("+")[0].replaceAll(".", "");
+  return `${local}@${value.slice(at + 1)}`;
+}
 export function tokenHash(token: string): string { return createHash("sha256").update(token).digest("hex"); }
 
 export async function actorForRequest(request: NextRequest): Promise<FullActor | null> {
+  captureRequestContext(request);
   const token = request.cookies.get(FULL_SESSION_COOKIE)?.value;
   if (!token || !/^[0-9a-f]{64}$/.test(token)) return null;
   const found = await databasePool().query<{
@@ -32,6 +42,7 @@ export async function actorForRequest(request: NextRequest): Promise<FullActor |
        WHERE s.token_hash = $1 AND s.expires_at > now() AND s.revoked_at IS NULL AND u.status = 'ACTIVE'`,
     [tokenHash(token), NOTICE_VERSION, SYNTHETIC_NOTICE_VERSION]);
   const row = found.rows[0];
+  if (row) await enforceUserLimit(row.id);
   return row ? { id: row.id, email: row.email_lookup, hostedDomain: row.hosted_domain,
     platformRole: row.platform_role, canCreateClassroom: row.can_create_classroom,
     privacyAccepted: row.privacy_accepted === true } : null;
@@ -48,6 +59,14 @@ export async function revokeFullSession(token: string | undefined): Promise<void
   if (token && /^[0-9a-f]{64}$/.test(token)) {
     await databasePool().query("UPDATE app_session SET revoked_at = now() WHERE token_hash = $1 AND revoked_at IS NULL", [tokenHash(token)]);
   }
+}
+
+export async function refreshFullSession(token: string): Promise<boolean> {
+  if (!/^[0-9a-f]{64}$/.test(token)) return false;
+  const r = await databasePool().query(`UPDATE app_session SET expires_at=now()+interval '12 hours'
+    WHERE token_hash=$1 AND revoked_at IS NULL AND expires_at>now()
+      AND EXISTS(SELECT 1 FROM app_user WHERE id=app_session.user_id AND status='ACTIVE') RETURNING id`, [tokenHash(token)]);
+  return r.rowCount === 1;
 }
 
 export function domainAllowed(hostedDomain: string | null, domains: string[]): boolean {

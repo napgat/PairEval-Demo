@@ -1,0 +1,5 @@
+import type {NextRequest} from "next/server";import {observeRoute} from "@/lib/observe-route";import {assignmentActor,assignmentError} from "@/lib/full-system-assignment-http";import {archivedClassroom,setClassroomArchived} from "@/lib/full-system-archive";import {AssignmentInputError} from "@/lib/full-system-assignments";
+export const runtime="nodejs";
+type Context={params:Promise<{id:string}>};
+export const GET=observeRoute(async(request:NextRequest,context:Context)=>{const auth=await assignmentActor(request);if(auth.error)return auth.error;try{return Response.json({data:await archivedClassroom(auth.actor,(await context.params).id)})}catch(e){return assignmentError(e)}});
+export const POST=observeRoute(async(request:NextRequest,context:Context)=>{const auth=await assignmentActor(request,true);if(auth.error)return auth.error;try{const body=await request.json();if(typeof body.archived!=="boolean")throw new AssignmentInputError("Choose the classroom archive status");return Response.json({data:await setClassroomArchived(auth.actor,(await context.params).id,body.archived)})}catch(e){return assignmentError(e)}});

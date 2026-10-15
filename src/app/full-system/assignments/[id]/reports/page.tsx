@@ -29,6 +29,8 @@ export default function ReportsPage({ params }: { params: Promise<{ id: string }
   const { id } = use(params);
   const [snapshot, setSnapshot] = useState<Snapshot | null>(null);
   const [rawExportReady, setRawExportReady] = useState(false);
+  const [canRevealIdentities, setCanRevealIdentities] = useState(false);
+  const [identityReason, setIdentityReason] = useState("");
   const [tab, setTab] = useState<Tab>("group");
   const [chartCriterion, setChartCriterion] = useState("");
   const [message, setMessage] = useState("");
@@ -38,6 +40,7 @@ export default function ReportsPage({ params }: { params: Promise<{ id: string }
   const [overrideValue, setOverrideValue] = useState(0);
   const [reason, setReason] = useState("");
   const [appeals, setAppeals] = useState<Appeal[]>([]);
+  const [qualityFeedback, setQualityFeedback] = useState<Array<{criterion:string;side:string;assignments:number}>>([]);
   const [auditRows, setAuditRows] = useState<AuditRow[]>([]);
   const [appealId, setAppealId] = useState("");
   const [resolution, setResolution] = useState("");
@@ -56,6 +59,8 @@ export default function ReportsPage({ params }: { params: Promise<{ id: string }
     if (!response.ok) throw new Error(payload.error?.code ?? `HTTP ${response.status}`);
     setSnapshot(payload.data);
     setRawExportReady(payload.meta?.rawExportReady === true);
+    setCanRevealIdentities(payload.meta?.canRevealIdentities === true);
+    setQualityFeedback(payload.meta?.qualityFeedback ?? []);
     if (appealResponse.ok) setAppeals((await appealResponse.json()).data.appeals);
     if (auditResponse.ok) setAuditRows((await auditResponse.json()).data);
     if (reviewResponse.ok) {
@@ -119,12 +124,12 @@ export default function ReportsPage({ params }: { params: Promise<{ id: string }
     } catch (error) { setMessage(error instanceof Error ? error.message : String(error)); }
     finally { setBusy(false); }
   };
-  const download = async (format: "csv" | "xlsx", raw = false) => {
+  const download = async (format: "csv" | "xlsx", raw = false, includeIdentities = false) => {
     setBusy(true); setMessage("");
     try {
       const response = await fetch(`${endpoint}/exports${raw ? "/raw" : ""}`, { method: "POST",
         headers: { "Content-Type": "application/json", Origin: window.location.origin },
-        body: JSON.stringify({ format, report: tab, includeIdentities: false }) });
+        body: JSON.stringify({ format, report: tab, includeIdentities, confirmed: includeIdentities, reason: includeIdentities ? identityReason : undefined }) });
       if (!response.ok) { const payload = await response.json();
         throw new Error(payload.error?.message ?? payload.error?.code ?? `HTTP ${response.status}`); }
       const file = URL.createObjectURL(await response.blob());
@@ -191,6 +196,7 @@ export default function ReportsPage({ params }: { params: Promise<{ id: string }
           <p>สัญญาณใช้ช่วยทบทวนคำตอบ ไม่ลดน้ำหนักหรือลบคำตอบอัตโนมัติ</p>
           <ul className="plain-list">{quality.flatMap(row => row.flags.map(flag =>
             <li key={`${row.name}:${flag}`}>{row.name}: {flag}</li>))}</ul>
+          {qualityFeedback.map(row=><p className="notice" key={`${row.side}:${row.criterion}`}>เกณฑ์ {row.criterion} มีความเห็นแตกต่างกันสูงติดต่อกัน {row.assignments} งาน ควรทบทวนคำอธิบายเกณฑ์</p>)}
           {output.quality ? <>
             <p className="fine-print">รหัสผู้ประเมินใช้เฉพาะ snapshot นี้ QS-02/03 แยกตามด้านและใช้คำตอบที่ส่งล่าสุด;
               QS-04 แยกตามเกณฑ์และนับเฉพาะชุดสามรายการที่ตอบครบ สัญญาณจากคำตอบจำนวนน้อยต้องทบทวนด้วยความระมัดระวัง</p>
@@ -218,6 +224,13 @@ export default function ReportsPage({ params }: { params: Promise<{ id: string }
           {rawExportReady && <button className="secondary-button" disabled={busy}
             onClick={() => download("csv", true)}>ดาวน์โหลดคำตอบดิบแบบรหัสผู้ประเมิน</button>}</div>
         {rawExportReady && <p className="fine-print">ไฟล์คำตอบดิบใช้รหัสแทนตัวผู้ประเมินและบันทึก audit การส่งออก</p>}
+        {rawExportReady && canRevealIdentities && <details className="form-panel"><summary>เปิดเผยตัวผู้ประเมิน (เจ้าของห้องเท่านั้น)</summary>
+          <p>ใช้เพื่อการตรวจสอบทางวิชาการ ระบบบันทึกการเข้าถึงและการส่งออกทุกครั้ง ไฟล์จะมีชื่อและอีเมลผู้ประเมิน</p>
+          <label className="field">เหตุผลเปิดเผยตัวผู้ประเมิน<textarea value={identityReason} onChange={e => setIdentityReason(e.target.value)} minLength={10} maxLength={2000} /></label>
+          <button disabled={busy || identityReason.trim().length < 10} onClick={() => {
+            if (window.confirm("ยืนยันดาวน์โหลดชื่อและอีเมลผู้ประเมินเพื่อเหตุผลที่ระบุ? การดำเนินการนี้จะถูกบันทึก audit")) void download("csv", true, true);
+          }}>ยืนยันและดาวน์โหลดพร้อมชื่อผู้ประเมิน</button>
+        </details>}
       </section>
       {tab === "quality" && snapshot.assignmentStatus !== "FINALIZED" && <section className="form-panel">
         <h2>ทบทวนคำตอบที่ส่ง</h2>

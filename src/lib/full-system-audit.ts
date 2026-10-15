@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { Pool } from "pg";
+import { currentRequestContext } from "./request-context";
 
 let auditPool: Pool | undefined;
 const AUDIT_RUNTIME_ROLE = "paireval_audit_app";
@@ -21,7 +22,7 @@ function pool(): Pool {
   const audit = new URL(auditUrl);
   const operational = new URL(operationalUrl);
   if (audit.hostname === operational.hostname) throw new AuditUnavailableError("Audit database must use a separate Neon endpoint");
-  auditPool ??= new Pool({ connectionString: auditUrl, max: 2, connectionTimeoutMillis: 15000 });
+  auditPool ??= new Pool({ connectionString: auditUrl, max: 8, connectionTimeoutMillis: 15000 });
   return auditPool;
 }
 
@@ -76,39 +77,40 @@ export async function runAuditSmoke(): Promise<{ audit: "postgresql"; writeReadR
 
 export type AuditIntentInput = {
   classroomId?: string; actorUserId: string; action: string; resourceType: string; resourceId: string;
-  before?: Record<string, unknown>; after?: Record<string, unknown>; reason?: string;
+  before?: Record<string, unknown>; after?: Record<string, unknown>; reason?: string; ipAddress?: string | null;
 };
 export type AuditIntent = AuditIntentInput & { requestId: string };
 
 /** Write an immutable request event before a critical operational mutation. Failure aborts that mutation. */
 export async function writeAuditIntent(input: AuditIntentInput): Promise<AuditIntent> {
   const requestId = randomUUID();
+  const ipAddress = input.ipAddress ?? currentRequestContext().ipAddress;
   try {
     await requireRestrictedAuditRole();
     await pool().query(`INSERT INTO audit_event
-      (id,classroom_id,actor_user_id,action,resource_type,resource_id,request_id,before_json,after_json,reason)
-      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`,
+      (id,classroom_id,actor_user_id,action,resource_type,resource_id,request_id,before_json,after_json,reason,ip_address)
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)`,
     [randomUUID(), input.classroomId ?? null, input.actorUserId, input.action,
-      input.resourceType, input.resourceId, requestId, input.before ?? null, input.after ?? null, input.reason ?? null]);
+      input.resourceType, input.resourceId, requestId, input.before ?? null, input.after ?? null, input.reason ?? null, ipAddress]);
   } catch {
     throw new AuditUnavailableError("Audit write failed; operational change was not started");
   }
-  return { ...input, requestId };
+  return { ...input, ipAddress, requestId };
 }
 
 /** Idempotent delivery from the operational outbox into separate append-only audit storage. */
 export async function appendAuditOutcome(input: {
   id: string; requestId: string; classroomId?: string; actorUserId: string; action: string;
   resourceType: string; resourceId: string; before?: Record<string, unknown>;
-  after?: Record<string, unknown>; reason?: string;
+  after?: Record<string, unknown>; reason?: string; ipAddress?: string | null;
 }): Promise<void> {
   await requireRestrictedAuditRole();
   await pool().query(`INSERT INTO audit_event
-    (id,classroom_id,actor_user_id,action,resource_type,resource_id,request_id,before_json,after_json,reason)
-    VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) ON CONFLICT (id) DO NOTHING`,
+    (id,classroom_id,actor_user_id,action,resource_type,resource_id,request_id,before_json,after_json,reason,ip_address)
+    VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) ON CONFLICT (id) DO NOTHING`,
   [input.id, input.classroomId ?? null, input.actorUserId, input.action,
     input.resourceType, input.resourceId, input.requestId, input.before ?? null,
-    input.after ?? null, input.reason ?? null]);
+    input.after ?? null, input.reason ?? null, input.ipAddress ?? null]);
   const found = await pool().query<{ action: string; request_id: string }>(
     "SELECT action,request_id FROM audit_event WHERE id=$1", [input.id]);
   if (found.rows[0]?.action !== input.action || found.rows[0]?.request_id !== input.requestId) {

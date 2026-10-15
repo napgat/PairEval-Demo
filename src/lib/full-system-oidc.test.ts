@@ -6,11 +6,11 @@ describe("Full System OIDC claim handling", () => {
   const claims = { sub: "google-sub", nonce: "nonce", email: " First.Last+tag@Uni.ac.th ",
     email_verified: true, hd: "Uni.ac.th", name: "Student" };
 
-  it("keeps dots and plus tags in exact roster email matching", () => {
+  it("matches the PRD v2.0 university email alias acceptance example", () => {
     const identity = validateGoogleClaims(claims, "nonce");
-    expect(identity.email).toBe("first.last+tag@uni.ac.th");
+    expect(identity.email).toBe("firstlast@uni.ac.th");
     expect(identity.hostedDomain).toBe("uni.ac.th");
-    expect(normalizeEmail(" firstlast@uni.ac.th ")).not.toBe(identity.email);
+    expect(normalizeEmail(" firstlast@uni.ac.th ")).toBe(identity.email);
   });
 
   it("rejects nonce and unverified email claims", () => {

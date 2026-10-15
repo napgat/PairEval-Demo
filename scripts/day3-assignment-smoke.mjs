@@ -143,7 +143,7 @@ try {
   check(await api(`/api/full-system/classrooms/${roomId}/roster/import`, "POST",
     rosterImport, studentToken), 403, "student roster import denied");
   check(await api(`/api/full-system/classrooms/${roomId}/roster/import`, "POST",
-    rosterImport, taToken), 403, "TA roster import denied");
+    rosterImport, taToken), 409, "TA cannot change roster while an assignment is published");
   check(await api(`/api/full-system/classrooms/${roomId}/roster/import`, "POST",
     rosterImport), 409, "published roster change denied");
   const beforeMove = await pool.query(`SELECT m.group_id,c.roster_version FROM classroom_member m
@@ -162,9 +162,10 @@ try {
     await context.addCookies([{ name: "paireval_full_session", value: token, url: origin }]);
     const page = await context.newPage();
     await page.goto(`${origin}/full-system/classrooms/${roomId}/assignments`);
-    await page.getByRole("button", { name: /Feasible assignment · DRAFT/ }).click();
-    await page.getByLabel("CSV รายชื่อและกลุ่ม").fill(changedCsv);
-    await page.getByRole("button", { name: "ตรวจ CSV และดูการย้ายกลุ่ม" }).click();
+    await page.getByRole("button", { name: /Feasible assignment/ }).filter({ hasText: "ฉบับร่าง" }).click();
+    await page.locator(".fs-roster-tools > summary").click();
+    await page.getByLabel("CSV รายชื่อ", { exact: true }).fill(changedCsv);
+    await page.getByRole("button", { name: "ตรวจข้อมูลและดูการเปลี่ยนกลุ่ม", exact: true }).click();
     await page.getByText(/ย้ายกลุ่ม 1/).waitFor();
     const importResponse = page.waitForResponse(response => response.url().includes("/roster/import"),
       { timeout: 120000 });

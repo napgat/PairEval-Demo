@@ -1,13 +1,14 @@
 "use client";
 
 import { use, useCallback, useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { classroomInputToUtc, utcToClassroomInput } from "@/lib/full-system-timezone";
 
 type Criterion = { side: "GROUP" | "INDIVIDUAL"; name: string; weightPct: number };
 type Artifact = { side: "GROUP" | "INDIVIDUAL"; itemId: string; url: string };
 type Input = { name: string; description: string; artifactOverviewUrl: string; groupMaxScore: number;
   individualMaxScore: number; groupDeadline: string | null; individualDeadline: string | null;
-  targetCoverage: number; maxWorkload: number; instructorWeight: number;
+  targetCoverage: number; maxWorkload: number; instructorWeight: number; scoreFloor: number; scoreCeiling: number;
   criteria: Criterion[]; artifacts: Artifact[] };
 type Assignment = Input & { id: string; status: string; generation: number;
   generations: Array<{ generation: number; status: string; invalidated_reason: string | null }>;
@@ -22,7 +23,7 @@ type RosterPreview = { errors: string[]; warnings: string[]; digest: string; ver
   diff: { added: number; moved: number; unchanged: number } };
 const empty: Input = { name: "", description: "", artifactOverviewUrl: "", groupMaxScore: 10,
   individualMaxScore: 0, groupDeadline: null, individualDeadline: null, targetCoverage: 5,
-  maxWorkload: 8, instructorWeight: 1,
+  maxWorkload: 8, instructorWeight: 1, scoreFloor: .6, scoreCeiling: 1,
   criteria: [{ side: "GROUP", name: "", weightPct: 100 }], artifacts: [] };
 const url = (id: string) => `/api/full-system/assignments/${id}`;
 const displayDate = (value: string | null, timeZone: string) => value ? new Date(value).toLocaleString("th-TH", { timeZone }) : "ยังไม่กำหนด";
@@ -31,9 +32,11 @@ const toInput = (assignment: Assignment): Input => ({ name: assignment.name, des
   individualMaxScore: assignment.individualMaxScore, groupDeadline: assignment.groupDeadline,
   individualDeadline: assignment.individualDeadline, targetCoverage: assignment.targetCoverage,
   maxWorkload: assignment.maxWorkload, instructorWeight: assignment.instructorWeight,
+  scoreFloor: assignment.scoreFloor, scoreCeiling: assignment.scoreCeiling,
   criteria: assignment.criteria, artifacts: assignment.artifacts });
 
 export default function AssignmentsPage({ params }: { params: Promise<{ id: string }> }) {
+  const router=useRouter();
   const { id: classroomId } = use(params);
   const [rows, setRows] = useState<Array<{ id: string; name: string; status: string; generation: number }>>([]);
   const [roster, setRoster] = useState<RosterRow[]>([]);
@@ -157,6 +160,7 @@ export default function AssignmentsPage({ params }: { params: Promise<{ id: stri
     <header className="fs-page-heading"><div><span className="eyebrow">พื้นที่อาจารย์ · จัดการห้องเรียน</span>
       <h1>งานประเมินและแผนจับคู่</h1><p>สร้างงาน ตรวจแผนการจับคู่ แล้วเผยแพร่ให้นักศึกษาทำ</p></div>
       <span className="fs-teacher-mark" aria-hidden="true">▣</span></header>
+    {owner&&<details className="form-panel"><summary>เก็บห้องเรียนเมื่อจบรายวิชา</summary><p>ห้องเรียนจะเป็นแบบอ่านอย่างเดียวและย้ายไปหน้าห้องเรียนที่เก็บแล้ว</p><button className="secondary-button" onClick={()=>{if(window.confirm("เก็บห้องเรียนนี้เป็นแบบอ่านอย่างเดียวหรือไม่?"))void action(async()=>{await request(`/api/full-system/classrooms/${classroomId}/archive`,"POST",{archived:true});router.push("/full-system/archive")})}}>เก็บห้องเรียน</button></details>}
     {message && <p className="notice" role="status">{message}</p>}
     <section className="form-panel fs-assignment-list"><div className="fs-section-heading"><div><span className="eyebrow">ขั้นที่ 1</span><h2>งานในห้องเรียน</h2></div>
       <button className="primary-button" onClick={() => { setSelected(null); setForm(empty); setPlan(null); }}>＋ สร้างงานใหม่</button></div>
@@ -215,6 +219,12 @@ export default function AssignmentsPage({ params }: { params: Promise<{ id: stri
         <button className="remove-button" disabled={selected?.status !== undefined && selected.status !== "DRAFT"} onClick={() => change("criteria", form.criteria.filter((_, i) => i !== index))}>ลบ</button>
       </div>)}
       <button className="secondary-button" disabled={selected?.status !== undefined && selected.status !== "DRAFT"} onClick={() => change("criteria", [...form.criteria, { side: "GROUP", name: "", weightPct: 0 }])}>เพิ่มเกณฑ์</button>
+      <div className="form-grid">
+        <label className="field">สัดส่วนคะแนนต่ำสุด<input type="number" min="0" max="1" step=".001" value={form.scoreFloor}
+          disabled={selected?.status !== undefined && selected.status !== "DRAFT"} onChange={e => change("scoreFloor", Number(e.target.value))} /></label>
+        <label className="field">สัดส่วนคะแนนสูงสุด<input type="number" min="0" max="1" step=".001" value={form.scoreCeiling}
+          disabled={selected?.status !== undefined && selected.status !== "DRAFT"} onChange={e => change("scoreCeiling", Number(e.target.value))} /></label>
+      </div><p className="fine-print">คะแนน = คะแนนเต็ม × น้ำหนักเกณฑ์ × (ค่าต่ำสุด + (ค่าสูงสุด − ค่าต่ำสุด) × q) · ค่าเริ่มต้น 0.6–1</p>
       <h2>ลิงก์ไฟล์งานรายชิ้น</h2><p className="fine-print">ใส่ลิงก์ HTTPS เฉพาะรายการที่มีไฟล์</p>
       {[...groups.map(([itemId, name]) => ({ side: "GROUP" as const, itemId, name: `กลุ่ม ${name}` })),
         ...roster.map(person => ({ side: "INDIVIDUAL" as const, itemId: person.id, name: person.displayName }))].map(item => <label className="field" key={`${item.side}:${item.itemId}`}>{item.name}<input type="url" placeholder="https://…" disabled={selected?.status !== undefined && selected.status !== "DRAFT"} value={form.artifacts.find(row => row.side === item.side && row.itemId === item.itemId)?.url ?? ""} onChange={e => change("artifacts", [...form.artifacts.filter(row => row.side !== item.side || row.itemId !== item.itemId), ...(e.target.value ? [{ side: item.side, itemId: item.itemId, url: e.target.value }] : [])])} /></label>)}

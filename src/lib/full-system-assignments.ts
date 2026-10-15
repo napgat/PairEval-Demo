@@ -9,6 +9,7 @@ import { planFullSystemPairs, type PairCriterion, type PairPlan, type PairStuden
 export class AssignmentInputError extends Error {}
 export class AssignmentNotFoundError extends Error {}
 export class AssignmentConflictError extends Error {}
+export class AssignmentForbiddenError extends Error {}
 
 type CriterionInput = { side: "GROUP" | "INDIVIDUAL"; name: string; description?: string;
   weightPct: number };
@@ -16,14 +17,18 @@ type ArtifactInput = { side: "GROUP" | "INDIVIDUAL"; itemId: string; url: string
 export type AssignmentInput = { name: string; description?: string; artifactOverviewUrl?: string;
   groupMaxScore: number; individualMaxScore: number; groupDeadline: string | null;
   individualDeadline: string | null; targetCoverage: number; maxWorkload: number;
-  instructorWeight: number;
+  instructorWeight: number; scoreFloor: number; scoreCeiling: number;
   criteria: CriterionInput[]; artifacts?: ArtifactInput[] };
 
 function uuid(value: unknown): value is string { return typeof value === "string" && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value); }
 function score(value: unknown): value is number { return typeof value === "number" && Number.isFinite(value) && value >= 0 && value <= 9999.99 && Math.abs(Math.round(value * 100) - value * 100) < 0.000001; }
 function safeUrl(value: unknown): value is string {
   if (typeof value !== "string" || value.length > 2000) return false;
-  try { return new URL(value).protocol === "https:"; } catch { return false; }
+  try {
+    const url = new URL(value);
+    return url.protocol === "https:" || process.env.PAIR_EVAL_ENV === "development" &&
+      url.origin === "http://localhost:3101" && url.pathname.startsWith("/demo-artifacts/");
+  } catch { return false; }
 }
 function deadline(value: unknown): value is string | null {
   return value === null || typeof value === "string" && /^\d{4}-\d\d-\d\dT\d\d:\d\d(?::\d\d(?:\.\d{1,3})?)?(?:Z|[+-]\d\d:\d\d)$/.test(value) &&
@@ -46,6 +51,14 @@ export function validateAssignmentInput(raw: unknown): AssignmentInput {
     throw new AssignmentInputError("Artifact overview URL must use HTTPS");
   }
   const instructorWeight = x.instructorWeight === undefined ? 1 : x.instructorWeight;
+  const scoreFloor = x.scoreFloor === undefined ? .6 : x.scoreFloor;
+  const scoreCeiling = x.scoreCeiling === undefined ? 1 : x.scoreCeiling;
+  if (typeof scoreFloor !== "number" || typeof scoreCeiling !== "number" ||
+      !Number.isFinite(scoreFloor) || !Number.isFinite(scoreCeiling) ||
+      scoreFloor < 0 || scoreFloor >= scoreCeiling || scoreCeiling > 1 ||
+      [scoreFloor, scoreCeiling].some(v => Math.abs(v * 1000 - Math.round(v * 1000)) > .000001)) {
+    throw new AssignmentInputError("Score band requires 0 ≤ floor < ceiling ≤ 1, at most three decimals");
+  }
   if (typeof instructorWeight !== "number" || !Number.isFinite(instructorWeight) ||
       instructorWeight < 0 || instructorWeight > 99.99 ||
       Math.abs(Math.round(instructorWeight * 100) - instructorWeight * 100) > 0.000001) {
@@ -81,7 +94,7 @@ export function validateAssignmentInput(raw: unknown): AssignmentInput {
     groupMaxScore: x.groupMaxScore as number, individualMaxScore: x.individualMaxScore as number,
     groupDeadline: x.groupDeadline as string | null, individualDeadline: x.individualDeadline as string | null,
     targetCoverage: x.targetCoverage as number, maxWorkload: x.maxWorkload as number,
-    instructorWeight,
+    instructorWeight, scoreFloor, scoreCeiling,
     criteria, artifacts };
 }
 
@@ -146,12 +159,12 @@ export async function createAssignment(actor: FullActor, classroomId: string, ra
     mutate: async client => {
       await client.query(`INSERT INTO assignment
         (id,classroom_id,name,slug,description,artifact_overview_url,group_max_score,individual_max_score,
-         group_deadline_utc,individual_deadline_utc,target_coverage,max_workload,instructor_weight,created_by)
-        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)`,
+         group_deadline_utc,individual_deadline_utc,target_coverage,max_workload,instructor_weight,created_by,score_floor,score_ceiling)
+        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)`,
       [id, classroomId, input.name, `assignment-${id.slice(0, 8)}`, input.description ?? null,
         input.artifactOverviewUrl ?? null, input.groupMaxScore, input.individualMaxScore,
         input.groupDeadline, input.individualDeadline, input.targetCoverage, input.maxWorkload,
-        input.instructorWeight, actor.id]);
+        input.instructorWeight, actor.id, input.scoreFloor, input.scoreCeiling]);
       await saveDetails(client, id, classroomId, input);
       return { id, status: "DRAFT" as const };
     },
@@ -172,10 +185,10 @@ export async function replaceDraftAssignment(actor: FullActor, id: string, raw: 
     mutate: async (client, row) => {
       await client.query(`UPDATE assignment SET name=$2,description=$3,artifact_overview_url=$4,
         group_max_score=$5,individual_max_score=$6,group_deadline_utc=$7,individual_deadline_utc=$8,
-        target_coverage=$9,max_workload=$10,instructor_weight=$11 WHERE id=$1`,
+        target_coverage=$9,max_workload=$10,instructor_weight=$11,score_floor=$12,score_ceiling=$13 WHERE id=$1`,
       [id, input.name, input.description ?? null, input.artifactOverviewUrl ?? null,
         input.groupMaxScore, input.individualMaxScore, input.groupDeadline, input.individualDeadline,
-        input.targetCoverage, input.maxWorkload, input.instructorWeight]);
+        input.targetCoverage, input.maxWorkload, input.instructorWeight, input.scoreFloor, input.scoreCeiling]);
       await saveDetails(client, id, row.classroom_id, input);
       return { id, status: "DRAFT" as const, generation: row.generation };
     },
@@ -209,7 +222,7 @@ async function lockedAssignment(client: PoolClient, actor: FullActor, id: string
 }
 async function loadInput(client: PoolClient, id: string): Promise<AssignmentInput> {
   const assignment = await client.query(`SELECT name,description,artifact_overview_url,group_max_score,
-    individual_max_score,group_deadline_utc,individual_deadline_utc,target_coverage,max_workload,instructor_weight
+    individual_max_score,group_deadline_utc,individual_deadline_utc,target_coverage,max_workload,instructor_weight,score_floor,score_ceiling
     FROM assignment WHERE id=$1`, [id]);
   if (!assignment.rows[0]) throw new AssignmentNotFoundError("Assignment not found");
   const x = assignment.rows[0];
@@ -225,7 +238,7 @@ async function loadInput(client: PoolClient, id: string): Promise<AssignmentInpu
     groupDeadline: x.group_deadline_utc?.toISOString() ?? null,
     individualDeadline: x.individual_deadline_utc?.toISOString() ?? null,
     targetCoverage: x.target_coverage, maxWorkload: x.max_workload,
-    instructorWeight: Number(x.instructor_weight),
+    instructorWeight: Number(x.instructor_weight), scoreFloor: Number(x.score_floor), scoreCeiling: Number(x.score_ceiling),
     criteria: criteria.rows.map(row => ({ side: row.side, name: row.name,
       description: row.description ?? undefined, weightPct: Number(row.weight_pct) })),
     artifacts: [...groupArtifacts.rows.map(row => ({ side: "GROUP" as const, itemId: row.item_id,
@@ -302,6 +315,7 @@ export async function publishAssignment(actor: FullActor, id: string, seed: stri
         `SELECT 'GROUP' AS side,group_id AS item_id,artifact_url FROM group_artifact WHERE assignment_id=$1
          UNION ALL SELECT 'INDIVIDUAL',student_user_id,artifact_url FROM individual_artifact WHERE assignment_id=$1`, [id]);
       const artifact = new Map(links.rows.map(link => [`${link.side}:${link.item_id}`, link.artifact_url]));
+      const overview = (await client.query<{ artifact_overview_url: string | null }>("SELECT artifact_overview_url FROM assignment WHERE id=$1", [id])).rows[0].artifact_overview_url;
       for (const pair of plan.comparisons) await client.query(`INSERT INTO pair_assignment
         (id,assignment_id,criterion_id,side,group_a_id,group_b_id,student_a_id,student_b_id,
          evaluator_user_id,display_left,generation,left_artifact_url,right_artifact_url)
@@ -310,8 +324,8 @@ export async function publishAssignment(actor: FullActor, id: string, seed: stri
         pair.side === "GROUP" ? pair.aId : null, pair.side === "GROUP" ? pair.bId : null,
         pair.side === "INDIVIDUAL" ? pair.aId : null, pair.side === "INDIVIDUAL" ? pair.bId : null,
         pair.evaluatorId, pair.displayLeft, generation,
-        artifact.get(`${pair.side}:${pair.displayLeft === "A" ? pair.aId : pair.bId}`) ?? null,
-        artifact.get(`${pair.side}:${pair.displayLeft === "A" ? pair.bId : pair.aId}`) ?? null]);
+        artifact.get(`${pair.side}:${pair.displayLeft === "A" ? pair.aId : pair.bId}`) ?? overview,
+        artifact.get(`${pair.side}:${pair.displayLeft === "A" ? pair.bId : pair.aId}`) ?? overview]);
       await client.query(`UPDATE assignment SET generation=$2,pairing_seed=$3,status='OPEN',published_at=now()
         WHERE id=$1`, [id, generation, /^\d{1,18}$/.test(seed) ? seed : null]);
       await enqueueAssignmentNotifications(client, { assignmentId: id,

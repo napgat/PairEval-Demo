@@ -1,3 +1,4 @@
+import { observeRoute } from "@/lib/observe-route";
 import { NextResponse, type NextRequest } from "next/server";
 import { assignmentActor, assignmentError } from "@/lib/full-system-assignment-http";
 import { AssignmentInputError, AssignmentNotFoundError } from "@/lib/full-system-assignments";
@@ -6,7 +7,7 @@ import { domainAllowed } from "@/lib/full-system-auth";
 import { readAuditTimeline } from "@/lib/full-system-audit";
 
 export const runtime = "nodejs";
-export async function GET(request: NextRequest, context: { params: Promise<{ id: string }> }) {
+async function GETHandler(request: NextRequest, context: { params: Promise<{ id: string }> }) {
   const auth = await assignmentActor(request); if (auth.error) return auth.error;
   try {
     const id = (await context.params).id;
@@ -26,3 +27,5 @@ export async function GET(request: NextRequest, context: { params: Promise<{ id:
     return NextResponse.json({ data: await readAuditTimeline(row.classroom_id) });
   } catch (error) { return assignmentError(error); }
 }
+
+export const GET = observeRoute(GETHandler);

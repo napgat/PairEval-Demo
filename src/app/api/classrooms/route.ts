@@ -1,3 +1,4 @@
+import { observeRoute } from "@/lib/observe-route";
 import { randomUUID } from "node:crypto";
 import { NextResponse, type NextRequest } from "next/server";
 import { actorForToken, openDemoDb } from "@/lib/demo-data";
@@ -6,7 +7,7 @@ import { previewRosterCsv, validateClassroomName } from "@/lib/classroom-input";
 
 export const runtime = "nodejs";
 
-export async function POST(request: NextRequest) {
+async function POSTHandler(request: NextRequest) {
   const actor = actorForToken(request.cookies.get(SESSION_COOKIE)?.value);
   if (!actor || actor.role !== "instructor") return NextResponse.json({ error: "เฉพาะผู้สอนที่เข้าสู่ Demo เท่านั้น" }, { status: 403 });
   let payload: unknown;
@@ -48,3 +49,5 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ errors: [error instanceof Error ? error.message : "บันทึกห้องเรียนไม่สำเร็จ"] }, { status: 422 });
   } finally { db.close(); }
 }
+
+export const POST = observeRoute(POSTHandler);

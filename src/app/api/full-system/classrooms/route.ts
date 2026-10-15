@@ -1,3 +1,4 @@
+import { observeRoute } from "@/lib/observe-route";
 import { NextResponse, type NextRequest } from "next/server";
 import { actorForRequest, sameOrigin } from "@/lib/full-system-auth";
 import { ClassroomInputError, createClassroomWithRoster, listClassrooms } from "@/lib/full-system-classrooms";
@@ -5,14 +6,14 @@ import { AuditOutcomePendingError, AuditUnavailableError } from "@/lib/full-syst
 
 export const runtime = "nodejs";
 
-export async function GET(request: NextRequest) {
+async function GETHandler(request: NextRequest) {
   const actor = await actorForRequest(request);
   if (!actor) return NextResponse.json({ error: { code: "UNAUTHENTICATED" } }, { status: 401 });
   if (!actor.privacyAccepted) return NextResponse.json({ error: { code: "PRIVACY_NOTICE_REQUIRED" } }, { status: 428 });
   return NextResponse.json({ data: await listClassrooms(actor) });
 }
 
-export async function POST(request: NextRequest) {
+async function POSTHandler(request: NextRequest) {
   if (!sameOrigin(request)) return NextResponse.json({ error: { code: "ORIGIN_INVALID" } }, { status: 403 });
   const actor = await actorForRequest(request);
   if (!actor) return NextResponse.json({ error: { code: "UNAUTHENTICATED" } }, { status: 401 });
@@ -34,3 +35,6 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: { code: "CLASSROOM_CREATE_FAILED" } }, { status: 500 });
   }
 }
+
+export const GET = observeRoute(GETHandler);
+export const POST = observeRoute(POSTHandler);

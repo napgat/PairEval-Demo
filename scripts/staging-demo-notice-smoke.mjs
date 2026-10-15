@@ -25,7 +25,7 @@ try {
   const before = await fetch(`${origin}/api/full-system/classrooms`, { headers });
   if (before.status !== 428) throw new Error(`Expected notice gate 428, got ${before.status}`);
   const badOrigin = await fetch(`${origin}/api/auth/privacy-notice`, { method: "POST",
-    headers: { ...headers, Origin: "https://example.test" }, body: JSON.stringify({ noticeVersion: "student-demo-staging-v1" }) });
+    headers: { ...headers, Origin: "https://example.test" }, body: JSON.stringify({ noticeVersion: "prd-v2.0-privacy-20261015" }) });
   if (badOrigin.status !== 403) throw new Error(`Expected origin denial 403, got ${badOrigin.status}`);
   const badVersion = await fetch(`${origin}/api/auth/privacy-notice`, { method: "POST",
     headers, body: JSON.stringify({ noticeVersion: "synthetic-staging-v1" }) });
@@ -39,9 +39,9 @@ try {
   await page.goto(`${origin}/full-system`, { waitUntil: "domcontentloaded" });
   await page.getByRole("heading", { name: "การใช้ข้อมูลสำหรับ staging ของโครงงาน" }).waitFor();
   await page.getByRole("button", { name: "รับทราบและเข้าดูข้อมูลสาธิต" }).click();
-  await page.getByText("ยังไม่มีห้องเรียนที่บัญชีนี้เข้าถึงได้").waitFor();
+  await page.getByRole("heading", { name: "ยังไม่มีห้องเรียน", exact: true }).waitFor();
   const acceptance = await pool.query("SELECT notice_version FROM privacy_notice_acceptance WHERE user_id=$1", [id]);
-  if (acceptance.rows[0]?.notice_version !== "student-demo-staging-v1") {
+  if (acceptance.rows[0]?.notice_version !== "prd-v2.0-privacy-20261015") {
     throw new Error("Notice acknowledgement was not saved");
   }
   const after = await fetch(`${origin}/api/full-system/classrooms`, { headers });

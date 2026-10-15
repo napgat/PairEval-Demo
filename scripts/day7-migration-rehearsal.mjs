@@ -14,7 +14,9 @@ const pool = new Pool({ connectionString: process.env.DATABASE_URL, max: 1,
   connectionTimeoutMillis: 30000 });
 const name = `day7_rehearsal_${randomUUID().replaceAll("-", "")}`;
 const files = readdirSync("db/migrations").filter(file => /^\d{3}_.*\.sql$/.test(file)).sort();
-if (files.length !== 9) throw new Error(`Expected migrations 001–009; found ${files.length}`);
+if (!files.length || files.some((file, index) => Number(file.slice(0, 3)) !== index + 1)) {
+  throw new Error("Expected a non-empty contiguous migration sequence starting at 001");
+}
 const client = await pool.connect();
 let tableCount = 0;
 try {

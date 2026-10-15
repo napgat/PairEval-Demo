@@ -1,10 +1,11 @@
 "use client";
+import { queueKey, readQueuedAnswers } from "@/lib/evaluation-queue";
 import { use, useEffect, useRef, useState } from "react";
 import { installSyntheticTiming } from "@/lib/full-system-active-clock";
 
 type Pair = { id: string; criterionId: string; leftName: string; rightName: string;
   leftArtifactUrl: string | null; rightArtifactUrl: string | null; choice: number | null };
-type Evaluation = { assignmentId: string; side: string; timezone: string; deadline: string | null;
+type Evaluation = { assignmentId: string; side: string; viewerId: string; generation: number; timezone: string; deadline: string | null;
   readOnly: boolean; syntheticTimingEnabled?: boolean; criteria: Array<{ id: string; name: string; description: string | null }>;
   pairs: Pair[]; latestSubmission: { revision: number; submittedAt: string } | null;
   draftSavedAt: string | null; disabledReason: string | null };
@@ -27,6 +28,17 @@ export default function EvaluationPage({ params, searchParams }: {
   const submitKey = useRef<string | null>(null);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const timing = useRef<ReturnType<typeof installSyntheticTiming> | null>(null);
+  const storedKey = useRef<string | null>(null);
+  const deadline = useRef<string | null>(null);
+  const sending = useRef<Promise<void> | null>(null);
+  const sync = useRef<() => Promise<void>>(async () => {});
+  const remember = () => {
+    if (!storedKey.current) return;
+    try {
+      if (!pending.current.size) localStorage.removeItem(storedKey.current);
+      else localStorage.setItem(storedKey.current, JSON.stringify({ expiresAt: deadline.current, answers: [...pending.current] }));
+    } catch { setMessage("พื้นที่เก็บคำตอบในเครื่องไม่พร้อม โปรดเชื่อมต่อและรอให้บันทึกสำเร็จก่อนปิดหน้า"); }
+  };
   const load = async () => {
     const response = await fetch(path, { cache: "no-store" }); const payload = await response.json();
     if (!response.ok) throw new Error(payload.error?.message ?? payload.error?.code ?? "โหลดงานไม่สำเร็จ");
@@ -35,11 +47,21 @@ export default function EvaluationPage({ params, searchParams }: {
   useEffect(() => { let active = true; (async () => { try {
     const response = await fetch(path, { cache: "no-store" }); const payload = await response.json();
     if (!response.ok) throw new Error(payload.error?.message ?? payload.error?.code ?? "โหลดงานไม่สำเร็จ");
-    if (active) setData(payload.data);
+    if (active) {
+      const initial = payload.data as Evaluation;
+      storedKey.current = queueKey(initial.viewerId, id, initial.generation, side);
+      deadline.current = initial.deadline;
+      try {
+        pending.current = initial.readOnly ? new Map() : readQueuedAnswers(localStorage.getItem(storedKey.current), new Set(initial.pairs.map(p => p.id)));
+        if (initial.readOnly) localStorage.removeItem(storedKey.current);
+      } catch { pending.current = new Map(); }
+      setData({ ...initial, pairs: initial.pairs.map(p => pending.current.has(p.id) ? { ...p, choice: pending.current.get(p.id)! } : p) });
+      if (pending.current.size) { setMessage("กู้คืนคำตอบที่รอเชื่อมต่อแล้ว กำลังส่งฉบับร่างให้ระบบ"); void sync.current().catch(() => {}); }
+    }
   } catch (error) { if (active) setMessage(error instanceof Error ? error.message : "โหลดงานไม่สำเร็จ"); } })();
-    return () => { active = false; if (timer.current) clearTimeout(timer.current); }; }, [path]);
+    return () => { active = false; if (timer.current) clearTimeout(timer.current); }; }, [path, id, side]);
   useEffect(() => {
-    const interval = setInterval(() => setClock(Date.now()), 60_000);
+    const interval = setInterval(() => setClock(Date.now()), 1000);
     return () => clearInterval(interval);
   }, []);
   useEffect(() => {
@@ -49,27 +71,41 @@ export default function EvaluationPage({ params, searchParams }: {
   }, [path, data?.syntheticTimingEnabled, data?.readOnly]);
   const flush = async () => {
     if (timer.current) clearTimeout(timer.current);
-    const updates = [...pending.current]; pending.current.clear();
+    if (sending.current) await sending.current;
+    const updates = [...pending.current];
     if (!updates.length) return;
-    setSaving(true);
-    try { await timing.current?.settle(); for (const [pairId, choice] of updates) {
+    const job = (async () => { setSaving(true);
+    try {
+      if (!navigator.onLine) throw new Error("ออฟไลน์ — เก็บคำตอบในเครื่องแล้ว จะบันทึกฉบับร่างเมื่อเชื่อมต่ออีกครั้ง");
+      await timing.current?.settle(); for (const [pairId, choice] of updates) {
       const response = await fetch(path, { method: "PUT", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ pairId, choice }) }); const payload = await response.json();
       if (!response.ok) throw new Error(payload.error?.message ?? payload.error?.code ?? "บันทึกไม่สำเร็จ");
+      if (pending.current.get(pairId) === choice) pending.current.delete(pairId);
+      remember();
     }
       setMessage(`บันทึกแล้ว เมื่อ ${new Date().toLocaleTimeString("th-TH", { hour: "2-digit", minute: "2-digit" })}`);
     } catch (error) {
-      for (const [pairId, choice] of updates) pending.current.set(pairId, choice);
+      remember();
       setMessage(error instanceof Error ? error.message : "บันทึกไม่สำเร็จ");
       throw error;
-    } finally { setSaving(false); }
+    } finally { setSaving(false); } })();
+    sending.current = job;
+    try { await job; } finally { if (sending.current === job) sending.current = null; }
   };
+  useEffect(() => { sync.current = flush; });
+  useEffect(() => {
+    const online = () => { void sync.current().catch(() => {}); };
+    window.addEventListener("online", online);
+    return () => window.removeEventListener("online", online);
+  }, []);
   const answer = (pairId: string, choice: number | null) => {
     if (!data || data.readOnly) return;
     timing.current?.complete(pairId);
     setData(current => current && ({ ...current, pairs: current.pairs.map(pair =>
       pair.id === pairId ? { ...pair, choice } : pair) }));
     pending.current.set(pairId, choice);
+    remember();
     submitKey.current = null;
     setMessage("กำลังบันทึก…");
     if (timer.current) clearTimeout(timer.current);
@@ -135,7 +171,7 @@ export default function EvaluationPage({ params, searchParams }: {
         </fieldset>)}
       </section>)}
       <footer className="fs-submit-bar"><div><strong>{answered}/{data.pairs.length} คู่</strong><span>{data.readOnly ? "พ้นกำหนดส่งแล้ว" : saving ? "กำลังบันทึกคำตอบ…" : "ฉบับร่างบันทึกอัตโนมัติ"}</span></div>
-        <div className="fs-submit-actions">{!data.readOnly && <button className="primary-button" disabled={busy || saving || answered === 0} onClick={submit}>{busy ? "กำลังส่ง…" : data.latestSubmission ? "ส่งฉบับแก้ไข" : "ยืนยันส่งคำตอบ"}</button>}
+        <div className="fs-submit-actions">{!data.readOnly && <button className="primary-button" disabled={busy || saving} onClick={submit}>{busy ? "กำลังส่ง…" : data.latestSubmission ? "ส่งฉบับแก้ไข" : "ยืนยันส่งคำตอบ"}</button>}
           <a className="secondary-button" href={`/full-system/assignments/${id}/my-score`}>ดูคะแนนของฉัน</a></div>
       </footer>
     </>}

@@ -1,3 +1,4 @@
+import { observeRoute } from "@/lib/observe-route";
 import { type NextRequest } from "next/server";
 import { assignmentActor, assignmentError } from "@/lib/full-system-assignment-http";
 import { AssignmentConflictError } from "@/lib/full-system-assignments";
@@ -5,7 +6,7 @@ import { reportCsv, reportWorkbook, validateExport } from "@/lib/full-system-sco
 import { latestScoreRun } from "@/lib/full-system-score-runs";
 
 export const runtime = "nodejs";
-export async function POST(request: NextRequest, context: { params: Promise<{ id: string }> }) {
+async function POSTHandler(request: NextRequest, context: { params: Promise<{ id: string }> }) {
   const auth = await assignmentActor(request, true); if (auth.error) return auth.error;
   try {
     const body = await request.json();
@@ -22,3 +23,5 @@ export async function POST(request: NextRequest, context: { params: Promise<{ id
       "Content-Disposition": `attachment; filename="${filename}"`, "Cache-Control": "no-store" } });
   } catch (error) { return assignmentError(error); }
 }
+
+export const POST = observeRoute(POSTHandler);

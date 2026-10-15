@@ -1,6 +1,9 @@
+import { mappedScore, participation } from "./full-system-scoring";
+
 export type ScoreKind = "group" | "individual";
 export type ScoreInput = {
-  assignment: { id: string; groupMax: number; individualMax: number; groupDeadline: string; individualDeadline: string };
+  assignment: { id: string; groupMax: number; individualMax: number; groupDeadline: string; individualDeadline: string;
+    floor?: number; ceiling?: number; completionThreshold?: number };
   groups: { id: string; name: string }[];
   students: { id: string; name: string; groupId: string }[];
   criteria: { id: string; name: string; kind: ScoreKind; weightPercent: number }[];
@@ -9,7 +12,7 @@ export type ScoreInput = {
 };
 
 export type ItemScore = { criterionId: string; criterionName: string; kind: ScoreKind; itemId: string; itemName: string; groupId: string | null; average: number | null; answerCount: number; assignedCount: number; points: number | null };
-export type StudentScore = { id: string; name: string; groupId: string; groupBase: number | null; individualBase: number | null; groupScore: number | null; individualScore: number | null; total: number | null; groupAnswered: number; groupAssigned: number; individualAnswered: number; individualAssigned: number; groupSubmitted: boolean; individualSubmitted: boolean };
+export type StudentScore = { id: string; name: string; groupId: string; groupBase: number | null; individualBase: number | null; groupScore: number | null; individualScore: number | null; total: number | null; groupAnswered: number; groupAssigned: number; individualAnswered: number; individualAssigned: number; groupSubmitted: boolean; individualSubmitted: boolean; p: number; M: number; individualAvailable: boolean };
 export type ScoreResult = { items: ItemScore[]; groups: { id: string; name: string; baseScore: number | null }[]; students: StudentScore[]; hasNoData: boolean };
 
 export function choicePoints(choice: number): [number, number] {
@@ -18,9 +21,8 @@ export function choicePoints(choice: number): [number, number] {
 }
 
 export function applyCompletion(baseScore: number | null, assigned: number, answered: number, submitted: boolean): number | null {
-  if (!submitted && assigned > 0) return 0;
   if (baseScore === null) return null;
-  return baseScore * (assigned === 0 ? 1 : answered / assigned);
+  return baseScore * participation(submitted ? answered : 0, assigned, .9).M;
 }
 
 export function calculateScores(input: ScoreInput): ScoreResult {
@@ -58,12 +60,12 @@ export function calculateScores(input: ScoreInput): ScoreResult {
         }
         return { itemId, answerCount, assignedCount, average: answerCount ? sum / answerCount : null };
       });
-      const denominator = raw.reduce((sum, row) => sum + (row.average ?? 0), 0);
-      const complete = raw.every(row => row.average !== null) && denominator > 0;
       for (const row of raw) items.push({ criterionId: criterion.id, criterionName: criterion.name, kind: criterion.kind,
         itemId: row.itemId, itemName: nameById.get(row.itemId) ?? row.itemId, groupId: cohort.groupId,
         average: row.average, answerCount: row.answerCount, assignedCount: row.assignedCount,
-        points: complete ? row.average! / denominator * criterion.weightPercent / 100 * (criterion.kind === "group" ? input.assignment.groupMax : input.assignment.individualMax) : null });
+        points: row.average === null ? null : mappedScore(row.average, criterion.weightPercent,
+          criterion.kind === "group" ? input.assignment.groupMax : input.assignment.individualMax,
+          input.assignment.floor ?? .6, input.assignment.ceiling ?? 1) });
     }
   }
   function base(kind: ScoreKind, itemId: string): number | null {
@@ -80,12 +82,17 @@ export function calculateScores(input: ScoreInput): ScoreResult {
       return { assigned: assigned.length, answered: assigned.filter(pair => answers.has(pair.id)).length, submitted: latest.has(`${student.id}/${kind}`) };
     };
     const group = counts("group"), individual = counts("individual");
-    const groupScore = applyCompletion(groupBase, group.assigned, group.answered, group.submitted);
-    const individualScore = applyCompletion(individualBase, individual.assigned, individual.answered, individual.submitted);
+    const { p, M } = participation(group.answered + individual.answered,
+      group.assigned + individual.assigned, input.assignment.completionThreshold ?? .9);
+    const groupScore = groupBase === null ? null : groupBase * M;
+    const individualScore = individualBase === null ? null : individualBase * M;
+    const evaluators = new Set(input.pairs.filter(pair => criteria.get(pair.criterionId)?.kind === "individual" &&
+      [pair.itemAId, pair.itemBId].includes(student.id) && answers.has(pair.id)).map(pair => pair.evaluatorId));
     return { id: student.id, name: student.name, groupId: student.groupId, groupBase, individualBase, groupScore, individualScore,
       total: groupScore === null || individualScore === null ? null : groupScore + individualScore,
       groupAnswered: group.answered, groupAssigned: group.assigned, individualAnswered: individual.answered, individualAssigned: individual.assigned,
-      groupSubmitted: group.submitted, individualSubmitted: individual.submitted };
+      groupSubmitted: group.submitted, individualSubmitted: individual.submitted, p, M,
+      individualAvailable: input.assignment.individualMax === 0 || evaluators.size >= 3 };
   });
   return { items, groups, students, hasNoData: items.some(item => item.points === null) };
 }

@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { calculateItemScores, choicePoints, mappedScore, participation } from "./full-system-scoring";
 
-describe("PRD v2.1 scoring", () => {
+describe("PRD v2.0 scoring", () => {
   it("maps all six forced choices and preserves displayed side", () => {
     expect([1, 2, 3, 4, 5, 6].map(choicePoints)).toEqual([
       [1, 0], [0.8, 0.2], [0.6, 0.4], [0.4, 0.6], [0.2, 0.8], [0, 1]]);

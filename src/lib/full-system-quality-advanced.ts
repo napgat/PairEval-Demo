@@ -1,7 +1,7 @@
 import type { ScoreAnswer, ScorePair } from "./full-system-scoring";
 import type { QualityMeasure } from "./full-system-quality";
 
-export type SyntheticQualityContext = { synthetic: boolean;
+export type SyntheticQualityContext = { synthetic: boolean; timingEnabled?: boolean;
   students: Array<{ id: string; groupId: string }>;
   friendships: Array<{ evaluatorId: string; friendId: string }> };
 type Vote = { pair: ScorePair; answer: ScoreAnswer };
@@ -59,12 +59,12 @@ export function advancedQualityMeasures(pairs: ScorePair[], answers: ScoreAnswer
   }
   for (const values of buckets.values()) {
     const p = values[0].pair;
-    const timed = values.filter(v => context?.synthetic && Number.isSafeInteger(v.answer.activeDurationMs) &&
+    const timed = values.filter(v => (context?.synthetic || context?.timingEnabled) && Number.isSafeInteger(v.answer.activeDurationMs) &&
       Number(v.answer.activeDurationMs) >= 0 && Number(v.answer.activeDurationMs) <= 86400000);
     const all = timed.length === values.length;
     const seconds = timed.reduce((sum, v) => sum + v.answer.activeDurationMs! / 1000, 0);
     add("QS-05", codes.get(p.evaluatorId)!, p.side, null, timed.length, values.length,
-      all ? seconds / timed.length : null, 3, "<", !context?.synthetic ? "REAL_TELEMETRY_DISABLED" : all ? "COMPLETE_ACTIVE_DURATION" : "INCOMPLETE_ACTIVE_DURATION",
+      all ? seconds / timed.length : null, 3, "<", !context?.synthetic && !context?.timingEnabled ? "REAL_TELEMETRY_DISABLED" : all ? "COMPLETE_ACTIVE_DURATION" : "INCOMPLETE_ACTIVE_DURATION",
       `timed=${timed.length}; submitted=${values.length}; activeSeconds=${seconds}`);
   }
   const groups = new Map(context?.students.map(s => [s.id, s.groupId]) ?? []);

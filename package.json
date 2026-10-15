@@ -24,18 +24,24 @@
     "audit:smoke": "node scripts/audit-smoke.mjs",
     "audit:integrity": "node scripts/audit-integrity.mjs",
     "audit:restore-test": "node scripts/audit-restore-test.mjs",
-    "audit:drain": "node scripts/audit-outbox-drain.mjs"
+    "audit:drain": "node scripts/audit-outbox-drain.mjs",
+    "jobs": "node scripts/job-worker.mjs",
+    "test:prd-v20": "node scripts/prd-v20-acceptance.mjs",
+    "test:performance": "node scripts/prd-v20-performance.mjs",
+    "db:backup": "node scripts/database-backup.mjs",
+    "db:restore-drill": "node scripts/database-restore-drill.mjs"
   },
   "dependencies": {
     "exceljs": "^4.4.0",
     "jose": "^6.2.12",
     "lucide-react": "^1.25.0",
-    "next": "^16.3.7",
+    "next": "16.3.8",
     "pg": "^8.23.0",
     "react": "19.2.4",
     "react-dom": "19.2.4"
   },
   "devDependencies": {
+    "@axe-core/playwright": "^4.13.0",
     "@playwright/test": "^1.63.0",
     "@tailwindcss/postcss": "^4",
     "@types/node": "^24.13.3",
@@ -43,8 +49,10 @@
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "@vitest/coverage-v8": "^5.0.0",
+    "embedded-postgres": "18.4.0-beta.17",
     "eslint": "^9",
-    "eslint-config-next": "^16.3.7",
+    "eslint-config-next": "16.3.8",
+    "fast-check": "^4.10.2",
     "tailwindcss": "^4",
     "typescript": "^5",
     "vitest": "^5.0.0"

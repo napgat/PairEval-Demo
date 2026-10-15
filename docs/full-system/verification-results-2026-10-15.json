@@ -1,0 +1,251 @@
+{
+  "verifiedAt": "2026-10-15T09:47:34.805Z",
+  "baseline": "PRD v2.0",
+  "baseCommit": "1befe03ab61a28df53c32852f02a03eac6246884",
+  "scope": "Synthetic local professor demonstration; incomplete production PRD acceptance",
+  "freshInstallAndBuild": [
+    {
+      "name": "install",
+      "exitCode": 0,
+      "seconds": 55.194
+    },
+    {
+      "name": "production-audit",
+      "exitCode": 0,
+      "seconds": 1.979
+    },
+    {
+      "name": "lint",
+      "exitCode": 0,
+      "seconds": 7.308
+    },
+    {
+      "name": "typecheck",
+      "exitCode": 0,
+      "seconds": 2.071
+    },
+    {
+      "name": "unit",
+      "exitCode": 0,
+      "seconds": 3.044
+    },
+    {
+      "name": "build",
+      "exitCode": 0,
+      "seconds": 8.684
+    }
+  ],
+  "unit": {
+    "files": 22,
+    "passed": 88,
+    "total": 88
+  },
+  "acceptance": {
+    "passed": 41,
+    "failed": 0
+  },
+  "fullSystemOriginal": [
+    {
+      "script": "day3-assignment-smoke.mjs",
+      "exitCode": 0,
+      "seconds": 1.637
+    },
+    {
+      "script": "day4-evaluation-smoke.mjs",
+      "exitCode": 0,
+      "seconds": 7.206
+    },
+    {
+      "script": "day5-score-smoke.mjs",
+      "exitCode": 0,
+      "seconds": 2.351
+    },
+    {
+      "script": "post-day7-withdrawal-smoke.mjs",
+      "exitCode": 0,
+      "seconds": 3.928
+    },
+    {
+      "script": "day7-instructor-smoke.mjs",
+      "exitCode": 0,
+      "seconds": 1.164
+    },
+    {
+      "script": "staging-demo-notice-smoke.mjs",
+      "exitCode": 0,
+      "seconds": 0.918
+    },
+    {
+      "script": "post-day7-quality-smoke.mjs",
+      "exitCode": 0,
+      "seconds": 8.697
+    },
+    {
+      "script": "day7-migration-rehearsal.mjs",
+      "exitCode": 0,
+      "seconds": 0.416
+    },
+    {
+      "script": "audit-smoke.mjs",
+      "exitCode": 0,
+      "seconds": 0.139
+    },
+    {
+      "script": "day2-audit-outcome-verify.mjs",
+      "exitCode": 0,
+      "seconds": 0.185
+    }
+  ],
+  "legacy": {
+    "mainFlowPassed": 32,
+    "uiAuditPassed": 36,
+    "databaseRestored": true
+  },
+  "automatedAccessibility": [
+    {
+      "page": "portal",
+      "violations": 0
+    },
+    {
+      "page": "owner-dashboard",
+      "violations": 0
+    },
+    {
+      "page": "assignment",
+      "violations": 0
+    },
+    {
+      "page": "report",
+      "violations": 0
+    },
+    {
+      "page": "student",
+      "violations": 0
+    },
+    {
+      "page": "my-score",
+      "violations": 0
+    },
+    {
+      "page": "ta-roster",
+      "violations": 0
+    }
+  ],
+  "productionBoundary": [
+    {
+      "path": "/api/demo/session",
+      "status": 404
+    },
+    {
+      "path": "/demo/student",
+      "status": 404
+    },
+    {
+      "path": "/",
+      "status": 307
+    },
+    {
+      "path": "/full-system",
+      "status": 307
+    },
+    {
+      "path": "/api/assignments",
+      "status": 401
+    }
+  ],
+  "performance": {
+    "machine": "local laptop, isolated PostgreSQL, production Next build",
+    "concurrentUsers": 200,
+    "criteria": 5,
+    "groups": 40,
+    "groupSize": 5,
+    "pairGenerationMs": 7309.48,
+    "comparisons": 7080,
+    "evaluationApi": {
+      "n": 200,
+      "p50Ms": 846.63,
+      "p95Ms": 987.82,
+      "p99Ms": 989.27,
+      "maxMs": 989.52
+    },
+    "autosave": {
+      "n": 200,
+      "p50Ms": 618.66,
+      "p95Ms": 701.74,
+      "p99Ms": 702.46,
+      "maxMs": 704.16
+    },
+    "submission": {
+      "n": 200,
+      "p50Ms": 865.61,
+      "p95Ms": 924.1,
+      "p99Ms": 924.79,
+      "maxMs": 924.89
+    },
+    "continuousUsage": {
+      "profile": "200 authenticated users, one action per user over each 2-second autosave period (100 requests/second)",
+      "autosave": {
+        "n": 200,
+        "p50Ms": 8.52,
+        "p95Ms": 12.48,
+        "p99Ms": 14.94,
+        "maxMs": 15.63
+      },
+      "submission": {
+        "n": 200,
+        "p50Ms": 11.51,
+        "p95Ms": 13.89,
+        "p99Ms": 15.45,
+        "maxMs": 15.82
+      }
+    },
+    "recomputeMs": 307.75,
+    "acceptance": {
+      "pairGeneration": true,
+      "evaluationApi": true,
+      "autosave": true,
+      "submission": true,
+      "recompute": true
+    },
+    "burstAcceptance": {
+      "autosave": false,
+      "submission": false
+    }
+  },
+  "restore": {
+    "backup": {
+      "createdAt": "2026-10-15T09:45:24.062Z",
+      "sha256": "8a52b46dab7fc164bdc14303008645cd5fdf31902e65e750ac5f0271d9058cf8"
+    },
+    "operational": {
+      "tables": 35,
+      "rows": 1571,
+      "fullDataMatch": true
+    },
+    "audit": {
+      "tables": 1,
+      "rows": 2076,
+      "fullDataMatch": true
+    },
+    "restoreSeconds": 2.108,
+    "encryptionTamperDetection": true,
+    "liveDatabasesUnchanged": true
+  },
+  "productionAdvisories": {
+    "info": 0,
+    "low": 0,
+    "moderate": 2,
+    "high": 0,
+    "critical": 0,
+    "total": 2
+  },
+  "remaining": [
+    "Live Google OIDC/deployed HTTPS and secret management",
+    "Per-year identity retention for accounts still active in newer courses",
+    "Real-course QS-06 declared relationship source",
+    "Instantaneous 200-request autosave/submission performance targets",
+    "Long-term availability, 50-classroom/10x traffic and external monitoring/backup",
+    "Manual screen reader and real mobile/old browser versions",
+    "5 development-only High lint-chain findings"
+  ]
+}

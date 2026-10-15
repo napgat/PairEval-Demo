@@ -1,10 +1,11 @@
+import { observeRoute } from "@/lib/observe-route";
 import { NextResponse, type NextRequest } from "next/server";
 import { createFullSession, FULL_SESSION_COOKIE, SESSION_SECONDS } from "@/lib/full-system-auth";
 import { callbackProblem, exchangeGoogleCode, linkGoogleIdentity, oidcConfig } from "@/lib/full-system-oidc";
 
 export const runtime = "nodejs";
 
-export async function GET(request: NextRequest) {
+async function GETHandler(request: NextRequest) {
   const url = new URL(request.url);
   const state = url.searchParams.get("state");
   const code = url.searchParams.get("code");
@@ -36,3 +37,5 @@ export async function GET(request: NextRequest) {
   }
   return response;
 }
+
+export const GET = observeRoute(GETHandler);

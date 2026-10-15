@@ -1,10 +1,11 @@
+import { observeRoute } from "@/lib/observe-route";
 import { NextResponse, type NextRequest } from "next/server";
 import { actorForRequest, classroomRole, sameOrigin } from "@/lib/full-system-auth";
 import { ClassroomInputError, previewRosterChange } from "@/lib/full-system-classrooms";
 
 export const runtime = "nodejs";
 
-export async function POST(request: NextRequest, context: { params: Promise<{ id: string }> }) {
+async function POSTHandler(request: NextRequest, context: { params: Promise<{ id: string }> }) {
   if (!sameOrigin(request)) return NextResponse.json({ error: { code: "ORIGIN_INVALID" } }, { status: 403 });
   const actor = await actorForRequest(request);
   if (!actor) return NextResponse.json({ error: { code: "UNAUTHENTICATED" } }, { status: 401 });
@@ -22,3 +23,5 @@ export async function POST(request: NextRequest, context: { params: Promise<{ id
     return NextResponse.json({ error: { code: "ROSTER_PREVIEW_FAILED" } }, { status: 500 });
   }
 }
+
+export const POST = observeRoute(POSTHandler);

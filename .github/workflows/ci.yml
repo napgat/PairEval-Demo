@@ -26,9 +26,9 @@ jobs:
       - run: npm run typecheck
       - run: npm run lint
       - run: npm run build
-      - run: node scripts/build-prd-execution-matrix.mjs
-      - name: Check execution matrix was generated deterministically
-        run: git diff --exit-code -- docs/full-system/prd-v2.1-execution-matrix.md
+      - run: node scripts/build-prd-v20-matrix.mjs
+      - name: Check professor v2.0 baseline and evidence map
+        run: git diff --exit-code -- docs/full-system/prd-v2.0-evidence-map.md docs/full-system/prd-v2.0-baseline.json
       - run: npx playwright install --with-deps chromium
       - run: npm run seed:reset
       - name: Start synthetic Demo server

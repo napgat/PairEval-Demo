@@ -1,3 +1,5 @@
+> บันทึกประวัติจากรอบก่อนแก้: โปรดใช้ [ผลล่าสุดตาม PRD v2.0](prd-v2.0-readiness-2026-10-15.md) สำหรับการนำเสนอครั้งนี้
+
 # PairEval Full System prototype: start, demo, deploy and recover
 
 This guide uses synthetic records only. The SQLite Demo at `/` is a reversible local baseline; `/full-system` is the PostgreSQL prototype. The dedicated staging URL is <https://paireval-full-staging.vercel.app/full-system>. It is not approved for real student data or production use.
@@ -26,6 +28,8 @@ This guide uses synthetic records only. The SQLite Demo at `/` is a reversible l
 ## Checks and staging deployment
 
 Run `npm test`, `npm run typecheck`, `npm run lint`, `npm run build` sequentially. With a local server on port 3101, run guarded fixture scripts `node scripts/day3-assignment-smoke.mjs development`, `node scripts/day4-evaluation-smoke.mjs development`, `node scripts/day5-score-smoke.mjs development`, and `node scripts/day7-instructor-smoke.mjs development`. Each script checks its database host and deletes only its own synthetic fixture.
+
+The [15 October 2026 hardening check](readiness-hardening-2026-10-15.md) records the dependency update and the current Thai UI selectors. It also lists the additional withdrawal/review, notice, quality, migration and audit checks. Run those scripts directly after changing the corresponding UI. Migration rehearsal discovers all checked-in migrations; it does not replace a backup/restore drill. Check production advisories with `npm audit --omit=dev --audit-level=high` before presenting or deploying a new build.
 
 The private GitHub `staging` branch deploys to the dedicated Vercel project `paireval-full-staging`. Confirm the deployed commit and Ready status before running the same scripts with `staging`. Vercel Production environment variables belong to this staging project and must point to the separate PairEval staging operational and audit databases. A Ready deployment alone proves neither database connectivity nor feature acceptance.
 

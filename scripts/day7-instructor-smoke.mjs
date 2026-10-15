@@ -87,7 +87,7 @@ try {
     await context.addCookies([{ name: "paireval_full_session", value: tokens.get(owner), url: origin }]);
     const page = await context.newPage();
     await page.goto(`${origin}/full-system/classrooms/${room}/assignments`);
-    await page.getByRole("button", { name: /Synthetic Day 7 · OPEN/ }).click();
+    await page.getByRole("button", { name: /Synthetic Day 7/ }).filter({ hasText: "กำลังเปิดรับ" }).click();
     await page.getByLabel("คู่และเกณฑ์").selectOption({ index: 1 });
     await page.getByRole("button", { name: "มอบคู่ให้ตนเอง" }).click();
     await page.getByText("เพิ่มคู่ประเมินของผู้สอนแล้ว").waitFor();

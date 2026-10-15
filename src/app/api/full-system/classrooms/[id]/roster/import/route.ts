@@ -1,3 +1,4 @@
+import { observeRoute } from "@/lib/observe-route";
 import { NextResponse, type NextRequest } from "next/server";
 import { actorForRequest, classroomRole, sameOrigin } from "@/lib/full-system-auth";
 import { ClassroomConflictError, ClassroomInputError, importRoster, RosterVersionError } from "@/lib/full-system-classrooms";
@@ -5,7 +6,7 @@ import { AuditOutcomePendingError, AuditUnavailableError } from "@/lib/full-syst
 
 export const runtime = "nodejs";
 
-export async function POST(request: NextRequest, context: { params: Promise<{ id: string }> }) {
+async function POSTHandler(request: NextRequest, context: { params: Promise<{ id: string }> }) {
   if (!sameOrigin(request)) return NextResponse.json({ error: { code: "ORIGIN_INVALID" } }, { status: 403 });
   const actor = await actorForRequest(request);
   if (!actor) return NextResponse.json({ error: { code: "UNAUTHENTICATED" } }, { status: 401 });
@@ -13,7 +14,7 @@ export async function POST(request: NextRequest, context: { params: Promise<{ id
   const { id } = await context.params;
   const role = await classroomRole(actor, id);
   if (!role) return NextResponse.json({ error: { code: "NOT_FOUND" } }, { status: 404 });
-  if (!["OWNER", "CO_TEACHER"].includes(role)) return NextResponse.json({ error: { code: "FORBIDDEN" } }, { status: 403 });
+  if (!["OWNER", "CO_TEACHER", "TA"].includes(role)) return NextResponse.json({ error: { code: "FORBIDDEN" } }, { status: 403 });
   try {
     const body = await request.json();
     if (typeof body?.csv !== "string" || typeof body?.confirmDigest !== "string" ||
@@ -32,3 +33,5 @@ export async function POST(request: NextRequest, context: { params: Promise<{ id
     return NextResponse.json({ error: { code: "ROSTER_IMPORT_FAILED" } }, { status: 500 });
   }
 }
+
+export const POST = observeRoute(POSTHandler);

@@ -109,8 +109,10 @@ export default function FullSystemHome() {
         <h2 id="staging-notice-title">การใช้ข้อมูลสำหรับ staging ของโครงงาน</h2>
         <p>พื้นที่นี้ใช้สาธิตด้วยห้องเรียน งาน และคะแนนตัวอย่างเท่านั้น ไม่ใช่ระบบบันทึกคะแนนจริงของสถาบัน</p>
         <p>เมื่อเข้าสู่ระบบ PairEval เก็บอีเมล ตัวระบุบัญชี Google เซสชัน เวลาเข้าสู่ระบบ และบันทึกการกระทำที่จำเป็นเพื่อยืนยันตัวตนและตรวจสิทธิ์ ผู้ที่มีบทบาทในห้องตัวอย่างเห็นข้อมูลตามสิทธิ์ของตน</p>
-        <p>ข้อมูลบัญชีและบันทึก staging ยังไม่มีระบบลบตามกำหนดอัตโนมัติ ผู้ดูแลโครงงานจะลบข้อมูลสาธิตเมื่อสิ้นสุดการทดสอบหรือตามคำขอ นโยบายสำหรับใช้กับนักศึกษาจริงยังไม่ผ่านการอนุมัติ</p>
-        <p>การกดรับทราบจะบันทึกเวอร์ชันและเวลาที่กด หากไม่ต้องการดำเนินการต่อ ให้ออกจากระบบได้</p>
+        <p>ข้อมูลห้องสาธิตเป็นข้อมูลสังเคราะห์ การนำไปใช้กับรายวิชาจริงต้องตั้งค่าบัญชีผู้ดูแลและระบบงานตามกำหนดของสถาบัน</p>
+        <p>นโยบายกำหนดสองปีการศึกษาสำหรับข้อมูลตัวตน และหนึ่งปีการศึกษาสำหรับเวลาทำคำถาม โดยนับปีที่บันทึกเป็นปีแรก ค่าเริ่มต้นเริ่มปีการศึกษา 1 สิงหาคม ต้นแบบแทนตัวตนในบัญชีที่พ้นระยะและไม่มีกิจกรรมล่าสุดด้วยรหัสถาวร ส่วนข้อมูลเก่าของบัญชีที่ยังใช้เรียนต่ออยู่ต้องตรวจนโยบายแยกก่อนใช้กับรายวิชาจริง</p>
+        <p>Owner เห็นตัวผู้ประเมินได้เมื่อยืนยันเหตุผลและมีบันทึกตรวจสอบ ผู้สอนร่วมเห็นรหัสแทนตัว ผู้ช่วยสอนจัดการรายชื่อ นักศึกษาเห็นเฉพาะคะแนนและข้อมูลของตน ขอสำเนาข้อมูลของตนได้จากหน้าห้องเรียนโดยระบบส่งให้ทันที ภายในกรอบ 30 วัน</p>
+        <p>ระบบเก็บเวลาที่กำลังใช้งานหน้าประเมินเพื่อช่วยทบทวนคุณภาพคำตอบ ไม่มีการหักคะแนนอัตโนมัติจากสัญญาณนี้ การกดรับทราบจะบันทึกเวอร์ชันและเวลา หากไม่ต้องการดำเนินการต่อ ให้ออกจากระบบได้</p>
       </section>
       <p className="fine-print">บัญชีที่ตรวจพบ: {session.email}</p>
       <button className="primary-button" type="button" disabled={acknowledging} onClick={acknowledgeNotice}>
@@ -132,6 +134,12 @@ export default function FullSystemHome() {
       </div>
     </header>
     <div className="fs-dashboard-content">
+      <button className="secondary-button" onClick={async () => {
+        const response = await fetch("/api/full-system/privacy/export", { method: "POST" });
+        if (!response.ok) { setMessage("ขอสำเนาข้อมูลไม่สำเร็จ กรุณาลองอีกครั้ง"); return; }
+        const url = URL.createObjectURL(await response.blob()); const link = document.createElement("a");
+        link.href = url; link.download = "paireval-my-data.json"; link.click(); URL.revokeObjectURL(url);
+      }}>ขอสำเนาข้อมูลของฉัน</button>
       <section className="fs-welcome">
         <div><span className="eyebrow">พื้นที่ทำงาน</span><h1>สวัสดี, {session.email.split("@")[0]}</h1>
           <p>เลือกห้องเรียนเพื่อจัดการงาน หรือทำแบบประเมินที่ได้รับมอบหมาย</p></div>
@@ -148,13 +156,13 @@ export default function FullSystemHome() {
               const isInstructor = ["OWNER", "CO_TEACHER"].includes(room.role);
               const isStudent = room.role === "STUDENT";
               const destination = isInstructor ? `/full-system/classrooms/${room.id}/assignments` :
-                isStudent ? `/full-system/classrooms/${room.id}/work` : null;
+                isStudent ? `/full-system/classrooms/${room.id}/work` : `/full-system/classrooms/${room.id}/roster`;
               return <article className="fs-classroom-card" key={room.id}>
                 <div className="fs-classroom-card-top"><span className="fs-classroom-icon" aria-hidden="true">{isStudent ? "▤" : "▣"}</span>
                   <span className={`fs-role-badge ${isInstructor ? "is-instructor" : ""}`}>{roleLabel[room.role] ?? "สมาชิกห้องเรียน"}</span></div>
                 <h3>{room.name}</h3><p>{isInstructor ? "ดูแลงานประเมิน รายชื่อ และผลสรุปของห้องนี้" :
                   isStudent ? "ดูงานที่ได้รับมอบหมายและคะแนนส่วนตัว" : "ดูข้อมูลห้องเรียนตามสิทธิ์ที่ได้รับ"}</p>
-                {destination ? <a className="fs-card-link" href={destination}>{isInstructor ? "จัดการห้องเรียน" : "ดูงานของฉัน"}<span aria-hidden="true">→</span></a> :
+                {destination ? <a className="fs-card-link" href={destination}>{isInstructor ? "จัดการห้องเรียน" : isStudent ? "ดูงานของฉัน" : "จัดการรายชื่อและกลุ่ม"}<span aria-hidden="true">→</span></a> :
                   <span className="fs-card-link is-muted">เมนูบทบาทนี้ยังไม่พร้อมในต้นแบบ</span>}
               </article>;
             })}</div>}
@@ -183,6 +191,7 @@ export default function FullSystemHome() {
                 {!notice.readAt && <b>ใหม่</b>}</small></div>
             </li>)}</ul> : <p className="fs-muted-copy">ยังไม่มีการแจ้งเตือน</p>}
           </section>
+          <p><a href="/full-system/archive">ดูห้องเรียนที่เก็บแล้ว</a></p>
           <section className="fs-help-card"><span aria-hidden="true">?</span><div><h3>เริ่มต้นใช้งาน</h3>
             <p>อาจารย์จัดการงานจากการ์ดห้องเรียน ส่วนนักศึกษาเข้าไปทำแบบประเมินและดูคะแนนของตนเอง</p></div></section>
           <p className="fs-footer-note">พื้นที่นี้ใช้สำหรับสาธิตโครงงาน · ไม่ใช่ระบบบันทึกคะแนนจริง</p>

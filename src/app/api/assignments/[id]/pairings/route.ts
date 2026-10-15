@@ -1,3 +1,4 @@
+import { observeRoute } from "@/lib/observe-route";
 import { NextResponse, type NextRequest } from "next/server";
 import { actorForToken, openDemoDb } from "@/lib/demo-data";
 import { SESSION_COOKIE } from "@/lib/demo-session";
@@ -15,7 +16,7 @@ function authorizedDb(request: NextRequest, assignmentId: string) {
   return db;
 }
 
-export async function GET(request: NextRequest, context: Context) {
+async function GETHandler(request: NextRequest, context: Context) {
   const { id } = await context.params;
   const db = authorizedDb(request, id);
   if (!db) return NextResponse.json({ error: "ไม่มีสิทธิ์ดูการจัดคู่" }, { status: 403 });
@@ -25,7 +26,7 @@ export async function GET(request: NextRequest, context: Context) {
   } finally { db.close(); }
 }
 
-export async function POST(request: NextRequest, context: Context) {
+async function POSTHandler(request: NextRequest, context: Context) {
   const { id } = await context.params;
   const db = authorizedDb(request, id);
   if (!db) return NextResponse.json({ error: "ไม่มีสิทธิ์สร้างคู่" }, { status: 403 });
@@ -35,3 +36,6 @@ export async function POST(request: NextRequest, context: Context) {
     return NextResponse.json(result, { status });
   } finally { db.close(); }
 }
+
+export const GET = observeRoute(GETHandler);
+export const POST = observeRoute(POSTHandler);

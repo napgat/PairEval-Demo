@@ -8,7 +8,7 @@ import { rawComparisonCsv, type RawScoreInput } from "./full-system-raw-export";
 import { qualityReport, type QualityReport } from "./full-system-quality";
 import type { SyntheticQualityContext } from "./full-system-quality-advanced";
 import { syntheticQualityEnabled } from "./full-system-synthetic-quality";
-import { AssignmentConflictError, AssignmentInputError, AssignmentNotFoundError } from "./full-system-assignments";
+import { AssignmentConflictError, AssignmentInputError, AssignmentNotFoundError, AssignmentForbiddenError } from "./full-system-assignments";
 import { calculateItemScores, choicePoints, mappedScore, participation, type ScoreAnswer, type ScoreItem,
   type ScorePair, type ScoreSettings } from "./full-system-scoring";
 
@@ -199,7 +199,7 @@ async function scoreInputs(client: PoolClient, a: AssignmentRow, kind: "INTERIM"
   const friendshipRows = synthetic ? (await client.query<{ evaluatorId: string; friendId: string }>(
     `SELECT evaluator_user_id AS "evaluatorId",friend_user_id AS "friendId" FROM synthetic_close_friend
       WHERE classroom_id=$1 ORDER BY evaluator_user_id,friend_user_id`, [a.classroom_id])).rows : [];
-  const qualityContext: SyntheticQualityContext = { synthetic, students: students.rows.map(s => ({ id: s.id, groupId: s.group_id })), friendships: friendshipRows };
+  const qualityContext: SyntheticQualityContext = { synthetic, timingEnabled: true, students: students.rows.map(s => ({ id: s.id, groupId: s.group_id })), friendships: friendshipRows };
   const source = { groups: groups.rows, students: students.rows, criteria: criteria.rows, pairs, answers, qualityContext,
     overrides: overrideRows.rows };
   const output = assembleScoreRun({ assignmentId: a.id, generation: a.generation, kind,
@@ -246,11 +246,12 @@ export async function recomputeMutationScores(client: PoolClient, actor: FullAct
   return persistScoreRun(client, actor, a, "INTERIM");
 }
 
-/** Only the secret-guarded synthetic scheduler calls this inside its audited transaction. */
-export async function persistScheduledInterimScore(client: PoolClient, assignmentId: string, systemActorId: string) {
-  if (!["development", "staging"].includes(process.env.PAIR_EVAL_ENV ?? "") ||
+/** Only a secret-guarded scheduler calls this inside its audited transaction. */
+export async function persistScheduledInterimScore(client: PoolClient, assignmentId: string, systemActorId: string,
+    tryFinalize = false) {
+  if (!["development", "staging", "production"].includes(process.env.PAIR_EVAL_ENV ?? "") ||
       systemActorId !== "00000000-0000-4000-8000-000000000026" || !validId(assignmentId)) {
-    throw new AssignmentConflictError("Synthetic scheduled scoring is disabled");
+    throw new AssignmentConflictError("Scheduled scoring is disabled");
   }
   const found = await client.query<AssignmentRow>(`SELECT a.*,c.allowed_email_domains,c.slug AS classroom_slug
     FROM assignment a JOIN classroom c ON c.id=a.classroom_id
@@ -258,13 +259,38 @@ export async function persistScheduledInterimScore(client: PoolClient, assignmen
       WHERE g.assignment_id=a.id AND g.generation=a.generation AND g.status='ACTIVE') FOR UPDATE OF a`, [assignmentId]);
   const a = found.rows[0];
   if (!a || !["OPEN", "CLOSED"].includes(a.status)) throw new AssignmentConflictError("Assignment is not open for scheduled Interim");
-  const roster = await client.query<{ ok: boolean }>(`SELECT bool_and(u.email_lookup LIKE '%@example.test' OR u.email_lookup LIKE '%.invalid') AS ok
-    FROM classroom_member m JOIN app_user u ON u.id=m.user_id WHERE m.classroom_id=$1 AND m.role='STUDENT'`, [a.classroom_id]);
   const service = await client.query(`SELECT 1 FROM app_user WHERE id=$1 AND status='DISABLED' AND email_lookup='score-scheduler@system.invalid'`, [systemActorId]);
-  if (!roster.rows[0].ok || !service.rowCount) throw new AssignmentConflictError("Scheduled scoring requires a synthetic roster and service identity");
+  if (!service.rowCount) throw new AssignmentConflictError("Scheduled scoring requires the registered service identity");
   const actor: FullActor = { id: systemActorId, email: "score-scheduler@system.invalid", hostedDomain: null,
     platformRole: "USER", canCreateClassroom: false, privacyAccepted: false };
-  return persistScoreRun(client, actor, a, "INTERIM");
+  let kind: "INTERIM" | "FINAL" = "INTERIM";
+  if (tryFinalize) {
+    const preview = await scoreInputs(client, a, "FINAL");
+    const output = preview.output;
+    const appeals = await client.query("SELECT 1 FROM appeal WHERE assignment_id=$1 AND status='OPEN' LIMIT 1", [a.id]);
+    if (!appeals.rowCount && automaticFinalizationReady(output)) kind = "FINAL";
+    else {
+      await client.query(`INSERT INTO app_notification(id,recipient_user_id,assignment_id,generation,event_type,dedupe_key,message,deep_link)
+        SELECT $1,m.user_id,$2,$3,'FINALIZE_REVIEW_REQUIRED',$4,'งานนี้ต้องตรวจสอบก่อนยืนยันคะแนนอัตโนมัติ',$5
+        FROM classroom_member m WHERE m.classroom_id=$6 AND m.role='OWNER' AND m.membership_status='ACTIVE'
+        ON CONFLICT(dedupe_key) DO NOTHING`, [randomUUID(), a.id, a.generation,
+        `${a.id}:${a.generation}:finalize-review`, `/full-system/assignments/${a.id}/reports`, a.classroom_id]);
+    }
+  }
+  const result = await persistScoreRun(client, actor, a, kind);
+  return { ...result, autoFinalized: kind === "FINAL" };
+}
+
+export function automaticFinalizationReady(output: ScoreRun): boolean {
+  return output.groups.length > 0 && output.students.length > 0 &&
+    output.groups.every(g => g.component !== null && !g.flags.includes("LOW_CONFIDENCE")) &&
+    output.students.every(s => s.total !== null && !s.flags.includes("LOW_CONFIDENCE") && !s.flags.includes("BELOW_K"));
+}
+
+export async function scheduledFinalizationReady(client: PoolClient, id: string): Promise<boolean> {
+  const result = await client.query<AssignmentRow>("SELECT a.*,c.allowed_email_domains,c.slug AS classroom_slug FROM assignment a JOIN classroom c ON c.id=a.classroom_id WHERE a.id=$1", [id]);
+  const appeals = await client.query("SELECT 1 FROM appeal WHERE assignment_id=$1 AND status='OPEN' LIMIT 1", [id]);
+  return !!result.rows[0] && !appeals.rowCount && automaticFinalizationReady((await scoreInputs(client,result.rows[0],"FINAL")).output);
 }
 
 export async function createScoreRun(actor: FullActor, assignmentId: string, kind: "INTERIM" | "FINAL") {
@@ -274,6 +300,8 @@ export async function createScoreRun(actor: FullActor, assignmentId: string, kin
       const a = await editorScope(client, actor, assignmentId, true);
       if (a.status === "FINALIZED") throw new AssignmentConflictError("Reopen before recalculating scores");
       if (kind === "FINAL") {
+        const owner = await client.query("SELECT 1 FROM classroom_member WHERE classroom_id=$1 AND user_id=$2 AND role='OWNER' AND membership_status='ACTIVE'", [a.classroom_id, actor.id]);
+        if (!owner.rowCount) throw new AssignmentForbiddenError("Only the Owner can finalize scores");
         const time = await client.query<{ open: boolean }>(`SELECT
           ($1::timestamptz > clock_timestamp() OR $2::timestamptz > clock_timestamp()) AS open`,
         [a.group_deadline_utc, a.individual_deadline_utc]);
@@ -348,6 +376,8 @@ export async function reopenScore(actor: FullActor, assignmentId: string, reason
     prepare: async client => {
       const a = await editorScope(client, actor, assignmentId, true);
       if (a.status !== "FINALIZED") throw new AssignmentConflictError("Assignment is not finalized");
+      const owner = await client.query("SELECT 1 FROM classroom_member WHERE classroom_id=$1 AND user_id=$2 AND role='OWNER' AND membership_status='ACTIVE'", [a.classroom_id, actor.id]);
+      if (!owner.rowCount) throw new AssignmentForbiddenError("Only the Owner can reopen scores");
       return a;
     },
     intent: a => ({ actorUserId: actor.id, classroomId: a.classroom_id,

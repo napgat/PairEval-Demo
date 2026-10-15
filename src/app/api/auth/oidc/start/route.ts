@@ -1,9 +1,10 @@
+import { observeRoute } from "@/lib/observe-route";
 import { NextResponse, type NextRequest } from "next/server";
 import { oidcConfig, pkceChallenge, randomOidcValue } from "@/lib/full-system-oidc";
 
 export const runtime = "nodejs";
 
-export function GET(request: NextRequest) {
+function GETHandler(request: NextRequest) {
   let config;
   try { config = oidcConfig(); } catch { return NextResponse.json({ error: { code: "OIDC_NOT_CONFIGURED" } }, { status: 503 }); }
   if (new URL(config.redirectUri).origin !== new URL(request.url).origin) {
@@ -24,3 +25,5 @@ export function GET(request: NextRequest) {
   response.cookies.set("paireval_oidc_verifier", verifier, options);
   return response;
 }
+
+export const GET = observeRoute(GETHandler);

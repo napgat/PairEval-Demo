@@ -8,7 +8,7 @@ type AuditOutcome = "COMMITTED" | "REJECTED";
 type OutboxRow = {
   id: string; request_id: string; classroom_id: string | null; actor_user_id: string;
   action: string; resource_type: string; resource_id: string; before_json: Record<string, unknown> | null;
-  after_json: Record<string, unknown> | null; reason: string | null;
+  after_json: Record<string, unknown> | null; reason: string | null; ip_address: string | null;
 };
 
 export function outcomeAction(action: string, outcome: AuditOutcome): string {
@@ -19,17 +19,17 @@ export function outcomeAction(action: string, outcome: AuditOutcome): string {
 async function enqueueOutcome(client: PoolClient, intent: AuditIntent, outcome: AuditOutcome,
     after?: Record<string, unknown>, reason?: string): Promise<void> {
   await client.query(`INSERT INTO audit_outbox
-    (id,request_id,classroom_id,actor_user_id,action,resource_type,resource_id,before_json,after_json,reason)
-    VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`,
+    (id,request_id,classroom_id,actor_user_id,action,resource_type,resource_id,before_json,after_json,reason,ip_address)
+    VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)`,
   [randomUUID(), intent.requestId, intent.classroomId ?? null, intent.actorUserId,
     outcomeAction(intent.action, outcome), intent.resourceType, intent.resourceId,
-    intent.before ?? null, after ?? intent.after ?? null, reason ?? intent.reason ?? null]);
+    intent.before ?? null, after ?? intent.after ?? null, reason ?? intent.reason ?? null, intent.ipAddress ?? null]);
 }
 
 /** Safe to retry: the audit event ID is fixed by the outbox row. */
 export async function deliverAuditOutcome(requestId: string): Promise<void> {
   const found = await databasePool().query<OutboxRow>(`SELECT id,request_id,classroom_id,actor_user_id,
-    action,resource_type,resource_id,before_json,after_json,reason
+    action,resource_type,resource_id,before_json,after_json,reason,ip_address
     FROM audit_outbox WHERE request_id=$1 AND delivered_at IS NULL`, [requestId]);
   const row = found.rows[0];
   if (!row) return;
@@ -37,7 +37,7 @@ export async function deliverAuditOutcome(requestId: string): Promise<void> {
     classroomId: row.classroom_id ?? undefined, actorUserId: row.actor_user_id,
     action: row.action, resourceType: row.resource_type, resourceId: row.resource_id,
     before: row.before_json ?? undefined, after: row.after_json ?? undefined,
-    reason: row.reason ?? undefined });
+    reason: row.reason ?? undefined, ipAddress: row.ip_address });
   await databasePool().query("UPDATE audit_outbox SET delivered_at=now() WHERE id=$1 AND delivered_at IS NULL", [row.id]);
 }
 

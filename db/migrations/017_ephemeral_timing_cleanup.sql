@@ -1,0 +1,3 @@
+ALTER TABLE evaluation_active_session DROP CONSTRAINT evaluation_active_session_pair_assignment_id_fkey;
+ALTER TABLE evaluation_active_session ADD CONSTRAINT evaluation_active_session_pair_assignment_id_fkey
+ FOREIGN KEY(pair_assignment_id) REFERENCES pair_assignment(id) ON DELETE CASCADE;

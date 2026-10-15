@@ -1,3 +1,4 @@
+import { observeRoute } from "@/lib/observe-route";
 import { randomBytes } from "node:crypto";
 import { NextResponse, type NextRequest } from "next/server";
 import { openDemoDb } from "@/lib/demo-data";
@@ -5,7 +6,7 @@ import { SESSION_COOKIE } from "@/lib/demo-session";
 
 export const runtime = "nodejs";
 
-export async function POST(request: NextRequest) {
+async function POSTHandler(request: NextRequest) {
   const form = await request.formData();
   const role = form.get("role");
   if (role !== "instructor" && role !== "student") return NextResponse.json({ error: "บทบาทไม่ถูกต้อง" }, { status: 400 });
@@ -21,3 +22,5 @@ export async function POST(request: NextRequest) {
   response.cookies.set(SESSION_COOKIE, token, { httpOnly: true, sameSite: "lax", path: "/", maxAge: 60 * 60 * 8 });
   return response;
 }
+
+export const POST = observeRoute(POSTHandler);

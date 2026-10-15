@@ -4,9 +4,10 @@ import { databasePool } from "./full-system-postgres";
 import type { FullActor } from "./full-system-auth";
 
 export type NotificationEvent = "ASSIGNMENT_PUBLISHED" | "PAIRS_REGENERATED" |
-  "DEADLINE_48H_GROUP" | "DEADLINE_48H_INDIVIDUAL" | "SCORE_FINALIZED" | "EXTRA_EVALUATOR";
+  "DEADLINE_48H_GROUP" | "DEADLINE_48H_INDIVIDUAL" | "SCORE_FINALIZED" | "EXTRA_EVALUATOR" | "FINALIZE_REVIEW_REQUIRED";
 
 const details: Record<NotificationEvent, { message: string; page: "work" | "score" }> = {
+  FINALIZE_REVIEW_REQUIRED: { message: "งานนี้ต้องตรวจสอบก่อนยืนยันคะแนนอัตโนมัติ", page: "score" },
   ASSIGNMENT_PUBLISHED: { message: "เปิดงานประเมินแล้ว", page: "work" },
   PAIRS_REGENERATED: { message: "รายการคู่ประเมินเปลี่ยนแล้ว โปรดตรวจงานอีกครั้ง", page: "work" },
   DEADLINE_48H_GROUP: { message: "เหลือไม่เกิน 48 ชั่วโมงก่อนปิดประเมินกลุ่ม", page: "work" },
@@ -53,7 +54,7 @@ export async function listNotifications(actor: FullActor) {
     FROM app_notification n JOIN assignment a ON a.id=n.assignment_id
     JOIN classroom c ON c.id=a.classroom_id
     JOIN classroom_member m ON m.classroom_id=c.id AND m.user_id=n.recipient_user_id
-    WHERE n.recipient_user_id=$1 AND m.role='STUDENT' AND m.membership_status='ACTIVE'
+    WHERE n.recipient_user_id=$1 AND (m.role='STUDENT' OR m.role='OWNER' AND n.event_type='FINALIZE_REVIEW_REQUIRED') AND m.membership_status='ACTIVE'
       AND c.status='ACTIVE' AND a.status IN ('OPEN','CLOSED','FINALIZED')
       AND n.generation=a.generation
       AND (n.event_type<>'SCORE_FINALIZED' OR a.status='FINALIZED')
@@ -70,7 +71,7 @@ export async function markNotificationRead(actor: FullActor, id: string) {
     FROM assignment a JOIN classroom c ON c.id=a.classroom_id
     JOIN classroom_member m ON m.classroom_id=c.id
     WHERE n.id=$1 AND n.assignment_id=a.id AND n.recipient_user_id=$2
-      AND m.user_id=$2 AND m.role='STUDENT' AND m.membership_status='ACTIVE'
+      AND m.user_id=$2 AND (m.role='STUDENT' OR m.role='OWNER' AND n.event_type='FINALIZE_REVIEW_REQUIRED') AND m.membership_status='ACTIVE'
       AND c.status='ACTIVE' AND a.status IN ('OPEN','CLOSED','FINALIZED')
       AND n.generation=a.generation
       AND (n.event_type<>'SCORE_FINALIZED' OR a.status='FINALIZED')

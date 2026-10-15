@@ -93,10 +93,11 @@ try {
   expect(await call(timing, owner, "POST", { pairId: timingPair }), 404, "owner timing denied");
   expect(await call(timing, outsider, "POST", { pairId: timingPair }), 404, "outsider timing denied");
   expect(await call(timing, students[0], "POST", { pairId: timingPair }), 404, "foreign pair denied");
-  // Reserved addresses alone do not enable timing.
+  // PRD v2.0 timing is available after the privacy notice, independently of synthetic friend fixtures.
   await pool.query("DELETE FROM synthetic_close_friend WHERE classroom_id=$1", [room]);
   await pool.query("DELETE FROM synthetic_quality_cohort WHERE classroom_id=$1", [room]);
-  expect(await call(timing, tester, "POST", { pairId: timingPair }), 409, "unenrolled timing denied");
+  const normalLease = expect(await call(timing, tester, "POST", { pairId: timingPair }), 200, "timing does not require synthetic cohort enrollment");
+  expect(await call(timing, tester, "PUT", { pairId: timingPair, leaseId: normalLease.leaseId, sequence: 1, deltaMs: 0, close: true }), 200, "close general timing probe");
   await pool.query("INSERT INTO synthetic_quality_cohort(classroom_id,provenance) VALUES ($1,'Explicit synthetic integration fixture restored')", [room]);
   await pool.query("INSERT INTO synthetic_close_friend(classroom_id,evaluator_user_id,friend_user_id,provenance) VALUES ($1,$2,$3,'Declared synthetic friendship restored')", [room, students[0], students[6]]);
   const lease = expect(await call(timing, tester, "POST", { pairId: timingPair }), 200, "timing start");
@@ -121,7 +122,7 @@ try {
     await page.waitForResponse(r => r.url().endsWith("/timing") && r.request().method() === "PUT" && r.status() === 200);
     await page.waitForResponse(r => r.url().endsWith("/timing") && r.request().method() === "PUT" && r.status() === 200);
     await field.getByRole("radio").first().check();
-    await page.getByRole("button", { name: "ส่งคำตอบ", exact: true }).click();
+    await page.getByRole("button", { name: "ยืนยันส่งคำตอบ", exact: true }).click();
     await page.getByText("ส่งคำตอบรุ่น 1 แล้ว (1/1)", { exact: true }).waitFor();
     await context.close();
     const stored = (await pool.query(`SELECT sa.active_duration_ms FROM submission_answer sa JOIN submission_revision r ON r.id=sa.revision_id
@@ -158,7 +159,7 @@ try {
     await reportContext.addCookies([{ name: "paireval_full_session", value: tokens.get(owner), url: origin }]);
     const report = await reportContext.newPage(); report.setDefaultTimeout(60000);
     await report.goto(`${origin}/full-system/assignments/${assignment}/reports`);
-    await report.getByRole("tab", { name: "Quality", exact: true }).click();
+    await report.getByRole("tab", { name: "คุณภาพคำตอบ", exact: true }).click();
     await report.getByText("สัญญาณคุณภาพ QS-02–07", { exact: true }).waitFor();
     for (const signal of ["QS-05", "QS-06", "QS-07"]) await report.getByRole("cell", { name: new RegExp(signal) }).first().waitFor();
     if (process.env.PAIR_EVAL_QUALITY_SCREENSHOT) await report.screenshot({ path: process.env.PAIR_EVAL_QUALITY_SCREENSHOT, fullPage: true });

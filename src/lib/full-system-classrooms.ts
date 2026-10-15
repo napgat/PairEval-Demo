@@ -24,7 +24,7 @@ async function upsertRoster(client: PoolClient, classroomId: string, rows: FullR
     }
     await client.query(`INSERT INTO app_user (id,email_lookup,email_raw,display_name)
       VALUES ($1,$2,$3,$4) ON CONFLICT (email_lookup) DO NOTHING`,
-      [randomUUID(), row.email, row.email, row.displayName]);
+      [randomUUID(), row.email, row.emailRaw, row.displayName]);
     const user = await client.query<{ id: string }>("SELECT id FROM app_user WHERE email_lookup = $1", [row.email]);
     const member = await client.query(`INSERT INTO classroom_member
       (id,classroom_id,user_id,role,group_id,student_number)
@@ -119,7 +119,7 @@ export async function importRoster(actor: FullActor, classroomId: string, csv: s
         `SELECT m.role,c.allowed_email_domains FROM classroom_member m JOIN classroom c ON c.id = m.classroom_id
          WHERE m.classroom_id = $1 AND m.user_id = $2 AND m.membership_status = 'ACTIVE' FOR UPDATE`,
         [classroomId, actor.id]);
-      if (!membership.rows[0] || !["OWNER", "CO_TEACHER"].includes(membership.rows[0].role) ||
+      if (!membership.rows[0] || !["OWNER", "CO_TEACHER", "TA"].includes(membership.rows[0].role) ||
           !domainAllowed(actor.hostedDomain, membership.rows[0].allowed_email_domains)) {
         throw new ClassroomInputError("Classroom not found");
       }

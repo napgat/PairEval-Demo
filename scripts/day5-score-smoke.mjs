@@ -159,17 +159,19 @@ try {
   const workbook = new ExcelJS.Workbook(); await workbook.xlsx.load(Buffer.from(xlsx.data));
   if (workbook.worksheets.map(s => s.name).join("|") !==
       "Group Summary|Individual Summary|Pair Coverage|Metadata" ||
-      workbook.getWorksheet("Metadata").getCell("B5").value !== "v2.1") {
+      workbook.getWorksheet("Metadata").getCell("B5").value !== "prd-v2.0-1") {
     throw new Error("XLSX 4-sheet metadata mismatch");
   }
   if (process.env.PAIR_EVAL_EXPORT_KEY) {
+    // Separate export scenarios share a fixture actor; clear only its measured rate window.
+    await pool.query("DELETE FROM api_rate_window WHERE user_id=$1 AND bucket='exports'", [owner]);
     const rawPath = `/api/full-system/assignments/${assignment}/exports/raw`;
     expectStatus(await call(rawPath, outsider, "POST", { includeIdentities: false }), 404,
       "outsider raw export denial");
     expectStatus(await call(rawPath, students[0], "POST", { includeIdentities: false }), 404,
       "student raw export denial");
-    expectStatus(await call(rawPath, owner, "POST", { includeIdentities: true }), 409,
-      "identity raw export denial");
+    expectStatus(await call(rawPath, owner, "POST", { includeIdentities: true }), 422,
+      "identity raw export requires explicit confirmation");
     const raw = await call(rawPath, owner, "POST", { includeIdentities: false });
     expectStatus(raw, 200, "pseudonymous raw export");
     const rawText = new TextDecoder().decode(raw.data);
@@ -201,10 +203,10 @@ try {
     const page = await context.newPage(); page.setDefaultTimeout(60000);
     await page.goto(`${origin}/full-system/assignments/${assignment}/reports`);
     await page.getByRole("heading", { name: "รายงานและตัดสินคะแนน" }).waitFor();
-    await page.getByText("รุ่น 2 · INTERIM").waitFor();
-    await page.getByRole("tab", { name: "Individual Summary" }).click();
+    await page.getByText("รุ่น 2 · ผลระหว่างดำเนินงาน").waitFor();
+    await page.getByRole("tab", { name: "คะแนนรายบุคคล", exact: true }).click();
     await page.getByRole("columnheader", { name: "ส่ง/มอบหมาย" }).waitFor();
-    await page.getByRole("tab", { name: "Quality", exact: true }).click();
+    await page.getByRole("tab", { name: "คุณภาพคำตอบ", exact: true }).click();
     await page.getByText("สัญญาณคุณภาพ QS-02–07", { exact: true }).waitFor();
     await page.getByText("QS-02 เลือกค่าเดิม", { exact: true }).first().waitFor();
     await page.getByText("QS-05 เปิดเฉพาะชุดทดสอบสังเคราะห์", { exact: false }).waitFor();
@@ -316,7 +318,7 @@ try {
       await context.addCookies([{ name: "paireval_full_session", value: tokens.get(owner), url: origin }]);
       const page = await context.newPage(); page.setDefaultTimeout(60000);
       await page.goto(`${origin}/full-system/assignments/${assignment}/reports`);
-      await page.getByRole("tab", { name: "Quality", exact: true }).click();
+      await page.getByRole("tab", { name: "คุณภาพคำตอบ", exact: true }).click();
       await page.getByLabel("คำตอบที่จะทบทวน").selectOption(individualPair);
       await page.getByLabel("เหตุผลทบทวน (อย่างน้อย 10 ตัวอักษร)").fill(reviewBody.reason);
       await page.route("**/comparison-reviews", async route => {
@@ -386,13 +388,14 @@ try {
       await context.addCookies([{ name: "paireval_full_session", value: tokens.get(owner), url: origin }]);
       const page = await context.newPage(); page.setDefaultTimeout(60000); page.on("dialog", dialog => dialog.accept());
       await page.goto(`${origin}/full-system/classrooms/${room}/assignments`);
-      await page.getByRole("heading", { name: "ทดลองถอนรายชื่อสังเคราะห์" }).waitFor();
+      await page.locator(".fs-roster-tools > summary").click();
+      await page.getByRole("heading", { name: "เครื่องมือทดสอบข้อมูลตัวอย่าง", exact: true }).waitFor();
       await page.getByLabel("นักศึกษาที่จะถอน").selectOption(students[7]);
-      await page.getByLabel("เหตุผลถอน (อย่างน้อย 10 ตัวอักษร)").fill("Synthetic pending evaluator withdrawal");
+      await page.getByLabel("เหตุผลถอน", { exact: true }).fill("Synthetic pending evaluator withdrawal");
       const response = page.waitForResponse(r => r.url().endsWith(`/members/${students[7]}/withdraw`) && r.request().method() === "POST");
-      await page.getByRole("button", { name: "ยืนยันถอนรายชื่อสังเคราะห์", exact: true }).click();
+      await page.getByRole("button", { name: "ถอนสมาชิกข้อมูลตัวอย่าง", exact: true }).click();
       if ((await response).status() !== 200) throw new Error("Browser pending withdrawal failed");
-      await page.getByText("ถอนรายชื่อสังเคราะห์และบันทึก snapshot ปัจจุบันใหม่แล้ว", { exact: true }).waitFor();
+      await page.getByText("ถอนสมาชิกข้อมูลตัวอย่างและบันทึกคะแนนปัจจุบันใหม่แล้ว", { exact: true }).waitFor();
       if (process.env.PAIR_EVAL_WITHDRAWAL_SCREENSHOT) await page.screenshot({ path: process.env.PAIR_EVAL_WITHDRAWAL_SCREENSHOT, fullPage: false });
       await context.close();
     } finally { await browser.close(); }

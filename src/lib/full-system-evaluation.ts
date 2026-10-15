@@ -4,7 +4,6 @@ import { databasePool } from "./full-system-postgres";
 import { domainAllowed, type FullActor } from "./full-system-auth";
 import { runAuditedMutation } from "./full-system-audit-outbox";
 import { AssignmentConflictError, AssignmentInputError, AssignmentNotFoundError } from "./full-system-assignments";
-import { syntheticEmail, syntheticQualityEnabled } from "./full-system-synthetic-quality";
 
 export type EvaluationSide = "GROUP" | "INDIVIDUAL";
 const sideOk = (side: string): side is EvaluationSide => side === "GROUP" || side === "INDIVIDUAL";
@@ -14,6 +13,7 @@ type Scope = { classroom_id: string; generation: number; status: string; deadlin
 
 async function scope(client: PoolClient, actor: FullActor, assignmentId: string, side: EvaluationSide,
     lock = false): Promise<Scope> {
+  if (lock) await client.query("SELECT pg_advisory_xact_lock(hashtextextended($1,0))", [`evaluation:${assignmentId}:${actor.id}:${side}`]);
   const found = await client.query<Scope & { allowed_email_domains: string[] }>(`SELECT a.classroom_id,a.generation,a.status,
     ${side === "GROUP" ? "a.group_deadline_utc" : "a.individual_deadline_utc"} AS deadline,
     (${side === "GROUP" ? "a.group_deadline_utc" : "a.individual_deadline_utc"} > clock_timestamp()) AS deadline_open,
@@ -24,7 +24,7 @@ async function scope(client: PoolClient, actor: FullActor, assignmentId: string,
     JOIN classroom_member m ON m.classroom_id=a.classroom_id
     WHERE a.id=$1 AND c.status='ACTIVE' AND m.user_id=$2
       AND m.role IN ('STUDENT','OWNER','CO_TEACHER')
-      AND m.membership_status='ACTIVE' ${lock ? "FOR UPDATE OF a" : ""}`, [assignmentId, actor.id]);
+      AND m.membership_status='ACTIVE' ${lock ? "FOR SHARE OF a" : ""}`, [assignmentId, actor.id]);
   const row = found.rows[0];
   if (!row || !domainAllowed(actor.hostedDomain, row.allowed_email_domains)) {
     throw new AssignmentNotFoundError("Evaluation not found");
@@ -71,8 +71,8 @@ export async function getEvaluation(actor: FullActor, assignmentId: string, side
       ORDER BY revision_number DESC LIMIT 1`, [assignmentId, actor.id, side, row.generation]);
     const draft = await client.query(`SELECT updated_at FROM evaluation_draft WHERE assignment_id=$1
       AND evaluator_user_id=$2 AND side=$3 AND generation=$4`, [assignmentId, actor.id, side, row.generation]);
-    return { assignmentId, side, generation: row.generation, timezone: row.timezone,
-      syntheticTimingEnabled: row.role === "STUDENT" && syntheticEmail(actor.email) && await syntheticQualityEnabled(client, row.classroom_id),
+    return { assignmentId, side, viewerId: actor.id, generation: row.generation, timezone: row.timezone,
+      syntheticTimingEnabled: row.role === "STUDENT",
       deadline: row.deadline?.toISOString() ?? null, readOnly: row.status !== "OPEN" || !row.deadline_open,
       disabledReason: side === "INDIVIDUAL" && pairs.rows.length === 0 ? "No individual pairs are assigned" : null,
       criteria: criteria.rows.map(c => ({ id: c.id, name: c.name, description: c.description, weightPct: Number(c.weight_pct) })),
@@ -89,8 +89,8 @@ export async function requireTimingPair(client: PoolClient, actor: FullActor, as
   if (!idOk(assignmentId) || !sideOk(side) || !idOk(pairId)) throw new AssignmentInputError("Invalid timing scope");
   const row = await scope(client, actor, assignmentId, side, true); writable(row);
   await eligiblePair(client, assignmentId, actor.id, side, row.generation, pairId);
-  if (row.role !== "STUDENT" || !syntheticEmail(actor.email) || !await syntheticQualityEnabled(client, row.classroom_id)) {
-    throw new AssignmentConflictError("Timing is disabled outside an explicitly enrolled synthetic cohort");
+  if (row.role !== "STUDENT") {
+    throw new AssignmentConflictError("Timing is only available for student evaluation");
   }
   return row.generation;
 }
@@ -187,7 +187,6 @@ export async function submitEvaluation(actor: FullActor, assignmentId: string, s
         WHERE d.assignment_id=$1 AND d.evaluator_user_id=$2 AND d.side=$3 AND d.generation=$4
           AND p.assignment_id=$1 AND p.evaluator_user_id=$2 AND p.side=$3 AND p.generation=$4`,
       [assignmentId, actor.id, side, row.generation]);
-      if (!answers.rows.length) throw new AssignmentConflictError("Answer at least one pair before submitting");
       const number = await client.query<{ n: number }>(`SELECT COALESCE(max(revision_number),0)::integer+1 AS n
         FROM submission_revision WHERE assignment_id=$1 AND evaluator_user_id=$2 AND side=$3 AND generation=$4`,
       [assignmentId, actor.id, side, row.generation]);
@@ -196,7 +195,7 @@ export async function submitEvaluation(actor: FullActor, assignmentId: string, s
         (id,assignment_id,evaluator_user_id,side,generation,revision_number,idempotency_key)
         VALUES ($1,$2,$3,$4,$5,$6,$7)`, [revisionId, assignmentId, actor.id, side,
         row.generation, number.rows[0].n, idempotencyKey]);
-      const timingEnabled = row.role === "STUDENT" && syntheticEmail(actor.email) && await syntheticQualityEnabled(client, row.classroom_id);
+      const timingEnabled = row.role === "STUDENT";
       for (const answer of answers.rows) await client.query(`INSERT INTO submission_answer
         (revision_id,pair_assignment_id,choice,active_duration_ms)
         SELECT $1,$2,$3,CASE WHEN $4::boolean AND count(*)>0 AND bool_and(closed)

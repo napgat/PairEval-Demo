@@ -1,7 +1,8 @@
 import { normalizeEmail } from "./full-system-auth";
 
-export type FullRosterRow = { line: number; email: string; groupName: string; studentId: string | null; displayName: string };
+export type FullRosterRow = { line: number; email: string; emailRaw: string; groupName: string; studentId: string | null; displayName: string };
 export type FullRosterPreview = { rows: FullRosterRow[]; errors: string[]; warnings: string[]; groups: string[] };
+const spreadsheetText = (value: string) => /^[\s\uFEFF]*[=+@-]/u.test(value) ? `'${value}` : value;
 
 function recordsForCsv(text: string): { line: number; fields: string[] }[] | string {
   const records: { line: number; fields: string[] }[] = [];
@@ -52,10 +53,11 @@ export function previewFullRosterCsv(input: unknown): FullRosterPreview {
   for (const record of parsed) {
     if (record.fields.length !== names.length) { errors.push(`row ${record.line}: expected ${names.length} columns`); continue; }
     const values = new Map(names.map((name, index) => [name, record.fields[index].trim()]));
-    const email = normalizeEmail(values.get("email") ?? "");
-    const groupName = values.get("group_name") ?? "";
-    const studentId = values.get("student_id") || null;
-    const displayName = values.get("display_name") || email.split("@")[0];
+    const emailRaw = values.get("email") ?? "";
+    const email = normalizeEmail(emailRaw);
+    const groupName = spreadsheetText(values.get("group_name") ?? "");
+    const studentId = values.get("student_id") ? spreadsheetText(values.get("student_id")!) : null;
+    const displayName = spreadsheetText(values.get("display_name") || email.split("@")[0]);
     if (!/^[^\s@,]+@[^\s@,]+\.[^\s@,]+$/.test(email) || email.length > 254) errors.push(`row ${record.line}: invalid email`);
     if (!groupName || groupName.length > 80) errors.push(`row ${record.line}: group_name must be 1–80 characters`);
     if (studentId && studentId.length > 80) errors.push(`row ${record.line}: student_id is too long`);
@@ -64,11 +66,12 @@ export function previewFullRosterCsv(input: unknown): FullRosterPreview {
     if (studentId && studentIds.has(studentId)) errors.push(`row ${record.line}: duplicate student_id`);
     emails.add(email); if (studentId) studentIds.add(studentId);
     counts.set(groupName, (counts.get(groupName) ?? 0) + 1);
-    rows.push({ line: record.line, email, groupName, studentId, displayName });
+    rows.push({ line: record.line, email, emailRaw, groupName, studentId, displayName });
   }
   if (!rows.length) errors.push("CSV has no students");
   if (rows.length > 200) errors.push("CSV exceeds 200 students");
   if (errors.length) return empty(errors);
   const warnings = [...counts].filter(([, count]) => count < 2).map(([name]) => `group ${name} has fewer than 2 students`);
+  for (const [name, count] of counts) if (count < 4 || count > 7) warnings.push(`group ${name} has ${count} students; recommended group size is 4–7`);
   return { rows, errors: [], warnings, groups: [...counts.keys()] };
 }

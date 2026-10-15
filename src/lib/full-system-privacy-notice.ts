@@ -2,9 +2,9 @@ import type { FullActor } from "./full-system-auth";
 import { NOTICE_VERSION } from "./full-system-notice-version";
 import { runAuditedMutation } from "./full-system-audit-outbox";
 
-/** Acknowledgement for the student-project staging preview, not institutional PRD approval. */
+/** Versioned PRD notice acknowledgement. Institutional release approval is a separate operation. */
 export async function acknowledgeStagingNotice(actor: FullActor): Promise<void> {
-  if (!["development", "staging"].includes(process.env.PAIR_EVAL_ENV ?? "")) {
+  if (!["development", "staging", "production"].includes(process.env.PAIR_EVAL_ENV ?? "")) {
     throw new Error("Staging notice is unavailable in this environment");
   }
   await runAuditedMutation({

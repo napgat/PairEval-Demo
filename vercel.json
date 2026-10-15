@@ -3,11 +3,11 @@
   "crons": [
     {
       "path": "/api/full-system/cron/reminders",
-      "schedule": "0 19 * * *"
+      "schedule": "* * * * *"
     },
     {
       "path": "/api/full-system/cron/scores",
-      "schedule": "0 19 * * *"
+      "schedule": "* * * * *"
     }
   ]
 }

@@ -32,7 +32,7 @@ try {
       WHERE u.email_lookup=ANY($1::text[])`, [[teacherEmail, studentEmail]]);
     const account = email => roles.rows.filter(row => row.email_lookup === email).map(row => ({
       status: row.status, role: row.role, canCreateClassroom: row.can_create_classroom,
-      classroom: row.classroom_name, noticeAcknowledged: row.notice_version === "student-demo-staging-v1" }));
+      classroom: row.classroom_name, noticeAcknowledged: row.notice_version === "prd-v2.0-privacy-20261015" }));
     console.log(JSON.stringify({ teacher: account(teacherEmail), student: account(studentEmail),
       localManifestExists: existsSync(manifestPath) }));
   } else {

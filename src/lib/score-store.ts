@@ -1,5 +1,9 @@
 import type { DatabaseSync } from "node:sqlite";
-import { calculateScores, type ScoreInput, type ScoreKind, type ScoreResult } from "./score-engine";
+import { calculateScores, type ScoreInput, type ScoreKind, type ScoreResult, type StudentScore } from "./score-engine";
+
+export function ownScoreView(score: StudentScore): StudentScore {
+  return score.individualAvailable ? score : { ...score, individualBase: null, individualScore: null, total: null };
+}
 
 export type AssignmentScore = { assignmentId: string; assignmentName: string; classroomId: string; groupDeadline: string; individualDeadline: string; result: ScoreResult };
 export type PairAnswerCoverage = { criterionName: string; kind: ScoreKind; itemAName: string; itemBName: string; answered: number; assigned: number };
@@ -46,8 +50,9 @@ export function mayViewOwnScore(db: DatabaseSync, assignmentId: string, studentI
   return !!db.prepare("SELECT 1 FROM assignments JOIN memberships ON memberships.classroom_id = assignments.classroom_id WHERE assignments.id = ? AND memberships.user_id = ?").get(assignmentId, studentId);
 }
 
-export function scoreStatus(score: AssignmentScore, now = new Date()): "Interim" | "Final" {
-  return !score.result.hasNoData && now.getTime() >= Date.parse(score.groupDeadline) && now.getTime() >= Date.parse(score.individualDeadline) ? "Final" : "Interim";
+export function scoreStatus(_score: AssignmentScore): "Interim" | "Final" {
+  // The offline showcase has no audited finalization workflow. Never infer Final from a deadline.
+  void _score; return "Interim";
 }
 
 export function formatScore(value: number | null): string { return value === null ? "NO_DATA" : value.toFixed(2); }

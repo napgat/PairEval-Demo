@@ -1,3 +1,4 @@
+import { observeRoute } from "@/lib/observe-route";
 import { NextResponse, type NextRequest } from "next/server";
 import { actorForRequest, sameOrigin } from "@/lib/full-system-auth";
 import { NOTICE_VERSION } from "@/lib/full-system-notice-version";
@@ -6,7 +7,7 @@ import { AuditOutcomePendingError, AuditUnavailableError } from "@/lib/full-syst
 
 export const runtime = "nodejs";
 
-export async function POST(request: NextRequest) {
+async function POSTHandler(request: NextRequest) {
   if (!sameOrigin(request)) return NextResponse.json({ error: { code: "ORIGIN_INVALID" } }, { status: 403 });
   const actor = await actorForRequest(request);
   if (!actor) return NextResponse.json({ error: { code: "UNAUTHENTICATED" } }, { status: 401 });
@@ -25,3 +26,5 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: { code: "NOTICE_ACKNOWLEDGEMENT_FAILED" } }, { status: 500 });
   }
 }
+
+export const POST = observeRoute(POSTHandler);

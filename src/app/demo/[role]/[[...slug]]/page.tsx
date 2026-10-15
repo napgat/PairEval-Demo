@@ -9,7 +9,7 @@ import { openDemoDb } from "@/lib/demo-data";
 import { getPairingPreview } from "@/lib/pairing-store";
 import { getEvaluationView } from "@/lib/evaluation-store";
 import EvaluationPanel from "../../components/evaluation-panel";
-import { formatScore, getAssignmentScore, getPairAnswerCoverage, mayViewOwnScore, mayViewReport, scoreStatus } from "@/lib/score-store";
+import { formatScore, getAssignmentScore, getPairAnswerCoverage, mayViewOwnScore, mayViewReport, scoreStatus, ownScoreView } from "@/lib/score-store";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -115,12 +115,13 @@ function MainContent({ role, slug, data, classId, actorId }: { role: Role; slug:
     try {
       if (!mayViewOwnScore(db, assignment.id, actorId)) notFound();
       const score = getAssignmentScore(db, assignment.id);
-      const own = score?.result.students.find(student => student.id === actorId);
-      if (!score || !own) notFound();
+      const computed = score?.result.students.find(student => student.id === actorId);
+      if (!score || !computed) notFound();
+      const own = ownScoreView(computed);
       return <><h1>คะแนนของฉัน</h1><p className="intro">{assignment.name} · {scoreStatus(score)} — {scoreStatus(score) === "Interim" ? "อาจเปลี่ยนแปลงได้" : "สิ้นสุดกำหนดส่ง"}</p>
         {(own.groupScore === null || own.individualScore === null) && <div className="evaluation-warning">NO_DATA/คะแนนชั่วคราว: ยังมีผลประเมินไม่พอสำหรับคำนวณบางส่วน</div>}
         <div className="score-cards"><div><span>Group</span><strong>{formatScore(own.groupScore)}</strong><small>ส่ง {own.groupAnswered}/{own.groupAssigned} คู่</small></div><div><span>Individual</span><strong>{formatScore(own.individualScore)}</strong><small>ส่ง {own.individualAnswered}/{own.individualAssigned} คู่</small></div><div><span>รวม</span><strong>{formatScore(own.total)}</strong><small>จากคะแนนสูงสุด {assignment.group_max + assignment.individual_max}</small></div></div>
-        <Panel title="สถานะการส่งของฉัน"><p>Group: {own.groupSubmitted ? "ส่งแล้ว" : "ยังไม่ส่ง"}</p><p>Individual: {own.individualSubmitted ? "ส่งแล้ว" : "ยังไม่ส่ง"}</p><Status>คะแนนจากคำตอบที่กด Submit ล่าสุดเท่านั้น Draft ไม่ถูกนับ</Status></Panel>
+        <Panel title="สถานะการส่งของฉัน"><p>Group: {own.groupSubmitted ? "ส่งแล้ว" : "ยังไม่ส่ง"}</p><p>Individual: {own.individualSubmitted ? "ส่งแล้ว" : "ยังไม่ส่ง"}</p><p>สัดส่วนที่ส่ง p = {own.p.toFixed(3)} · ตัวคูณ M = {own.M.toFixed(3)} · ส่งถึง 90% ได้ตัวคูณเต็ม</p><Status>คะแนนจากคำตอบที่กด Submit ล่าสุดเท่านั้น Draft ไม่ถูกนับ</Status></Panel>
       </>;
     } finally { db.close(); }
   }

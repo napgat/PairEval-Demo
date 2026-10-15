@@ -9,7 +9,8 @@ export function databasePool(): Pool {
   if (process.env.PAIR_EVAL_EXPECTED_DB_HOST && new URL(connectionString).hostname !== process.env.PAIR_EVAL_EXPECTED_DB_HOST) {
     throw new Error("Operational database host mismatch");
   }
-  pool ??= new Pool({ connectionString, max: 2, connectionTimeoutMillis: 15000 });
+  pool ??= new Pool({ connectionString, max: 16, connectionTimeoutMillis: 15000,
+    options: "-c role=paireval_operational_app" });
   return pool;
 }
 

@@ -21,20 +21,21 @@ const example: ScoreInput = {
   ],
 };
 
-describe("demo scoring formula", () => {
+describe("PRD v2.0 scoring in the offline Demo", () => {
   it("maps all six choices to complementary points", () => {
     expect([1, 2, 3, 4, 5, 6].map(choicePoints)).toEqual([[1, 0], [.8, .2], [.6, .4], [.4, .6], [.2, .8], [0, 1]]);
   });
   it("matches the hand calculation for weighted Group and Individual", () => {
     const result = calculateScores(example);
-    expect(result.groups.find(row => row.id === "gA")?.baseScore).toBeCloseTo(9.6);
-    expect(result.groups.find(row => row.id === "gB")?.baseScore).toBeCloseTo(5.4);
-    expect(result.students.find(row => row.id === "a1")?.individualBase).toBeCloseTo(3);
-    expect(result.students.find(row => row.id === "a2")?.individualBase).toBeCloseTo(4 / 3);
-    expect(result.students.find(row => row.id === "a3")?.individualBase).toBeCloseTo(2 / 3);
-    expect(applyCompletion(9.6, 2, 1, true)).toBeCloseTo(4.8);
-    expect(applyCompletion(3, 1, 1, true)).toBeCloseTo(3);
-    expect(applyCompletion(9.6, 2, 1, true)! + applyCompletion(3, 1, 1, true)!).toBeCloseTo(7.8);
+    // qA = .8*.6 + .4*.4 = .64; each item gets its own .6+.4q band.
+    expect(result.groups.find(row => row.id === "gA")?.baseScore).toBeCloseTo(12.84);
+    expect(result.groups.find(row => row.id === "gB")?.baseScore).toBeCloseTo(11.16);
+    expect(result.students.find(row => row.id === "a1")?.individualBase).toBeCloseTo(4.8);
+    expect(result.students.find(row => row.id === "a2")?.individualBase).toBeCloseTo(3.8);
+    expect(result.students.find(row => row.id === "a3")?.individualBase).toBeCloseTo(3.4);
+    expect(applyCompletion(12, 10, 9, true)).toBe(12);
+    expect(applyCompletion(12, 10, 6, true)).toBeCloseTo(8);
+    expect(applyCompletion(12, 10, 9, false)).toBe(0);
     for (const pair of example.pairs.filter(pair => pair.criterionId === "team")) {
       expect([pair.itemAId, pair.itemBId]).not.toContain(pair.evaluatorId);
     }
@@ -45,10 +46,10 @@ describe("demo scoring formula", () => {
       { id: "r2", evaluatorId: "a1", kind: "group", number: 2, submitted: true, answers: [{ pairId: "q", choice: 6 }, { pairId: "p", choice: 4 }] },
     ];
     const result = calculateScores({ ...example, revisions });
-    expect(result.groups.find(row => row.id === "gA")?.baseScore).toBeCloseTo(2.4);
-    expect(result.groups.find(row => row.id === "gB")?.baseScore).toBeCloseTo(12.6);
+    expect(result.groups.find(row => row.id === "gA")?.baseScore).toBeCloseTo(9.96);
+    expect(result.groups.find(row => row.id === "gB")?.baseScore).toBeCloseTo(14.04);
   });
-  it("sets missing submission to zero and scales only the submitter's section", () => {
+  it("applies TOTAL participation to both personal components without changing group base", () => {
     const input: ScoreInput = { ...example,
       pairs: [...example.pairs, { id: "q2", criterionId: "quality", evaluatorId: "a1", itemAId: "gA", itemBId: "gB" }, { id: "q3", criterionId: "quality", evaluatorId: "a2", itemAId: "gA", itemBId: "gB" }],
       revisions: example.revisions,
@@ -56,25 +57,28 @@ describe("demo scoring formula", () => {
     const result = calculateScores(input);
     const a1 = result.students.find(row => row.id === "a1")!;
     const a2 = result.students.find(row => row.id === "a2")!;
-    expect(a1.groupScore).toBeCloseTo(9.6 / 3 * 2);
-    expect(a1.individualScore).toBeCloseTo(3);
-    expect(a2.groupScore).toBe(0);
-    expect(result.groups.find(row => row.id === "gA")?.baseScore).toBeCloseTo(9.6);
+    expect(a1.p).toBe(.75);
+    expect(a1.M).toBeCloseTo(5 / 6);
+    expect(a1.groupScore).toBeCloseTo(10.7);
+    expect(a1.individualScore).toBeCloseTo(4);
+    expect(a2.M).toBeCloseTo(5 / 9);
+    expect(a2.groupScore).toBeCloseTo(12.84 * 5 / 9);
+    expect(result.groups.find(row => row.id === "gA")?.baseScore).toBeCloseTo(12.84);
   });
   it("marks uncovered items NO_DATA", () => {
     const result = calculateScores({ ...example, revisions: [] });
     expect(result.groups.every(row => row.baseScore === null)).toBe(true);
-    expect(result.students.find(row => row.id === "a1")?.groupScore).toBe(0);
-    expect(result.students.find(row => row.id === "a1")?.individualScore).toBe(0);
+    expect(result.students.find(row => row.id === "a1")?.groupScore).toBeNull();
+    expect(result.students.find(row => row.id === "a1")?.individualScore).toBeNull();
   });
-  it("normalizes Individual separately inside each group", () => {
+  it("band maps individuals without dividing their scores by cohort size", () => {
     const students = ["a", "b"].flatMap(groupId => [1, 2, 3].map(n => ({ id: `${groupId}${n}`, name: `${groupId}${n}`, groupId })));
     const pairs = ["a", "b"].flatMap(groupId => [[1, 2, 3], [1, 3, 2], [2, 3, 1]].map(([a, b, evaluator]) => ({ id: `${groupId}${a}${b}`, criterionId: "team", evaluatorId: `${groupId}${evaluator}`, itemAId: `${groupId}${a}`, itemBId: `${groupId}${b}` })));
     const revisions = students.map(student => ({ id: `r-${student.id}`, evaluatorId: student.id, kind: "individual" as const, number: 1, submitted: true,
       answers: pairs.filter(pair => pair.evaluatorId === student.id).map(pair => ({ pairId: pair.id, choice: 2 })) }));
     const result = calculateScores({ ...example, groups: [{ id: "a", name: "A" }, { id: "b", name: "B" }], students,
       criteria: [{ id: "team", name: "team", kind: "individual", weightPercent: 100 }], pairs, revisions });
-    expect(result.items.filter(item => item.groupId === "a").reduce((sum, item) => sum + item.points!, 0)).toBeCloseTo(5);
-    expect(result.items.filter(item => item.groupId === "b").reduce((sum, item) => sum + item.points!, 0)).toBeCloseTo(5);
+    expect(result.items.filter(item => item.groupId === "a").reduce((sum, item) => sum + item.points!, 0)).toBeCloseTo(12);
+    expect(result.items.filter(item => item.groupId === "b").reduce((sum, item) => sum + item.points!, 0)).toBeCloseTo(12);
   });
 });

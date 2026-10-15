@@ -1,9 +1,10 @@
+import { observeRoute } from "@/lib/observe-route";
 import { NextResponse, type NextRequest } from "next/server";
 import { FULL_SESSION_COOKIE, revokeFullSession, sameOrigin } from "@/lib/full-system-auth";
 
 export const runtime = "nodejs";
 
-export async function POST(request: NextRequest) {
+async function POSTHandler(request: NextRequest) {
   if (!sameOrigin(request)) {
     return NextResponse.json({ error: { code: "ORIGIN_INVALID" } }, { status: 403 });
   }
@@ -12,3 +13,5 @@ export async function POST(request: NextRequest) {
   response.cookies.set(FULL_SESSION_COOKIE, "", { path: "/", maxAge: 0 });
   return response;
 }
+
+export const POST = observeRoute(POSTHandler);

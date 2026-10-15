@@ -1,14 +1,15 @@
+import { observeRoute } from "@/lib/observe-route";
 import { NextResponse, type NextRequest } from "next/server";
 import { assignmentActor, assignmentError } from "@/lib/full-system-assignment-http";
 import { listNotifications, markNotificationRead } from "@/lib/full-system-notifications";
 
 export const runtime = "nodejs";
-export async function GET(request: NextRequest) {
+async function GETHandler(request: NextRequest) {
   const auth = await assignmentActor(request); if (auth.error) return auth.error;
   try { return NextResponse.json({ data: await listNotifications(auth.actor) }); }
   catch (error) { return assignmentError(error); }
 }
-export async function POST(request: NextRequest) {
+async function POSTHandler(request: NextRequest) {
   const auth = await assignmentActor(request, true); if (auth.error) return auth.error;
   try {
     const body = await request.json();
@@ -18,3 +19,6 @@ export async function POST(request: NextRequest) {
       NextResponse.json({ error: { code: "NOT_FOUND" } }, { status: 404 });
   } catch (error) { return assignmentError(error); }
 }
+
+export const GET = observeRoute(GETHandler);
+export const POST = observeRoute(POSTHandler);

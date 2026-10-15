@@ -1,9 +1,10 @@
+import { observeRoute } from "@/lib/observe-route";
 import { runDatabaseSmoke, validSmokeToken } from "@/lib/full-system-postgres";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-export async function POST(request: Request) {
+async function POSTHandler(request: Request) {
   const authorization = request.headers.get("authorization");
   const token = authorization?.startsWith("Bearer ") ? authorization.slice(7) : null;
   if (!validSmokeToken(token)) return new Response(null, { status: 404 });
@@ -14,3 +15,5 @@ export async function POST(request: Request) {
     return Response.json({ status: "unavailable" }, { status: 503, headers: { "Cache-Control": "no-store" } });
   }
 }
+
+export const POST = observeRoute(POSTHandler);
