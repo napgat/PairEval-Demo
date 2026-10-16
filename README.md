@@ -6,6 +6,8 @@
 
 ## เพื่อนเริ่มตรงนี้
 
+**เพื่อนที่เคยติดตั้งแล้ว:** ใช้ [รายการลองรอบที่ 2](docs/PEER_RETEST.md) เพื่ออัปเดต main และตรวจสองปัญหาเดิมโดยเก็บข้อมูลไว้
+
 รีโปเป็น **Private** เจ้าของต้องให้สิทธิ์บัญชี GitHub ของเพื่อนก่อน clone หรือส่ง source ZIP ของ main ให้โดยตรง ไม่ส่ง token/รหัสผ่านของเจ้าของให้เพื่อน
 
 ทดสอบขั้นตอนติดตั้งบน **Windows x64 + Node.js 24** ใช้โฟลเดอร์ชื่อภาษาอังกฤษ เช่น `C:\PairEvalDemo` และอินเทอร์เน็ตสำหรับดาวน์โหลดครั้งแรก ยังไม่ได้ยืนยันขั้นตอนเปิด–ปิดบน macOS/Linux
@@ -52,7 +54,7 @@ npx playwright install chromium
 npm run test:demo-ui
 ```
 
-ผลล่าสุด: unit tests 94/94, typecheck/lint/build และ regression จาก feedback ผ่าน GUI/API; ชุด UI/Axe เดิม 22 หน้าจอ/สถานะผ่านเมื่อ 16 ต.ค. ไม่ได้รันครบชุดใหม่หลัง patch นี้ รายงานแยกขอบเขตไว้ใน [สถานะโครงงาน](docs/PROJECT_STATUS.md)
+ผลตรวจซ้ำล่าสุด: unit tests 94/94, typecheck/lint/build, GUI/Axe 22 หน้าจอ/สถานะ และ regression จาก feedback 10 checks ผ่าน อ่านขอบเขตใน [ผลตรวจรอบที่ 2](docs/full-system/peer-retest-2026-10-17.md) ยังรอเพื่อนตรวจบนเครื่องของตนเอง
 
 ไม่ใส่ `.env.local`, ฐานข้อมูล, session, backup/key, `.verification`, `node_modules` หรือ `.next` ลง Git ใช้เฉพาะข้อมูลสมมติ เครื่องอื่นจะได้ฐานและบัญชีจำลองของตนเอง
 

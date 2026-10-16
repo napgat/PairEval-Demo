@@ -47,6 +47,7 @@ Do not broaden this into production certification or the historical Lab plan.
 
 ## สิ่งที่ AI ต้องรู้
 
+- หากเพื่อนกำลังตรวจสองปัญหาที่เคยรายงาน ให้ใช้ `docs/PEER_RETEST.md` บันทึก commit และทดสอบผลจริง ห้ามล้างฐานเดิมเพื่อให้ง่ายต่อการทดสอบ
 - `README.md` เป็นจุดเริ่มปัจจุบัน ไม่เริ่มจากเอกสาร SQLite หรือบันทึก v2.1 เก่า
 - Full System อยู่ที่ `src/app/full-system/`, API ที่ `src/app/api/`, งานหลักที่ `src/lib/full-system-*` และ migration ที่ `db/migrations/`
 - `scripts/local-database-helper.mjs` เตรียมฐาน local; `local-demo-portal.mjs` สร้างชุดสาธิตและตัวเลือกบทบาท; `prepare-final-demo.mjs` เตรียมงานปิดรับ

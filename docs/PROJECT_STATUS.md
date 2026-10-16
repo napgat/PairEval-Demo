@@ -35,6 +35,7 @@
 | [UI usability](full-system/ui-usability-2026-10-16.md) | unit 88/88, typecheck/lint/build, GUI/Axe 22 หน้าจอ/สถานะ; ไม่รับรอง WCAG ทุกข้อ |
 | [Peer handoff](full-system/peer-handoff-2026-10-16.md) | ผล source ติดตั้งใหม่, checks ของรุ่นส่ง Git และ branch ที่จัดเก็บ |
 | [แก้ผลทดลองจากเพื่อน 17 ต.ค.](full-system/peer-feedback-2026-10-17.md) | Deadline ของด้านคะแนน 0 และปิดอุทธรณ์หลัง Final; 94/94 tests และ GUI/API regression ผ่าน |
+| [ตรวจซ้ำก่อนให้เพื่อนลองรอบที่ 2](full-system/peer-retest-2026-10-17.md) | ผลตรวจรุ่นแก้ซ้ำ; ใช้ [PEER_RETEST](PEER_RETEST.md) ให้เพื่อนตรวจบนข้อมูลเดิม |
 | [Evidence map](full-system/prd-v2.0-evidence-map.md) | traceability 132 IDs ของ baseline v2.0; มีข้อ partial และ mapped evidence ไม่ใช่ผ่าน 132/132 |
 
 ## สิ่งที่ยังไม่รับรอง / เลื่อนตามขอบเขตนักศึกษา

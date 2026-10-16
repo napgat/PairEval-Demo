@@ -7,6 +7,7 @@
 | [README โครงงาน](../README.md) | เปิด repo ครั้งแรก |
 | [GETTING_STARTED](GETTING_STARTED.md) | ติดตั้ง/เปิด–ปิด/อัปเดต local |
 | [TRY_IT](TRY_IT.md) | เพื่อนลองใช้งานและรายงานปัญหา |
+| [PEER_RETEST](PEER_RETEST.md) | อัปเดตและตรวจสองปัญหาเดิมรอบที่ 2 |
 | [AI_HANDOFF](AI_HANDOFF.md) | ให้ AI ช่วยติดตั้งและตรวจ |
 | [PROJECT_STATUS](PROJECT_STATUS.md) | ดูความพร้อมและข้อจำกัดล่าสุด |
 | [AGENTS](../AGENTS.md) | กติกาทำงานสำหรับ coding agent |
@@ -22,6 +23,7 @@
 | [ปรับ UI และผล GUI](full-system/ui-usability-2026-10-16.md) | หลักฐาน 22 หน้าจอ/สถานะก่อน handoff |
 | [ผลจัดชุดให้เพื่อน](full-system/peer-handoff-2026-10-16.md) | รุ่นส่งเข้า Git, ติดตั้งใหม่ และจัด branch |
 | [แก้ปัญหาจากเพื่อน](full-system/peer-feedback-2026-10-17.md) | ผลทำซ้ำ แก้ และตรวจ deadline/อุทธรณ์ วันที่ 17 ต.ค. |
+| [ผลตรวจซ้ำก่อนให้เพื่อนลอง](full-system/peer-retest-2026-10-17.md) | ผลตรวจรุ่นแก้ 9e1d8fd อีกครั้งพร้อมรายการทดสอบรอบที่ 2 |
 
 ## เอกสารประวัติ — ใช้ดูที่มา
 
