@@ -38,6 +38,16 @@
 
 ## แนวทาง branch
 
-`main` เป็นจุด clone รุ่นส่งมอบ, `staging` เก็บไว้สำหรับสาย staging เดิม Branch งานเก่าที่มีประวัติอยู่ใน main แล้วลบได้หลังตรวจ remote commit; branch ที่ checkout เดิมมีไฟล์แก้ค้างต้องเก็บไว้ ไม่มี force push หรือ reset งานเดิม
+ส่ง UI/คู่มือขึ้น `main` ที่ `11c83b5` แล้ว และบันทึกปรับคู่มือต่อท้ายให้ตรงกับหน้าจอจริง: สาย v2.0 นี้ยังไม่มีฟอร์มเพิ่ม–ลบ Co-teacher/TA ให้สาธิตด้วยบัญชีที่เตรียมไว้ ไม่ถือว่ากรณี GUI นี้ผ่าน
+
+ตรวจ ancestry ก่อนลบแล้ว ประวัติของ branch ที่ลบทั้งหมดอยู่ใน main:
+
+| ตำแหน่ง | การจัด branch |
+|---|---|
+| GitHub | เก็บ `main` และ `staging`; ลบ `codex/full-system-day-02` และ `codex/prd-v2-implementation` |
+| เครื่อง local | ลบ `codex/full-system-day-01`, `codex/prd-v2-implementation`, `codex/ui-usability-20261016` หลังรวมใน main |
+| งานแก้ค้างเดิม | เก็บ local `codex/full-system-day-02` ที่ checkout เดิม เพราะยังมีงานค้าง ไม่เปลี่ยนสาขาหรือลบไฟล์เหล่านั้น |
+
+ไม่มี force push หรือ reset งานเดิม `staging` ยังเป็นสายเดิม ไม่ใช่ source ใหม่บน main
 
 ZIP/checksum เดิมใน `delivery/`, `RELEASE-PROVENANCE.json` และ `SHA256SUMS.txt` อ้างถึง artifact ก่อนปรับ UI ไม่ใช้ตรวจ checksum ของ source main รุ่นใหม่ ดาวน์โหลด GitHub main/ZIP ของ main เพื่อติดตั้งตามคู่มือปัจจุบัน
