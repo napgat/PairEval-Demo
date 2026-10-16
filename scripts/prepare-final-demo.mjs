@@ -21,7 +21,7 @@ const save=async state=>{await mkdir('.verification',{recursive:true});await wri
 const api=async(path,actor,method='GET',body)=>{
   const response=await fetch(origin+path,{method,headers:{Cookie:`paireval_full_session=${tokens.get(actor)}`,Origin:origin,
     'Content-Type':'application/json','Idempotency-Key':randomUUID()},body:body===undefined?undefined:JSON.stringify(body),signal:AbortSignal.timeout(30000)});
-  const result=await response.json();
+  const result=await response.json().catch(()=>{throw Error(`${method} ${path}: HTTP ${response.status} returned no JSON; inspect before retrying`);});
   if(![200,201].includes(response.status))throw Error(`${method} ${path}: ${response.status} ${result.error?.code??'Request not confirmed; inspect before retrying'}`);
   return result.data;
 };
@@ -65,7 +65,7 @@ try{
       if(existing[0].status==='DRAFT')await api(`/api/assignments/${state.assignmentId}`,owner.id,'PATCH',input);
       else{
         assert.ok(['OPEN','CLOSED'].includes(existing[0].status),'An unfinished fixture was finalized; inspect manually');
-        await api(`/api/full-system/assignments/${state.assignmentId}/deadlines`,owner.id,'POST',{groupDeadline:deadline,individualDeadline:deadline});
+        await api(`/api/full-system/assignments/${state.assignmentId}/deadlines`,owner.id,'PATCH',{groupDeadline:deadline,individualDeadline:deadline});
       }
     }
     const current=await api(`/api/full-system/assignments/${state.assignmentId}`,owner.id);

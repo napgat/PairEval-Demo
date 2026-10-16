@@ -1,6 +1,8 @@
 "use client";
+import Link from "next/link";
 
-import { use, useCallback, useEffect, useState } from "react";
+import { use, useCallback, useEffect, useRef, useState } from "react";
+import { assignmentStatus, sideName, friendlyError } from "@/lib/full-system-ui";
 import { useRouter } from "next/navigation";
 import { classroomInputToUtc, utcToClassroomInput } from "@/lib/full-system-timezone";
 
@@ -41,6 +43,9 @@ export default function AssignmentsPage({ params }: { params: Promise<{ id: stri
   const [rows, setRows] = useState<Array<{ id: string; name: string; status: string; generation: number }>>([]);
   const [roster, setRoster] = useState<RosterRow[]>([]);
   const [rosterVersion, setRosterVersion] = useState(0);
+  const [roomName, setRoomName] = useState("");
+  const [loading, setLoading] = useState(true);
+  const [editorOpen, setEditorOpen] = useState(false);
   const [owner, setOwner] = useState(false);
   const [withdrawUser, setWithdrawUser] = useState("");
   const [withdrawReason, setWithdrawReason] = useState("");
@@ -55,11 +60,19 @@ export default function AssignmentsPage({ params }: { params: Promise<{ id: stri
   const [extraCount, setExtraCount] = useState(1);
   const [message, setMessage] = useState("");
   const [busy, setBusy] = useState(false);
+  const editor = useRef<HTMLElement>(null), selectedWork = useRef<HTMLDivElement>(null);
+  const selectedId = selected?.id;
+  useEffect(() => {
+    if (!editorOpen) return;
+    const element = selectedId ? selectedWork.current : editor.current;
+    element?.scrollIntoView({ block: "start", behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" });
+    if (!selectedId) editor.current?.querySelector("input")?.focus({ preventScroll: true });
+  }, [editorOpen, selectedId]);
   const request = useCallback(async (path: string, method = "GET", body?: unknown) => {
     const response = await fetch(path, { method, cache: "no-store", headers: method === "GET" ? {} :
       { "Content-Type": "application/json", Origin: window.location.origin }, body: body === undefined ? undefined : JSON.stringify(body) });
     const payload = await response.json();
-    if (response.status === 202) throw new Error("ยังรอยืนยันบันทึก audit โปรดโหลดข้อมูลใหม่ก่อนทำรายการซ้ำ");
+    if (response.status === 202) throw new Error("รายการยังรอยืนยัน กรุณาโหลดข้อมูลใหม่ก่อนทำรายการซ้ำ");
     if (!response.ok) throw new Error(payload.error?.message ?? payload.error?.code ?? `HTTP ${response.status}`);
     return payload.data;
   }, []);
@@ -69,6 +82,7 @@ export default function AssignmentsPage({ params }: { params: Promise<{ id: stri
       request(`/api/full-system/classrooms/${classroomId}/roster`),
       request("/api/full-system/classrooms")]);
     setRows(assignments); setRoster(people);
+    setRoomName(classrooms.find((room: { id: string }) => room.id === classroomId)?.name ?? "");
     setRosterVersion(classrooms.find((room: { id: string }) => room.id === classroomId)?.rosterVersion ?? 0);
     setOwner(classrooms.find((room: { id: string }) => room.id === classroomId)?.role === "OWNER");
   }, [classroomId, request]);
@@ -81,29 +95,31 @@ export default function AssignmentsPage({ params }: { params: Promise<{ id: stri
           request(`/api/full-system/classrooms/${classroomId}/roster`),
           request("/api/full-system/classrooms")]);
         if (active) { setRows(assignments); setRoster(people);
+          setRoomName(classrooms.find((room: { id: string }) => room.id === classroomId)?.name ?? "");
           setOwner(classrooms.find((room: { id: string }) => room.id === classroomId)?.role === "OWNER");
           setRosterVersion(classrooms.find((room: { id: string }) => room.id === classroomId)?.rosterVersion ?? 0);
           setTimezone(classrooms.find((room: { id: string }) => room.id === classroomId)?.timezone ?? "Asia/Bangkok"); }
-      } catch (error) { if (active) setMessage(error instanceof Error ? error.message : "โหลดข้อมูลไม่สำเร็จ"); }
+      } catch (error) { if (active) setMessage(friendlyError(error)); }
+      finally { if (active) setLoading(false); }
     })();
     return () => { active = false; };
   }, [classroomId, request]);
   const open = async (id: string) => {
     const detail = await request(url(id)) as Assignment;
-    setSelected(detail); setForm(toInput(detail)); setPlan(null); setMessage("");
+    setSelected(detail); setEditorOpen(true); setForm(toInput(detail)); setPlan(null); setMessage("");
   };
   const action = async (job: () => Promise<void>) => {
     setBusy(true); setMessage("");
-    try { await job(); await refresh(); } catch (error) { setMessage(error instanceof Error ? error.message : "ดำเนินการไม่สำเร็จ"); }
+    try { await job(); await refresh(); } catch (error) { setMessage(friendlyError(error)); }
     finally { setBusy(false); }
   };
   const save = () => action(async () => {
     const result = selected ? await request(url(selected.id), "PUT", form) :
       await request(`/api/full-system/classrooms/${classroomId}/assignments`, "POST", form);
-    await open(result.id); setMessage("บันทึก DRAFT แล้ว");
+    await open(result.id); setMessage("บันทึกฉบับร่างแล้ว");
   });
   const feasible = () => action(async () => {
-    if (!selected) throw new Error("บันทึก DRAFT ก่อนตรวจแผน");
+    if (!selected) throw new Error("บันทึกฉบับร่างก่อนตรวจแผน");
     setPlan(await request(`${url(selected.id)}/feasibility?seed=${encodeURIComponent(seed)}`));
   });
   const publish = () => action(async () => {
@@ -124,14 +140,14 @@ export default function AssignmentsPage({ params }: { params: Promise<{ id: stri
     const reason = window.prompt("เหตุผลที่ยกเลิกการเผยแพร่ (อย่างน้อย 5 ตัวอักษร)");
     if (reason === null) return;
     await request(`${url(selected.id)}/unpublish`, "POST", { reason }); await open(selected.id);
-    setMessage("กลับเป็น DRAFT; คู่รุ่นเดิมยังอยู่ในประวัติ");
+    setMessage("กลับเป็นฉบับร่างแล้ว เก็บคู่รุ่นเดิมไว้ในประวัติ");
   });
   const clone = () => action(async () => {
     if (!selected) return;
     const name = window.prompt("ชื่องานที่คัดลอก", `${selected.name} (สำเนา)`);
     if (name === null) return;
     const result = await request(`${url(selected.id)}/clone`, "POST", { name }); await open(result.id);
-    setMessage("คัดลอกเฉพาะการตั้งค่าเป็น DRAFT; ตรวจวันครบกำหนดและไฟล์ก่อนเผยแพร่");
+    setMessage("คัดลอกการตั้งค่าเป็นฉบับร่างแล้ว กรุณาตรวจกำหนดส่งและไฟล์ก่อนเผยแพร่");
   });
   const addEvaluators = (mode: "STUDENT" | "INSTRUCTOR") => action(async () => {
     if (!selected || !extraPairId) throw new Error("เลือกคู่ก่อนเพิ่มผู้ประเมิน");
@@ -151,24 +167,27 @@ export default function AssignmentsPage({ params }: { params: Promise<{ id: stri
     setRosterPreview(null);
     await refresh();
     if (selected) await open(selected.id);
-    setMessage("นำเข้ารายชื่อแล้ว ตรวจ feasibility และเผยแพร่ generation ใหม่");
+    setMessage("นำเข้ารายชื่อแล้ว กรุณาตรวจแผนจับคู่และเผยแพร่รุ่นใหม่");
   });
   const change = <K extends keyof Input>(key: K, value: Input[K]) => { setForm(current => ({ ...current, [key]: value })); setPlan(null); };
   const groups = [...new Map(roster.map(person => [person.groupId, person.groupName])).entries()];
   return <main className="fs-page fs-instructor-page">
-    <a className="fs-back-link" href="/full-system"><span aria-hidden="true">←</span> กลับไปหน้าห้องเรียน</a>
-    <header className="fs-page-heading"><div><span className="eyebrow">พื้นที่อาจารย์ · จัดการห้องเรียน</span>
-      <h1>งานประเมินและแผนจับคู่</h1><p>สร้างงาน ตรวจแผนการจับคู่ แล้วเผยแพร่ให้นักศึกษาทำ</p></div>
-      <span className="fs-teacher-mark" aria-hidden="true">▣</span></header>
-    {owner&&<details className="form-panel"><summary>เก็บห้องเรียนเมื่อจบรายวิชา</summary><p>ห้องเรียนจะเป็นแบบอ่านอย่างเดียวและย้ายไปหน้าห้องเรียนที่เก็บแล้ว</p><button className="secondary-button" onClick={()=>{if(window.confirm("เก็บห้องเรียนนี้เป็นแบบอ่านอย่างเดียวหรือไม่?"))void action(async()=>{await request(`/api/full-system/classrooms/${classroomId}/archive`,"POST",{archived:true});router.push("/full-system/archive")})}}>เก็บห้องเรียน</button></details>}
+    <Link className="fs-back-link" href="/full-system"><span aria-hidden="true">←</span> กลับไปหน้าห้องเรียน</Link>
+    <header className="fs-page-heading"><div><span className="eyebrow">{roomName || "พื้นที่อาจารย์"}</span>
+      <h1>จัดการงานประเมิน</h1><p>สร้างงาน ตรวจแผนการจับคู่ แล้วเผยแพร่ให้นักศึกษาทำ</p></div>
+      </header>
+    <nav className="fs-classroom-nav" aria-label="เมนูห้องเรียน"><Link href={`/full-system/classrooms/${classroomId}/assignments`} aria-current="page">งานประเมิน</Link><Link href={`/full-system/classrooms/${classroomId}/roster`}>รายชื่อและกลุ่ม ({roster.length})</Link></nav>
+
     {message && <p className="notice" role="status">{message}</p>}
-    <section className="form-panel fs-assignment-list"><div className="fs-section-heading"><div><span className="eyebrow">ขั้นที่ 1</span><h2>งานในห้องเรียน</h2></div>
-      <button className="primary-button" onClick={() => { setSelected(null); setForm(empty); setPlan(null); }}>＋ สร้างงานใหม่</button></div>
-      {rows.length === 0 && <p className="fs-muted-copy">ยังไม่มีงาน สร้างงานแรกของห้องเรียนได้จากปุ่มด้านบน</p>}
+    <section className="form-panel fs-assignment-list"><div className="fs-section-heading"><div><span className="eyebrow">{rows.length} งาน · {roster.length} นักศึกษา</span><h2>งานในห้องเรียน</h2></div>
+      <button className="primary-button" onClick={() => { setSelected(null); setForm(empty); setPlan(null); setEditorOpen(true); setMessage(""); }}>＋ สร้างงานใหม่</button></div>
+      {loading && <p role="status">กำลังโหลดงานประเมิน…</p>}
+      {!loading && rows.length === 0 && <p className="fs-muted-copy">ยังไม่มีงาน สร้างงานแรกของห้องเรียนได้จากปุ่มด้านบน</p>}
       <div className="fs-assignment-picker">
-        {rows.map(row => <button className="secondary-button" key={row.id} onClick={() => action(() => open(row.id))}>
-          <span>{row.name}</span><small>{row.status === "OPEN" ? "กำลังเปิดรับ" : row.status === "DRAFT" ? "ฉบับร่าง" : row.status} · รุ่น {row.generation}</small></button>)}</div>
+        {rows.map(row => <button className="secondary-button" aria-pressed={selected?.id === row.id} key={row.id} onClick={() => action(() => open(row.id))}>
+          <span>{row.name}</span><small>{assignmentStatus(row.status)} · รุ่น {row.generation}</small></button>)}</div>
     </section>
+    {selected && <div className="fs-selected-work" ref={selectedWork}><div><span className="eyebrow">งานที่เลือก</span><strong>{selected.name}</strong></div><Link className="primary-button" href={`/full-system/assignments/${selected.id}/reports`}>ดูรายงานและคะแนน →</Link></div>}
     <details className="fs-roster-tools"><summary><span><strong>จัดการรายชื่อนักศึกษาและกลุ่ม</strong><small>{roster.length} คน · รุ่นรายชื่อ {rosterVersion}</small></span><span aria-hidden="true">⌄</span></summary>
       <section className="form-panel"><h2>นำเข้ารายชื่อหรือปรับกลุ่ม</h2>
         <p className="fine-print">ต้องยกเลิกเผยแพร่งานที่ยังใช้งานอยู่ก่อน · คู่และคำตอบรุ่นเดิมจะยังอยู่ในประวัติ</p>
@@ -196,20 +215,22 @@ export default function AssignmentsPage({ params }: { params: Promise<{ id: stri
           })}>ถอนสมาชิกข้อมูลตัวอย่าง</button>
       </section>}
     </details>
-    <section className="form-panel fs-editor-panel"><div className="fs-section-heading"><div><span className="eyebrow">ขั้นที่ 2</span>
-      <h2>{selected ? `แก้ไข ${selected.name}` : "ตั้งค่างานประเมิน"}</h2></div>
-      {selected && <span className="fs-status-badge">{selected.status === "DRAFT" ? "ฉบับร่าง" : selected.status} · รุ่น {selected.generation}</span>}</div>
+    {editorOpen && <section className="form-panel fs-editor-panel" ref={editor}><div className="fs-section-heading"><div><span className="eyebrow">ข้อมูลงาน</span>
+      <h2>{selected ? selected.name : "สร้างงานประเมิน"}</h2></div>
+      {selected && <span className="fs-status-badge">{assignmentStatus(selected.status)} · รุ่น {selected.generation}</span>}</div>
       {!selected && <p className="fs-muted-copy">กรอกข้อมูลงาน เกณฑ์ และกำหนดส่ง จากนั้นบันทึกฉบับร่างก่อนตรวจแผนจับคู่</p>}
-      {selected && <p className="fine-print">สถานะ {selected.status} · generation {selected.generation}</p>}
+      {selected && selected.status !== "DRAFT" && <p className="fine-print">งานเผยแพร่แล้ว แก้ไขได้เฉพาะกำหนดส่ง หากต้องการใช้การตั้งค่าเดิมกับงานใหม่ ให้เลือกคัดลอกงาน</p>}
+      <details className="fs-disclosure" open={!selected || selected.status === "DRAFT"} key={selected?.id ?? "new"}><summary>รายละเอียด กำหนดส่ง และเกณฑ์คะแนน</summary><div className="fs-disclosure-body">
       <label className="field">ชื่องาน<input value={form.name} disabled={selected?.status !== undefined && selected.status !== "DRAFT"} onChange={e => change("name", e.target.value)} /></label>
       <label className="field">คำอธิบาย<textarea value={form.description} disabled={selected?.status !== undefined && selected.status !== "DRAFT"} onChange={e => change("description", e.target.value)} /></label>
-      <label className="field">ลิงก์ภาพรวมไฟล์งาน HTTPS<input type="url" value={form.artifactOverviewUrl} disabled={selected?.status !== undefined && selected.status !== "DRAFT"} onChange={e => change("artifactOverviewUrl", e.target.value)} /></label>
+      <label className="field">ลิงก์รวมไฟล์ผลงาน<input type="url" value={form.artifactOverviewUrl} disabled={selected?.status !== undefined && selected.status !== "DRAFT"} onChange={e => change("artifactOverviewUrl", e.target.value)} /></label>
       <div className="form-grid">
-        {(["groupMaxScore", "individualMaxScore", "targetCoverage", "maxWorkload"] as const).map(key => <label className="field" key={key}>{({ groupMaxScore: "คะแนนกลุ่ม", individualMaxScore: "คะแนนรายบุคคล", targetCoverage: "ผู้ประเมินต่อคู่ที่ต้องการ", maxWorkload: "งานสูงสุดต่อผู้ประเมิน" })[key]}<input type="number" min="0" value={form[key]} disabled={selected?.status !== undefined && selected.status !== "DRAFT"} onChange={e => change(key, Number(e.target.value))} /></label>)}
+        {(["groupMaxScore", "individualMaxScore"] as const).map(key => <label className="field" key={key}>{({ groupMaxScore: "คะแนนกลุ่ม", individualMaxScore: "คะแนนรายบุคคล", targetCoverage: "ผู้ประเมินต่อคู่ที่ต้องการ", maxWorkload: "งานสูงสุดต่อผู้ประเมิน" })[key]}<input type="number" min="0" value={form[key]} disabled={selected?.status !== undefined && selected.status !== "DRAFT"} onChange={e => change(key, Number(e.target.value))} /></label>)}
       </div>
+      <details className="fs-disclosure"><summary>ตั้งค่าการจับคู่และน้ำหนักผู้ประเมิน</summary><div className="fs-disclosure-body"><div className="form-grid">{(["targetCoverage", "maxWorkload"] as const).map(key => <label className="field" key={key}>{key === "targetCoverage" ? "ผู้ประเมินต่อคู่ที่ต้องการ" : "งานสูงสุดต่อผู้ประเมิน"}<input type="number" min="0" value={form[key]} disabled={selected?.status !== undefined && selected.status !== "DRAFT"} onChange={e=>change(key,Number(e.target.value))} /></label>)}</div>
       <label className="field">น้ำหนักคำตอบผู้สอน (0–99.99; นักศึกษา = 1)<input type="number" min="0" max="99.99" step="0.01"
         value={form.instructorWeight} disabled={selected?.status !== undefined && selected.status !== "DRAFT"}
-        onChange={e => change("instructorWeight", Number(e.target.value))} /></label>
+        onChange={e => change("instructorWeight", Number(e.target.value))} /></label></div></details>
       <div className="form-grid">{(["groupDeadline", "individualDeadline"] as const).map(key => <label className="field" key={key}>{key === "groupDeadline" ? "กำหนดส่งกลุ่ม" : "กำหนดส่งรายบุคคล"} ({timezone})<input type="datetime-local" value={utcToClassroomInput(form[key], timezone)} disabled={selected?.status !== undefined && !["DRAFT", "OPEN", "CLOSED"].includes(selected.status)} onChange={e => change(key, classroomInputToUtc(e.target.value, timezone))} /></label>)}</div>
       <h2>เกณฑ์และน้ำหนัก</h2><p className="fine-print">แต่ละด้านที่เปิดใช้ต้องรวม 100%</p>
       {form.criteria.map((criterion, index) => <div className="criteria-row" key={index}>
@@ -219,27 +240,29 @@ export default function AssignmentsPage({ params }: { params: Promise<{ id: stri
         <button className="remove-button" disabled={selected?.status !== undefined && selected.status !== "DRAFT"} onClick={() => change("criteria", form.criteria.filter((_, i) => i !== index))}>ลบ</button>
       </div>)}
       <button className="secondary-button" disabled={selected?.status !== undefined && selected.status !== "DRAFT"} onClick={() => change("criteria", [...form.criteria, { side: "GROUP", name: "", weightPct: 0 }])}>เพิ่มเกณฑ์</button>
-      <div className="form-grid">
+      <details className="fs-disclosure"><summary>ช่วงคะแนนและสูตรคำนวณ</summary><div className="fs-disclosure-body"><div className="form-grid">
         <label className="field">สัดส่วนคะแนนต่ำสุด<input type="number" min="0" max="1" step=".001" value={form.scoreFloor}
           disabled={selected?.status !== undefined && selected.status !== "DRAFT"} onChange={e => change("scoreFloor", Number(e.target.value))} /></label>
         <label className="field">สัดส่วนคะแนนสูงสุด<input type="number" min="0" max="1" step=".001" value={form.scoreCeiling}
           disabled={selected?.status !== undefined && selected.status !== "DRAFT"} onChange={e => change("scoreCeiling", Number(e.target.value))} /></label>
-      </div><p className="fine-print">คะแนน = คะแนนเต็ม × น้ำหนักเกณฑ์ × (ค่าต่ำสุด + (ค่าสูงสุด − ค่าต่ำสุด) × q) · ค่าเริ่มต้น 0.6–1</p>
-      <h2>ลิงก์ไฟล์งานรายชิ้น</h2><p className="fine-print">ใส่ลิงก์ HTTPS เฉพาะรายการที่มีไฟล์</p>
-      {[...groups.map(([itemId, name]) => ({ side: "GROUP" as const, itemId, name: `กลุ่ม ${name}` })),
+      </div><p className="fine-print">คะแนน = คะแนนเต็ม × น้ำหนักเกณฑ์ × (ค่าต่ำสุด + (ค่าสูงสุด − ค่าต่ำสุด) × q) · ค่าเริ่มต้น 0.6–1</p></div></details>
+      <details className="fs-disclosure"><summary>ลิงก์ผลงานรายกลุ่มและรายบุคคล ({groups.length + roster.length})</summary><div className="fs-disclosure-body"><p className="fine-print">ใส่ลิงก์ HTTPS เฉพาะรายการที่มีไฟล์</p>
+      {[...groups.map(([itemId, name]) => ({ side: "GROUP" as const, itemId, name })),
         ...roster.map(person => ({ side: "INDIVIDUAL" as const, itemId: person.id, name: person.displayName }))].map(item => <label className="field" key={`${item.side}:${item.itemId}`}>{item.name}<input type="url" placeholder="https://…" disabled={selected?.status !== undefined && selected.status !== "DRAFT"} value={form.artifacts.find(row => row.side === item.side && row.itemId === item.itemId)?.url ?? ""} onChange={e => change("artifacts", [...form.artifacts.filter(row => row.side !== item.side || row.itemId !== item.itemId), ...(e.target.value ? [{ side: item.side, itemId: item.itemId, url: e.target.value }] : [])])} /></label>)}
-      <div className="actions">{(!selected || selected.status === "DRAFT") && <button className="primary-button" disabled={busy} onClick={save}>บันทึก DRAFT</button>}
+      </div></details>
+      <div className="actions">{(!selected || selected.status === "DRAFT") && <button className="primary-button" disabled={busy} onClick={save}>บันทึกฉบับร่าง</button>}
         {selected && ["OPEN", "CLOSED"].includes(selected.status) && <button className="primary-button" disabled={busy} onClick={saveDeadlines}>บันทึกกำหนดส่ง</button>}
-        {selected && <button className="secondary-button" disabled={busy} onClick={clone}>คัดลอกเป็น DRAFT</button>}
+        {selected && <button className="secondary-button" disabled={busy} onClick={clone}>คัดลอกเป็นงานใหม่</button>}
         {selected && selected.status !== "DRAFT" && <button className="secondary-button" disabled={busy} onClick={unpublish}>ยกเลิกเผยแพร่</button>}</div>
-    </section>
-    {selected && <section className="form-panel fs-pairing-panel"><div className="fs-section-heading"><div><span className="eyebrow">ขั้นที่ 3</span><h2>ตรวจแผนจับคู่</h2></div></div>
-      <label className="field">Seed สำหรับผลที่ทำซ้ำได้<input value={seed} onChange={e => { setSeed(e.target.value); setPlan(null); }} /></label>
-      {selected.status === "DRAFT" && <button className="secondary-button" disabled={busy} onClick={feasible}>คำนวณ feasibility</button>}
+    </div></details></section>}
+    {selected && <section className="form-panel fs-pairing-panel"><div className="fs-section-heading"><div><span className="eyebrow">การเผยแพร่งาน</span><h2>การจับคู่และผู้ประเมิน</h2></div></div>
+      <details className="fs-disclosure" open={selected.status === "DRAFT"} key={selected.id}><summary>ตรวจแผน เพิ่มผู้ประเมิน และดูประวัติ</summary><div className="fs-disclosure-body">
+      <label className="field">รหัสสุ่มการจับคู่<input value={seed} onChange={e => { setSeed(e.target.value); setPlan(null); }} /></label>
+      {selected.status === "DRAFT" && <button className="secondary-button" disabled={busy} onClick={feasible}>ตรวจความพร้อมการจับคู่</button>}
       {plan && <div className={plan.feasible ? "preview-box" : "error-box"}>
         <strong>{plan.feasible ? "พร้อมเผยแพร่" : "ยังจับคู่ไม่ได้"}</strong>
-        <div className="table-wrap"><table><thead><tr><th>ด้าน</th><th>จำนวนคู่</th><th>Coverage</th><th>งานที่แจก</th><th>เหตุผล/ข้อควรระวัง</th></tr></thead><tbody>
-          {plan.parts.map((part, index) => <tr key={index}><td>{part.side}{part.groupId ? ` · ${groups.find(group => group[0] === part.groupId)?.[1] ?? part.groupId}` : ""}</td><td>{part.pairCount}</td><td>{part.coverage}/{part.requested}</td><td>{part.assignmentCount}</td><td>{part.reason ?? (part.lowConfidence ? "กลุ่ม 3 คน: ความเชื่อมั่นต่ำ" : "พร้อม")}</td></tr>)}
+        <div className="table-wrap"><table><thead><tr><th>ด้าน</th><th>จำนวนคู่</th><th>ผู้ประเมินต่อคู่</th><th>งานที่แจก</th><th>เหตุผล/ข้อควรระวัง</th></tr></thead><tbody>
+          {plan.parts.map((part, index) => <tr key={index}><td>{sideName(part.side)}{part.groupId ? ` · ${groups.find(group => group[0] === part.groupId)?.[1] ?? part.groupId}` : ""}</td><td>{part.pairCount}</td><td>{part.coverage}/{part.requested}</td><td>{part.assignmentCount}</td><td>{part.reason ?? (part.lowConfidence ? "กลุ่ม 3 คน: ความเชื่อมั่นต่ำ" : "พร้อม")}</td></tr>)}
         </tbody></table></div></div>}
       {selected.status === "DRAFT" && plan?.feasible && <button className="primary-button" disabled={busy} onClick={publish}>เผยแพร่และบันทึกคู่</button>}
       {selected.status === "OPEN" && selected.currentPairs.length > 0 && <div className="preview-box">
@@ -248,7 +271,7 @@ export default function AssignmentsPage({ params }: { params: Promise<{ id: stri
           <option value="">เลือกคู่</option>
           {[...new Map(selected.currentPairs.map(pair => [
             `${pair.side}:${pair.criterion_name}:${pair.group_a_id}:${pair.group_b_id}:${pair.student_a_id}:${pair.student_b_id}`, pair])).values()].map(pair =>
-            <option key={pair.id} value={pair.id}>{pair.side} · {pair.criterion_name} · {
+            <option key={pair.id} value={pair.id}>{sideName(pair.side)} · {pair.criterion_name} · {
               pair.side === "GROUP" ? `${groups.find(g => g[0] === pair.group_a_id)?.[1] ?? "?"} / ${groups.find(g => g[0] === pair.group_b_id)?.[1] ?? "?"}` :
                 `${roster.find(p => p.id === pair.student_a_id)?.displayName ?? "?"} / ${roster.find(p => p.id === pair.student_b_id)?.displayName ?? "?"}`}
               {` · ผู้ประเมิน ${pair.evaluator_count} คน`}</option>)}</select></label>
@@ -256,12 +279,13 @@ export default function AssignmentsPage({ params }: { params: Promise<{ id: stri
           onChange={e => setExtraCount(Number(e.target.value))} /></label>
         <div className="actions"><button className="secondary-button" disabled={busy || !extraPairId} onClick={() => addEvaluators("STUDENT")}>เพิ่มผู้ประเมิน</button>
           <button className="secondary-button" disabled={busy || !extraPairId} onClick={() => addEvaluators("INSTRUCTOR")}>มอบคู่ให้ตนเอง</button>
-          <a className="secondary-button" href={`/full-system/assignments/${selected.id}/evaluate/group`}>ประเมินกลุ่ม</a>
-          <a className="secondary-button" href={`/full-system/assignments/${selected.id}/evaluate/individual`}>ประเมินรายบุคคล</a></div>
+          <Link className="secondary-button" href={`/full-system/assignments/${selected.id}/evaluate/group`}>ประเมินกลุ่ม</Link>
+          <Link className="secondary-button" href={`/full-system/assignments/${selected.id}/evaluate/individual`}>ประเมินรายบุคคล</Link></div>
       </div>}
-      <p><a href={`/full-system/assignments/${selected.id}/reports`}>ดูรายงานและตัดสินคะแนน →</a></p>
-      <h2>ประวัติ generation</h2><ul className="plain-list">{selected.generations.map(row => <li key={row.generation}>รุ่น {row.generation} · {row.status}{row.invalidated_reason ? ` · ${row.invalidated_reason}` : ""}</li>)}</ul>
-      <p className="fine-print">เวลาเส้นตายกลุ่ม: {displayDate(selected.groupDeadline, timezone)} · รายบุคคล: {displayDate(selected.individualDeadline, timezone)} ({timezone})</p>
-    </section>}
+      <p><Link href={`/full-system/assignments/${selected.id}/reports`}>ดูรายงานและตัดสินคะแนน →</Link></p>
+      <h2>ประวัติการจับคู่</h2><ul className="plain-list">{selected.generations.map(row => <li key={row.generation}>รุ่น {row.generation} · {row.status === "ACTIVE" ? "ใช้งานอยู่" : "เก็บประวัติ"}{row.invalidated_reason ? ` · ${row.invalidated_reason}` : ""}</li>)}</ul>
+      <p className="fine-print">กำหนดส่งกลุ่ม: {displayDate(selected.groupDeadline, timezone)} · รายบุคคล: {displayDate(selected.individualDeadline, timezone)} ({timezone})</p>
+    </div></details></section>}
+    {owner&&<details className="form-panel"><summary>เก็บห้องเรียนเมื่อจบรายวิชา</summary><p>ห้องเรียนจะเป็นแบบอ่านอย่างเดียวและย้ายไปหน้าห้องเรียนที่เก็บแล้ว</p><button className="secondary-button" onClick={()=>{if(window.confirm("เก็บห้องเรียนนี้เป็นแบบอ่านอย่างเดียวหรือไม่?"))void action(async()=>{await request(`/api/full-system/classrooms/${classroomId}/archive`,"POST",{archived:true});router.push("/full-system/archive")})}}>เก็บห้องเรียน</button></details>}
   </main>;
 }

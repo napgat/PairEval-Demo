@@ -9,8 +9,8 @@ const chakraPetch = Chakra_Petch({
 });
 
 export const metadata: Metadata = {
-  title: "PairEval Demo",
-  description: "ตัวอย่างระบบประเมินแบบเปรียบเทียบคู่สำหรับงานรายวิชา",
+  title: "PairEval · ประเมินผลงาน",
+  description: "จัดการงานประเมิน เปรียบเทียบผลงาน และติดตามคะแนนรายวิชา",
 };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {

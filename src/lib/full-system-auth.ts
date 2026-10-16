@@ -11,6 +11,7 @@ export const SESSION_SECONDS = 12 * 60 * 60;
 export type FullActor = {
   id: string;
   email: string;
+  displayName?: string;
   hostedDomain: string | null;
   platformRole: "USER" | "SYSTEM_ADMIN";
   canCreateClassroom: boolean;
@@ -33,8 +34,8 @@ export async function actorForRequest(request: NextRequest): Promise<FullActor |
   if (!token || !/^[0-9a-f]{64}$/.test(token)) return null;
   const found = await databasePool().query<{
     id: string; email_lookup: string; hosted_domain: string | null; platform_role: "USER" | "SYSTEM_ADMIN";
-    can_create_classroom: boolean; privacy_accepted: boolean;
-  }>(`SELECT u.id, u.email_lookup, s.hosted_domain, u.platform_role, u.can_create_classroom,
+    can_create_classroom: boolean; privacy_accepted: boolean; display_name: string;
+  }>(`SELECT u.id, u.email_lookup, u.display_name, s.hosted_domain, u.platform_role, u.can_create_classroom,
        (p.notice_version = $2 OR
         (u.email_lookup LIKE '%@example.test' AND p.notice_version = $3)) AS privacy_accepted
        FROM app_session s JOIN app_user u ON u.id = s.user_id
@@ -43,7 +44,7 @@ export async function actorForRequest(request: NextRequest): Promise<FullActor |
     [tokenHash(token), NOTICE_VERSION, SYNTHETIC_NOTICE_VERSION]);
   const row = found.rows[0];
   if (row) await enforceUserLimit(row.id);
-  return row ? { id: row.id, email: row.email_lookup, hostedDomain: row.hosted_domain,
+  return row ? { id: row.id, email: row.email_lookup, displayName: row.display_name, hostedDomain: row.hosted_domain,
     platformRole: row.platform_role, canCreateClassroom: row.can_create_classroom,
     privacyAccepted: row.privacy_accepted === true } : null;
 }

@@ -260,7 +260,7 @@ async function login(res, role, target = "/full-system") {
     return res.end();
   }
   const token = randomBytes(32).toString("hex");
-  await pool.query("DELETE FROM app_session WHERE user_id=$1", [u.id]);
+  await pool.query("DELETE FROM app_session WHERE user_id=$1 AND (expires_at<=now() OR revoked_at IS NOT NULL)", [u.id]);
   await pool.query(
     "INSERT INTO app_session(id,user_id,token_hash,expires_at)VALUES($1,$2,$3,now()+interval '12 hours')",
     [randomUUID(), u.id, createHash("sha256").update(token).digest("hex")],

@@ -1,4 +1,7 @@
 "use client";
+import Link from "next/link";
+import ConfirmationDialog from "@/app/full-system/components/confirmation-dialog";
+import { friendlyError } from "@/lib/full-system-ui";
 import { queueKey, readQueuedAnswers } from "@/lib/evaluation-queue";
 import { use, useEffect, useRef, useState } from "react";
 import { installSyntheticTiming } from "@/lib/full-system-active-clock";
@@ -21,6 +24,7 @@ export default function EvaluationPage({ params, searchParams }: {
   const path = `/api/full-system/assignments/${id}/evaluation/${side}`;
   const [data, setData] = useState<Evaluation | null>(null);
   const [message, setMessage] = useState("");
+  const [confirming, setConfirming] = useState(false);
   const [saving, setSaving] = useState(false);
   const [busy, setBusy] = useState(false);
   const [clock, setClock] = useState(() => Date.now());
@@ -58,7 +62,7 @@ export default function EvaluationPage({ params, searchParams }: {
       setData({ ...initial, pairs: initial.pairs.map(p => pending.current.has(p.id) ? { ...p, choice: pending.current.get(p.id)! } : p) });
       if (pending.current.size) { setMessage("กู้คืนคำตอบที่รอเชื่อมต่อแล้ว กำลังส่งฉบับร่างให้ระบบ"); void sync.current().catch(() => {}); }
     }
-  } catch (error) { if (active) setMessage(error instanceof Error ? error.message : "โหลดงานไม่สำเร็จ"); } })();
+  } catch (error) { if (active) setMessage(friendlyError(error)); } })();
     return () => { active = false; if (timer.current) clearTimeout(timer.current); }; }, [path, id, side]);
   useEffect(() => {
     const interval = setInterval(() => setClock(Date.now()), 1000);
@@ -87,7 +91,7 @@ export default function EvaluationPage({ params, searchParams }: {
       setMessage(`บันทึกแล้ว เมื่อ ${new Date().toLocaleTimeString("th-TH", { hour: "2-digit", minute: "2-digit" })}`);
     } catch (error) {
       remember();
-      setMessage(error instanceof Error ? error.message : "บันทึกไม่สำเร็จ");
+      setMessage(friendlyError(error));
       throw error;
     } finally { setSaving(false); } })();
     sending.current = job;
@@ -113,9 +117,6 @@ export default function EvaluationPage({ params, searchParams }: {
   };
   const submit = async () => {
     if (!data) return;
-    const missing = data.pairs.filter(pair => pair.choice === null).length;
-    const confirmation = missing === 0 ? `ตอบครบ ${data.pairs.length} คู่แล้ว ยืนยันส่งคำตอบหรือไม่?` : `ยังไม่ตอบ ${missing} คู่จาก ${data.pairs.length} คู่ ยืนยันส่งคำตอบที่มีหรือไม่?`;
-    if (!window.confirm(confirmation)) return;
     setBusy(true);
     try { await timing.current?.finish(); await flush();
       submitKey.current ??= crypto.randomUUID();
@@ -124,20 +125,21 @@ export default function EvaluationPage({ params, searchParams }: {
       if (!response.ok) throw new Error(payload.error?.message ?? payload.error?.code ?? "ส่งไม่สำเร็จ");
       submitKey.current = null;
       await load(); setMessage(`ส่งคำตอบรุ่น ${payload.data.revision} แล้ว (${payload.data.answered}/${payload.data.assigned})`);
-    } catch (error) { setMessage(error instanceof Error ? error.message : "ส่งไม่สำเร็จ"); }
+    } catch (error) { setMessage(friendlyError(error)); }
     finally { setBusy(false); }
   };
   const answered = data?.pairs.filter(pair => pair.choice !== null).length ?? 0;
   const remaining = data?.deadline ? Date.parse(data.deadline) - clock : null;
   return <main className="fs-page fs-evaluation-page">
-    <a className="fs-back-link" href={returnHref}><span aria-hidden="true">←</span> กลับไปงานประเมิน</a>
+    <Link className="fs-back-link" href={returnHref}><span aria-hidden="true">←</span> กลับไปงานประเมิน</Link>
     {message && !data && <p className="notice" role="status" aria-live="polite">{message}</p>}
     {!data ? <div className="fs-loading-card" role="status">กำลังเตรียมแบบประเมิน…</div> : <>
       <header className="fs-page-heading fs-evaluation-heading"><div>
-        <span className="eyebrow">พื้นที่นักศึกษา · {side === "group" ? "ประเมินกลุ่ม" : "ประเมินรายบุคคล"}</span>
+        <span className="eyebrow">แบบประเมิน · {side === "group" ? "ประเมินกลุ่ม" : "ประเมินรายบุคคล"}</span>
         <h1>{side === "group" ? "เปรียบเทียบผลงานกลุ่ม" : "เปรียบเทียบผลงานรายบุคคล"}</h1>
         <p>เลือกผลงานที่ทำได้ดีกว่าในแต่ละคู่ เกณฑ์แต่ละข้อจะบันทึกคำตอบให้อัตโนมัติ</p>
-      </div><span className="fs-student-mark" aria-hidden="true">✓</span></header>
+      </div></header>
+      <ol className="fs-review-guide" aria-label="วิธีประเมิน"><li>เปิดดูผลงานทั้งสองชิ้น</li><li>เปรียบเทียบตามเกณฑ์</li><li>ยืนยันส่งเมื่อเรียบร้อย</li></ol>
       <section className="fs-progress-card" aria-label="ความคืบหน้าการประเมิน">
         <div className="fs-progress-heading"><div><strong>ความคืบหน้า</strong><span>{answered} จาก {data.pairs.length} คู่</span></div>
           <span className={data.readOnly ? "fs-status-badge" : "fs-status-badge is-open"}>{data.readOnly ? "อ่านได้อย่างเดียว" : saving ? "กำลังบันทึก…" : "บันทึกอัตโนมัติ"}</span></div>
@@ -148,12 +150,13 @@ export default function EvaluationPage({ params, searchParams }: {
       {remaining !== null && remaining > 0 && remaining < 48 * 60 * 60 * 1000 &&
         <p className="evaluation-warning" role="status">เหลือเวลา {Math.floor(remaining / 3_600_000)} ชั่วโมง {Math.floor(remaining % 3_600_000 / 60_000)} นาที</p>}
       {message && <p className="fs-save-status" role="status" aria-live="polite">{message}</p>}
-      {data.syntheticTimingEnabled && <p className="fs-timing-notice">ข้อมูลเวลาที่ใช้ดูหน้านี้เก็บเพื่อทบทวนต้นแบบเท่านั้น</p>}
-      {data.latestSubmission && <p className="notice">ส่งคำตอบแล้ว · ครั้งที่ {data.latestSubmission.revision} · ยังส่งฉบับแก้ไขได้ก่อนครบกำหนด</p>}
+
+      {data.latestSubmission && <p className="notice">ส่งคำตอบแล้ว · ครั้งที่ {data.latestSubmission.revision} · {data.readOnly ? "ปิดรับการแก้ไขแล้ว" : "แก้ไขและส่งใหม่ได้ก่อนครบกำหนด"}</p>}
       {data.disabledReason && <p className="notice">{data.disabledReason}</p>}
       <details className="fs-score-explainer"><summary>คำตอบของฉันถูกนำไปใช้คำนวณอย่างไร</summary>
-        <p>ระบบใช้เฉพาะฉบับที่ส่งแล้วในการคำนวณคะแนนส่วนตัว โดยพิจารณาร่วมกับอัตราการส่งงาน (p) และตัวคูณ (M) ฉบับร่างยังไม่นำไปคำนวณ</p>
+        <p>ระบบใช้คำตอบฉบับล่าสุดที่คุณยืนยันส่ง ร่วมกับสัดส่วนงานที่ส่งครบ ฉบับร่างที่บันทึกอัตโนมัติยังไม่นำไปคำนวณคะแนน</p>
       </details>
+      {data.pairs.length === 0 && <div className="fs-empty-state"><h2>ยังไม่มีคู่ที่ต้องประเมิน</h2><p>กลับไปหน้างานเพื่อตรวจงานอื่น หรือติดต่ออาจารย์หากคาดว่ามีงานที่ต้องทำ</p></div>}
       {data.criteria.map(criterion => <section className="criterion-section" key={criterion.id}>
         <div className="criterion-heading"><h2>{criterion.name}</h2><span>{data.pairs.filter(pair => pair.criterionId === criterion.id && pair.choice !== null).length} / {data.pairs.filter(pair => pair.criterionId === criterion.id).length}</span></div>
         {criterion.description && <p>{criterion.description}</p>}
@@ -172,9 +175,15 @@ export default function EvaluationPage({ params, searchParams }: {
         </fieldset>)}
       </section>)}
       <footer className="fs-submit-bar"><div><strong>{answered}/{data.pairs.length} คู่</strong><span>{data.readOnly ? "พ้นกำหนดส่งแล้ว" : saving ? "กำลังบันทึกคำตอบ…" : "ฉบับร่างบันทึกอัตโนมัติ"}</span></div>
-        <div className="fs-submit-actions">{!data.readOnly && <button className="primary-button" disabled={busy || saving} onClick={submit}>{busy ? "กำลังส่ง…" : data.latestSubmission ? "ส่งฉบับแก้ไข" : "ยืนยันส่งคำตอบ"}</button>}
-          <a className="secondary-button" href={`/full-system/assignments/${id}/my-score`}>ดูคะแนนของฉัน</a></div>
+        <div className="fs-submit-actions">{!data.readOnly && <button className="primary-button" disabled={busy || saving || data.pairs.length === 0} onClick={() => setConfirming(true)}>{busy ? "กำลังส่ง…" : data.latestSubmission ? "ส่งฉบับแก้ไข" : "ยืนยันส่งคำตอบ"}</button>}
+          <Link className="secondary-button" href={`/full-system/assignments/${id}/my-score${classroom ? `?classroom=${encodeURIComponent(classroom)}` : ""}`}>ดูคะแนนของฉัน</Link></div>
       </footer>
+      <ConfirmationDialog open={confirming} title={data.latestSubmission ? "ส่งคำตอบฉบับแก้ไข?" : "ยืนยันส่งคำตอบ?"}
+        confirmLabel={data.latestSubmission ? "ส่งฉบับแก้ไข" : "ยืนยันส่งคำตอบ"} onCancel={() => setConfirming(false)}
+        onConfirm={() => { setConfirming(false); void submit(); }}>
+        <p>ตอบแล้ว {answered} จาก {data.pairs.length} คู่{answered < data.pairs.length ? ` ยังเหลือ ${data.pairs.length - answered} คู่ที่ไม่ได้ตอบ` : " ครบทุกคู่แล้ว"}</p>
+        <p>{data.latestSubmission ? "ระบบจะใช้คำตอบฉบับนี้แทนฉบับก่อนหน้าในการคำนวณ และเก็บประวัติฉบับเดิมไว้" : "เมื่อยืนยันแล้ว คำตอบจะถูกนำไปคำนวณคะแนน คุณยังแก้ไขและส่งใหม่ได้ก่อนกำหนด"}</p>
+      </ConfirmationDialog>
     </>}
   </main>;
 }

@@ -30,7 +30,9 @@
     "test:prd-v20": "node scripts/prd-v20-acceptance.mjs",
     "test:performance": "node scripts/prd-v20-performance.mjs",
     "db:backup": "node scripts/database-backup.mjs",
-    "db:restore-drill": "node scripts/database-restore-drill.mjs"
+    "db:restore-drill": "node scripts/database-restore-drill.mjs",
+    "test:demo-ui": "node scripts/ui-usability-check.mjs",
+    "demo:jobs-once": "node scripts/job-worker.mjs --once"
   },
   "dependencies": {
     "exceljs": "^4.4.0",

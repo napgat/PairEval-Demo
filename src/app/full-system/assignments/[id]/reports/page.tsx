@@ -1,5 +1,8 @@
 "use client";
+import Link from "next/link";
 
+import ConfirmationDialog from "@/app/full-system/components/confirmation-dialog";
+import { assignmentStatus, sideName, appealStatus, scoreFlag, friendlyError } from "@/lib/full-system-ui";
 import { use, useCallback, useEffect, useState } from "react";
 import type { ScoreRun } from "@/lib/full-system-score-runs";
 import type { ComparisonReview } from "@/lib/full-system-comparison-review";
@@ -27,6 +30,7 @@ const qualityReason: Record<string, string> = {
 
 export default function ReportsPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
+  const [confirming, setConfirming] = useState(false);
   const [snapshot, setSnapshot] = useState<Snapshot | null>(null);
   const [rawExportReady, setRawExportReady] = useState(false);
   const [canRevealIdentities, setCanRevealIdentities] = useState(false);
@@ -71,34 +75,33 @@ export default function ReportsPage({ params }: { params: Promise<{ id: string }
     }
   }, [endpoint]);
   useEffect(() => {
-    void (async () => { try { await refresh(); } catch (error) { setMessage(String(error)); } })();
+    void (async () => { try { await refresh(); } catch (error) { setMessage(friendlyError(error)); } })();
   }, [refresh]);
   const post = async (path: string, body: unknown) => {
     const response = await fetch(`${endpoint}/${path}`, { method: "POST",
       headers: { "Content-Type": "application/json", Origin: window.location.origin },
       body: JSON.stringify(body) });
     const payload = await response.json();
-    if (response.status === 202) throw new Error("ยังรอยืนยันบันทึก audit โปรดโหลดข้อมูลใหม่ก่อนทำรายการซ้ำ");
+    if (response.status === 202) throw new Error("รายการยังรอยืนยัน กรุณาโหลดข้อมูลใหม่ก่อนทำรายการซ้ำ");
     if (!response.ok) throw new Error(payload.error?.message ?? payload.error?.code ?? `HTTP ${response.status}`);
     return payload.data;
   };
   const action = async (task: () => Promise<void>) => {
     setBusy(true); setMessage("");
-    try { await task(); await refresh(); } catch (error) { setMessage(error instanceof Error ? error.message : String(error)); }
+    try { await task(); await refresh(); } catch (error) { setMessage(friendlyError(error)); }
     finally { setBusy(false); }
   };
   const run = (kind: "INTERIM" | "FINAL") => action(async () => {
-    if (kind === "FINAL" && !window.confirm("ยืนยัน Finalize คะแนนจากข้อมูลที่ส่งล่าสุด? Snapshot เดิมจะถูกเก็บไว้")) return;
-    await post("score-runs", { kind }); setMessage(kind === "FINAL" ? "บันทึก Final snapshot แล้ว" : "คำนวณ Interim snapshot แล้ว");
+    await post("score-runs", { kind }); setMessage(kind === "FINAL" ? "ยืนยันผลคะแนนแล้ว" : "คำนวณคะแนนชั่วคราวแล้ว");
   });
   const reopen = () => action(async () => {
-    await post("score-runs/reopen", { reason }); setReason(""); setMessage("เปิดคะแนนใหม่แล้ว; Final snapshot เดิมยังอยู่");
+    await post("score-runs/reopen", { reason }); setReason(""); setMessage("เปิดทบทวนคะแนนแล้ว เก็บคะแนนฉบับก่อนหน้าไว้ครบ");
   });
   const override = () => action(async () => {
     await post("score-runs/override", { side: overrideSide, itemId: overrideItem,
       value: overrideValue, reason });
     await post("score-runs", { kind: "INTERIM" });
-    setReason(""); setMessage("บันทึกเหตุผลและคำนวณ snapshot ใหม่แล้ว");
+    setReason(""); setMessage("ปรับคะแนนและบันทึกเหตุผลแล้ว");
   });
   const resolveAppeal = (status: "RESOLVED" | "REJECTED") => action(async () => {
     await fetch(`${endpoint}/appeals`, { method: "PATCH",
@@ -114,7 +117,7 @@ export default function ReportsPage({ params }: { params: Promise<{ id: string }
     if (!selectedReview) return;
     await post("comparison-reviews", { pairId: selectedReview.pairId, excluded: !selectedReview.excluded,
       reason: reviewReason, expectedReviewId: selectedReview.reviewId });
-    setReviewPair(""); setReviewReason(""); setMessage("บันทึกการทบทวนคำตอบและคำนวณ snapshot ใหม่แล้ว");
+    setReviewPair(""); setReviewReason(""); setMessage("บันทึกการทบทวนคำตอบและคำนวณ คะแนนฉบับใหม่แล้ว");
   });
   const loadMoreReviews = async () => {
     setBusy(true);
@@ -123,7 +126,7 @@ export default function ReportsPage({ params }: { params: Promise<{ id: string }
       const payload = await response.json();
       if (!response.ok) throw new Error(payload.error?.code ?? `HTTP ${response.status}`);
       setReviews(current => [...current, ...payload.data.items]); setReviewCursor(payload.data.nextCursor);
-    } catch (error) { setMessage(error instanceof Error ? error.message : String(error)); }
+    } catch (error) { setMessage(friendlyError(error)); }
     finally { setBusy(false); }
   };
   const download = async (format: "csv" | "xlsx", raw = false, includeIdentities = false) => {
@@ -139,7 +142,7 @@ export default function ReportsPage({ params }: { params: Promise<{ id: string }
       link.download = response.headers.get("Content-Disposition")?.match(/filename="([^"]+)"/)?.[1] ??
         `paireval.${format}`;
       document.body.append(link); link.click(); link.remove(); URL.revokeObjectURL(file);
-    } catch (error) { setMessage(error instanceof Error ? error.message : String(error)); }
+    } catch (error) { setMessage(friendlyError(error)); }
     finally { setBusy(false); }
   };
   const output = snapshot?.output;
@@ -154,53 +157,60 @@ export default function ReportsPage({ params }: { params: Promise<{ id: string }
   const distribution = [0, 1, 2, 3, 4].map(index => chartValues.filter(value =>
     Math.min(4, Math.floor(value * 5)) === index).length);
   return <main className="fs-page fs-report-page">
-    <a className="fs-back-link" href="/full-system"><span aria-hidden="true">←</span> กลับไปหน้าห้องเรียน</a>
+    <Link className="fs-back-link" href="/full-system"><span aria-hidden="true">←</span> กลับไปหน้าห้องเรียน</Link>
     <header className="fs-page-heading"><div><span className="eyebrow">พื้นที่อาจารย์ · ผลการประเมิน</span>
       <h1>รายงานและตัดสินคะแนน</h1><p>ตรวจผล แบ่งดูตามด้าน และคำนวณคะแนนฉบับที่ต้องการ</p></div>
-      <span className="fs-teacher-mark" aria-hidden="true">▥</span></header>
+      </header>
     {message && <p className="notice" role="status">{message}</p>}
+    {output && <div className="fs-report-summary"><span><strong>{output.students.length}</strong> นักศึกษา</span><span><strong>{output.groups.length}</strong> กลุ่ม</span><span><strong>{appeals.filter(a=>a.status === "OPEN").length}</strong> คำขอรอพิจารณา</span></div>}
     <section className="form-panel fs-snapshot-panel">
       <div className="fs-section-heading"><div><span className="eyebrow">สถานะคะแนน</span><h2>ผลคำนวณล่าสุด</h2></div>
-        {snapshot && <span className={`fs-status-badge ${snapshot.assignmentStatus === "FINALIZED" ? "is-open" : ""}`}>{snapshot.kind === "FINAL" ? "ยืนยันแล้ว" : "ระหว่างดำเนินงาน"}</span>}</div>
-      <p>{snapshot ? `รุ่น ${snapshot.snapshotNo} · ${snapshot.kind === "INTERIM" ? "ผลระหว่างดำเนินงาน" : "ผลยืนยัน"} · สถานะ ${snapshot.assignmentStatus} · ${new Date(snapshot.createdAt).toLocaleString("th-TH")}` :
+        {snapshot && <span className={`fs-status-badge ${snapshot.assignmentStatus === "FINALIZED" ? "is-open" : ""}`}>{snapshot.assignmentStatus === "FINALIZED" ? "ยืนยันแล้ว" : snapshot.kind === "FINAL" ? "กำลังทบทวนคะแนน" : "คะแนนชั่วคราว"}</span>}</div>
+      <p>{snapshot ? `คะแนนฉบับที่ ${snapshot.snapshotNo} · ${assignmentStatus(snapshot.assignmentStatus)} · อัปเดต ${new Date(snapshot.createdAt).toLocaleString("th-TH", { timeZone: "Asia/Bangkok" })}` :
         "ยังไม่มีผลคำนวณ — เริ่มจากคำนวณผลระหว่างดำเนินงาน"}</p>
-      <div className="actions">
-        <button className="secondary-button" disabled={busy || snapshot?.assignmentStatus === "FINALIZED"} onClick={() => run("INTERIM")}>คำนวณผลระหว่างดำเนินงานใหม่</button>
-        {canManageFinalScores && <button className="primary-button" disabled={busy || !snapshot || snapshot.assignmentStatus === "FINALIZED"}
-          onClick={() => run("FINAL")}>ยืนยันผลคะแนน</button>}
-      </div>
-      {snapshot?.assignmentStatus === "FINALIZED" && canManageFinalScores && <div>
+      {snapshot?.assignmentStatus !== "FINALIZED" && <div className="actions">
+        <button className="secondary-button" disabled={busy} onClick={() => run("INTERIM")}>คำนวณผลระหว่างดำเนินงานใหม่</button>
+        {canManageFinalScores && <button className="primary-button" disabled={busy || !snapshot}
+          onClick={() => setConfirming(true)}>ยืนยันผลคะแนน</button>}
+      </div>}
+      {snapshot?.assignmentStatus === "FINALIZED" && canManageFinalScores && <details className="fs-disclosure"><summary>เปิดทบทวนคะแนนที่ยืนยันแล้ว</summary><div className="fs-disclosure-body"><p className="fine-print">ใช้เมื่อต้องแก้คะแนน โดยระบุเหตุผล ระบบจะเก็บคะแนนฉบับเดิมไว้</p>
         <label className="field">เหตุผลที่เปิดคะแนนใหม่<textarea value={reason} onChange={e => setReason(e.target.value)} /></label>
         <button className="secondary-button" disabled={busy || reason.trim().length < 10} onClick={reopen}>เปิดคะแนนให้แก้ไข</button>
-      </div>}
+      </div></details>}
     </section>
     {output && <>
       <section className="form-panel"><h2>รายงาน</h2>
-        <div className="actions" role="tablist" aria-label="ประเภทรายงาน">{tabs.map(item =>
-          <button key={item.id} role="tab" aria-selected={tab === item.id} className="secondary-button"
+        <div className="actions" role="tablist" aria-label="ประเภทรายงาน" onKeyDown={event => {
+          const keys = ["ArrowRight", "ArrowLeft", "Home", "End"]; if (!keys.includes(event.key)) return;
+          event.preventDefault(); const current = tabs.findIndex(t=>t.id === tab);
+          const next = event.key === "Home" ? 0 : event.key === "End" ? tabs.length-1 : (current+(event.key === "ArrowRight" ? 1 : -1)+tabs.length)%tabs.length;
+          setTab(tabs[next].id); (event.currentTarget.querySelectorAll<HTMLButtonElement>("[role=tab]")[next])?.focus();
+        }}>{tabs.map(item =>
+          <button key={item.id} role="tab" id={`report-tab-${item.id}`} aria-controls="report-panel" tabIndex={tab === item.id ? 0 : -1} aria-selected={tab === item.id} className="secondary-button"
             onClick={() => setTab(item.id)}>{item.label}</button>)}</div>
-        {tab === "group" && <div className="table-wrap"><table><thead><tr><th>กลุ่ม</th><th>เกณฑ์</th><th>q</th><th>จำนวน</th><th>คะแนนถ่วง</th><th>รวมกลุ่ม</th><th>Flags</th></tr></thead><tbody>
+        <div role="tabpanel" id="report-panel" aria-labelledby={`report-tab-${tab}`} tabIndex={0}>
+        {tab === "group" && <div className="table-wrap"><table><thead><tr><th>กลุ่ม</th><th>เกณฑ์</th><th>ค่าเปรียบเทียบ (q)</th><th>จำนวน</th><th>คะแนนถ่วง</th><th>รวมกลุ่ม</th><th>หมายเหตุ</th></tr></thead><tbody>
           {output.groups.flatMap(g => g.criteria.map(c => <tr key={`${g.id}:${c.criterionId}`}>
             <td>{g.name}</td><td>{c.name}</td><td>{show(c.q)}</td><td>{c.comparisons}</td>
-            <td>{show(c.weightedScore)}</td><td>{show(g.component)}</td><td>{g.flags.join(", ")}</td></tr>))}
+            <td>{show(c.weightedScore)}</td><td>{show(g.component)}</td><td>{g.flags.map(scoreFlag).join(", ")}</td></tr>))}
         </tbody></table></div>}
-        {tab === "individual" && <div className="table-wrap"><table><thead><tr><th>นักศึกษา</th><th>กลุ่ม</th><th>รายบุคคล</th><th>ส่ง/มอบหมาย</th><th>M</th><th>รวม</th><th>Flags</th></tr></thead><tbody>
+        {tab === "individual" && <div className="table-wrap"><table><thead><tr><th>นักศึกษา</th><th>กลุ่ม</th><th>รายบุคคล</th><th>ส่ง/มอบหมาย</th><th>ตัวคูณ (M)</th><th>รวม</th><th>หมายเหตุ</th></tr></thead><tbody>
           {output.students.map(s => <tr key={s.id}><td>{s.displayName}</td><td>{show(s.groupComponent)}</td>
             <td>{show(s.individualComponent)}</td><td>{s.answered}/{s.assigned}</td><td>{s.M.toFixed(3)}</td>
-            <td>{show(s.total)}</td><td>{s.flags.join(", ")}</td></tr>)}
+            <td>{show(s.total)}</td><td>{s.flags.map(scoreFlag).join(", ")}</td></tr>)}
         </tbody></table></div>}
-        {tab === "coverage" && <div className="table-wrap"><table><thead><tr><th>ด้าน</th><th>Criterion ID</th><th>คู่ A / B</th><th>ส่ง/มอบหมาย</th><th>ตัดออก</th><th>ค่าเฉลี่ยของ A</th></tr></thead><tbody>
-          {output.pairSummary?.map(p => <tr key={`${p.side}:${p.criterionId}:${p.aId}:${p.bId}`}><td>{p.side}</td>
-            <td>{p.criterionId.slice(0, 8)}</td><td>{p.aId.slice(0, 8)} / {p.bId.slice(0, 8)}</td>
+        {tab === "coverage" && <div className="table-wrap"><table><thead><tr><th>ด้าน</th><th>เกณฑ์</th><th>คู่ A / B</th><th>ส่ง/มอบหมาย</th><th>ตัดออก</th><th>ค่าเฉลี่ยของ A</th></tr></thead><tbody>
+          {output.pairSummary?.map(p => <tr key={`${p.side}:${p.criterionId}:${p.aId}:${p.bId}`}><td>{sideName(p.side)}</td>
+            <td>{chartCriteria.find(c=>c[0] === p.criterionId)?.[1] ?? "เกณฑ์เดิม"}</td><td>{output.groups.find(g=>g.id === p.aId)?.name ?? output.students.find(s=>s.id === p.aId)?.displayName ?? "รายการ A"} / {output.groups.find(g=>g.id === p.bId)?.name ?? output.students.find(s=>s.id === p.bId)?.displayName ?? "รายการ B"}</td>
             <td>{p.answered}/{p.assigned}</td><td>{p.excluded ?? 0}</td><td>{show(p.meanForA)}</td></tr>)}
-        </tbody></table>{!output.pairSummary && <p>Snapshot รุ่นนี้ยังไม่มีผลรวมต่อคู่ โปรดคำนวณ Interim ใหม่หากต้องการข้อมูลนี้</p>}</div>}
+        </tbody></table>{!output.pairSummary && <p>ผลคำนวณฉบับนี้ยังไม่มีผลรวมต่อคู่ โปรดคำนวณคะแนนชั่วคราวใหม่หากต้องการข้อมูลนี้</p>}</div>}
         {tab === "quality" && <>
           <p>สัญญาณใช้ช่วยทบทวนคำตอบ ไม่ลดน้ำหนักหรือลบคำตอบอัตโนมัติ</p>
           <ul className="plain-list">{quality.flatMap(row => row.flags.map(flag =>
-            <li key={`${row.name}:${flag}`}>{row.name}: {flag}</li>))}</ul>
+            <li key={`${row.name}:${flag}`}>{row.name}: {scoreFlag(flag)}</li>))}</ul>
           {qualityFeedback.map(row=><p className="notice" key={`${row.side}:${row.criterion}`}>เกณฑ์ {row.criterion} มีความเห็นแตกต่างกันสูงติดต่อกัน {row.assignments} งาน ควรทบทวนคำอธิบายเกณฑ์</p>)}
           {output.quality ? <>
-            <p className="fine-print">รหัสผู้ประเมินใช้เฉพาะ snapshot นี้ QS-02/03 แยกตามด้านและใช้คำตอบที่ส่งล่าสุด;
+            <p className="fine-print">รหัสผู้ประเมินใช้เฉพาะ คะแนนฉบับนี้ QS-02/03 แยกตามด้านและใช้คำตอบที่ส่งล่าสุด;
               QS-04 แยกตามเกณฑ์และนับเฉพาะชุดสามรายการที่ตอบครบ สัญญาณจากคำตอบจำนวนน้อยต้องทบทวนด้วยความระมัดระวัง</p>
             <div className="table-wrap"><table><caption>{output.quality.version === "qs-02-04-v1" ? "สัญญาณคุณภาพ QS-02–04" : "สัญญาณคุณภาพ QS-02–07"}</caption><thead><tr>
               <th>สัญญาณ</th><th>รหัสผู้ประเมิน</th><th>ด้าน / เกณฑ์</th><th>พบ / ตรวจได้</th><th>สัดส่วน</th><th>เกณฑ์</th><th>ผล</th>
@@ -214,18 +224,20 @@ export default function ReportsPage({ params }: { params: Promise<{ id: string }
               <td>{row.ratio === null ? `ตรวจไม่ได้ — ${qualityReason[row.reason ?? ""] ?? "ข้อมูลไม่พอ"}` : row.flagged ? "ควรทบทวน" : "ไม่พบสัญญาณ"}</td>
             </tr>)}</tbody></table></div>
             {output.quality.measures.length === 0 && <p>ยังไม่มีคำตอบที่ส่งสำหรับตรวจ QS-02–04</p>}
-          </> : <p>Snapshot รุ่นนี้ยังไม่มี QS-02–04 โปรดคำนวณ Interim ใหม่หากต้องการตรวจ</p>}
+          </> : <p>ผลคำนวณฉบับนี้ยังไม่มี QS-02–04 โปรดคำนวณคะแนนชั่วคราวใหม่หากต้องการตรวจ</p>}
           <p className="fine-print">QS-05 เปิดเฉพาะชุดทดสอบสังเคราะห์ที่ระบุไว้และต้องมีเวลาครบทุกคำตอบ; QS-06 ใช้ความสัมพันธ์เพื่อนสังเคราะห์ที่ระบุโดยตรง;
             QS-07 ใช้ผู้ประเมินอย่างน้อย 3 คนที่ตอบครบทุกคู่ในชุดรายการเดียวกัน ไม่มีการเติมคำตอบที่ขาด สัญญาณทั้งหมดต้องทบทวนด้วยตา</p>
           <h3>คำตอบที่ผู้สอนตัดออกจากคะแนน</h3>
           {output.exclusions?.length ? <ul className="plain-list">{output.exclusions.map(row =>
-            <li key={row.pairId}>{row.side} · {row.pairId.slice(0, 8)} · {row.reason}</li>)}</ul> : <p>ไม่มีคำตอบที่ถูกตัดออกใน snapshot นี้</p>}
+            <li key={row.pairId}>{row.side} · {row.pairId.slice(0, 8)} · {row.reason}</li>)}</ul> : <p>ไม่มีคำตอบที่ถูกตัดออกใน คะแนนฉบับนี้</p>}
         </>}
+        </div>
         <div className="actions"><button className="secondary-button" disabled={busy} onClick={() => download("csv")}>ดาวน์โหลด CSV</button>
-          <button className="secondary-button" disabled={busy} onClick={() => download("xlsx")}>ดาวน์โหลด XLSX 4 sheet</button>
-          {rawExportReady && <button className="secondary-button" disabled={busy}
-            onClick={() => download("csv", true)}>ดาวน์โหลดคำตอบดิบแบบรหัสผู้ประเมิน</button>}</div>
-        {rawExportReady && <p className="fine-print">ไฟล์คำตอบดิบใช้รหัสแทนตัวผู้ประเมินและบันทึก audit การส่งออก</p>}
+          <button className="secondary-button" disabled={busy} onClick={() => download("xlsx")}>ดาวน์โหลด Excel (4 แผ่นงาน)</button>
+        </div>
+        {rawExportReady && <details className="fs-disclosure"><summary>ส่งออกคำตอบรายคู่สำหรับตรวจสอบ</summary><div className="fs-disclosure-body">
+          <button className="secondary-button" disabled={busy} onClick={() => download("csv", true)}>ดาวน์โหลดคำตอบดิบแบบรหัสผู้ประเมิน</button>
+        <p className="fine-print">ไฟล์คำตอบใช้รหัสแทนผู้ประเมิน และบันทึกประวัติการส่งออกทุกครั้ง</p>
         {rawExportReady && canRevealIdentities && <details className="form-panel"><summary>เปิดเผยตัวผู้ประเมิน (เจ้าของห้องเท่านั้น)</summary>
           <p>ใช้เพื่อการตรวจสอบทางวิชาการ ระบบบันทึกการเข้าถึงและการส่งออกทุกครั้ง ไฟล์จะมีชื่อและอีเมลผู้ประเมิน</p>
           <label className="field">เหตุผลเปิดเผยตัวผู้ประเมิน<textarea value={identityReason} onChange={e => setIdentityReason(e.target.value)} minLength={10} maxLength={2000} /></label>
@@ -233,10 +245,11 @@ export default function ReportsPage({ params }: { params: Promise<{ id: string }
             if (window.confirm("ยืนยันดาวน์โหลดชื่อและอีเมลผู้ประเมินเพื่อเหตุผลที่ระบุ? การดำเนินการนี้จะถูกบันทึก audit")) void download("csv", true, true);
           }}>ยืนยันและดาวน์โหลดพร้อมชื่อผู้ประเมิน</button>
         </details>}
+        </div></details>}
       </section>
       {tab === "quality" && snapshot.assignmentStatus !== "FINALIZED" && <section className="form-panel">
         <h2>ทบทวนคำตอบที่ส่ง</h2>
-        <p>ผู้สอนตัดคำตอบออกจากคะแนนหรือคืนคำตอบได้พร้อมเหตุผล ระบบเก็บประวัติและคำนวณ snapshot ใหม่
+        <p>ผู้สอนตัดคำตอบออกจากคะแนนหรือคืนคำตอบได้พร้อมเหตุผล ระบบเก็บประวัติและคำนวณ คะแนนฉบับใหม่
           จำนวนงานที่ส่งและตัวคูณการมีส่วนร่วมยังนับคำตอบที่ส่งแล้ว</p>
         <label className="field">คำตอบที่จะทบทวน<select value={reviewPair} onChange={e => setReviewPair(e.target.value)}>
           <option value="">เลือกคำตอบ</option>{reviews.map(row => <option key={row.pairId} value={row.pairId}>
@@ -250,48 +263,55 @@ export default function ReportsPage({ params }: { params: Promise<{ id: string }
         <button className="primary-button" disabled={busy || !selectedReview || reviewReason.trim().length < 10} onClick={reviewComparison}>
           {selectedReview?.excluded ? "คืนคำตอบและคำนวณใหม่" : "ตัดคำตอบออกและคำนวณใหม่"}</button>
       </section>}
-      <section className="form-panel"><h2>การกระจายค่า q ต่อเกณฑ์</h2>
+      <details className="form-panel fs-disclosure"><summary>ดูการกระจายคะแนนเปรียบเทียบตามเกณฑ์</summary><div className="fs-disclosure-body">
         <label className="field">เกณฑ์<select value={chartCriterion || chartCriteria[0]?.[0] || ""}
           onChange={e => setChartCriterion(e.target.value)}>{chartCriteria.map(([criterionId, name]) =>
             <option key={criterionId} value={criterionId}>{name}</option>)}</select></label>
-        <p className="fine-print">จำนวน item ที่มีข้อมูลในช่วง q 0–20%, 20–40%, 40–60%, 60–80%, 80–100%</p>
+        <p className="fine-print">จำนวนผลงานที่มีข้อมูลในช่วง q 0–20%, 20–40%, 40–60%, 60–80%, 80–100%</p>
         <div role="img" aria-label={`การกระจายค่า q ${distribution.join(", ")}`}>
-          {distribution.map((count, index) => <p key={index}>{index * 20}–{(index + 1) * 20}%: {"▰".repeat(count)} {count}</p>)}</div>
-      </section>
-      {snapshot.assignmentStatus !== "FINALIZED" && <section className="form-panel"><h2>Override คะแนน</h2>
+          <div className="fs-histogram">{distribution.map((count, index) => <div key={index}><strong>{count}</strong><span style={{height: `${Math.max(4, count / Math.max(1, ...distribution) * 100)}px`}} /><small>{index*20}–{(index+1)*20}%</small></div>)}</div></div>
+      </div></details>
+      {snapshot.assignmentStatus !== "FINALIZED" && <details className="form-panel fs-disclosure"><summary>ปรับคะแนนพร้อมเหตุผล</summary><div className="fs-disclosure-body"><p className="fine-print">เลือกกลุ่มหรือนักศึกษาที่ต้องการปรับคะแนน และอธิบายเหตุผลทุกครั้ง</p>
         <label className="field">ด้าน<select value={overrideSide} onChange={e => { setOverrideSide(e.target.value as typeof overrideSide); setOverrideItem(""); }}><option value="GROUP">กลุ่ม</option><option value="INDIVIDUAL">รายบุคคล</option></select></label>
         <label className="field">รายการ<select value={overrideItem} onChange={e => setOverrideItem(e.target.value)}><option value="">เลือก</option>
           {(overrideSide === "GROUP" ? output.groups : output.students).map(row =>
             <option key={row.id} value={row.id}>{"name" in row ? row.name : row.displayName}</option>)}</select></label>
         <label className="field">คะแนนใหม่<input type="number" min="0" step="0.0001" value={overrideValue} onChange={e => setOverrideValue(Number(e.target.value))} /></label>
         <label className="field">เหตุผล (อย่างน้อย 10 ตัวอักษร)<textarea value={reason} onChange={e => setReason(e.target.value)} /></label>
-        <button className="primary-button" disabled={busy || !overrideItem || reason.trim().length < 10} onClick={override}>บันทึก Override</button>
-      </section>}
-      <section className="form-panel"><h2>อุทธรณ์</h2>
-        {appeals.length === 0 ? <p>ยังไม่มีคำอุทธรณ์</p> : <ul className="plain-list">
-          {appeals.map(row => <li key={row.id}>{output.students.find(s => s.id === row.studentId)?.displayName ?? row.studentId.slice(0, 8)}
-            {` · ${row.status} · ${row.message}`}{row.resolution ? ` · ${row.resolution}` : ""}</li>)}
-        </ul>}
+        <button className="primary-button" disabled={busy || !overrideItem || reason.trim().length < 10} onClick={override}>บันทึกการปรับคะแนน</button>
+      </div></details>}
+      <section className="form-panel"><h2>คำขอทบทวนคะแนน</h2>
+        {appeals.length === 0 ? <p className="fs-muted-copy">ยังไม่มีคำขอทบทวนคะแนน</p> : <div className="fs-teacher-appeals">
+          {appeals.map(row => <article className="fs-appeal-item" key={row.id}>
+            <div className="fs-section-heading"><strong>{output.students.find(student=>student.id === row.studentId)?.displayName ?? "นักศึกษาที่ไม่อยู่ในรายชื่อปัจจุบัน"}</strong><span className={`fs-status-badge ${row.status === "OPEN" ? "is-pending" : "is-open"}`}>{appealStatus(row.status)}</span></div>
+            <p>{row.message}</p>{row.resolution && <div className="fs-appeal-response"><strong>คำตอบจากอาจารย์</strong><p>{row.resolution}</p></div>}
+          </article>)}
+        </div>}
         {appeals.some(row => row.status === "OPEN") && <>
           <label className="field">คำอุทธรณ์<select value={appealId} onChange={e => setAppealId(e.target.value)}><option value="">เลือก</option>
-            {appeals.filter(row => row.status === "OPEN").map(row => <option key={row.id} value={row.id}>{row.id.slice(0, 8)}</option>)}</select></label>
+            {appeals.filter(row => row.status === "OPEN").map(row => <option key={row.id} value={row.id}>{output.students.find(s=>s.id === row.studentId)?.displayName ?? "นักศึกษา"} · {row.message.slice(0, 45)}</option>)}</select></label>
           <label className="field">คำตอบ (อย่างน้อย 10 ตัวอักษร)<textarea value={resolution} onChange={e => setResolution(e.target.value)} /></label>
           <div className="actions"><button className="primary-button" disabled={busy || !appealId || resolution.trim().length < 10}
             onClick={() => resolveAppeal("RESOLVED")}>ยืนยัน/ตอบกลับ</button>
           <button className="secondary-button" disabled={busy || !appealId || resolution.trim().length < 10}
             onClick={() => resolveAppeal("REJECTED")}>ปฏิเสธพร้อมเหตุผล</button></div>
-          <p className="fine-print">หากปรับคะแนน ให้ Reopen, Override และ Finalize snapshot ใหม่ก่อนตอบกลับ</p>
+          <p className="fine-print">หากต้องปรับคะแนน ให้เปิดทบทวนคะแนน ปรับคะแนน และยืนยันผลใหม่ก่อนตอบกลับ</p>
         </>}
       </section>
-      <section className="form-panel"><h2>Audit timeline ของห้องเรียน</h2>
-        <p className="fine-print">แสดงเหตุการณ์จากฐาน audit แยก โดยไม่แสดงตัวตนผู้ประเมิน</p>
-        <div className="table-wrap"><table><thead><tr><th>เวลา UTC</th><th>เหตุการณ์</th><th>ทรัพยากร</th><th>Request</th></tr></thead><tbody>
+      <details className="form-panel fs-disclosure"><summary>ประวัติการทำรายการของห้องเรียน</summary><div className="fs-disclosure-body">
+        <p className="fine-print">ใช้ตรวจสอบย้อนหลัง โดยไม่แสดงชื่อผู้ประเมิน</p>
+        <div className="table-wrap"><table><thead><tr><th>เวลา UTC</th><th>เหตุการณ์</th><th>รายการอ้างอิง</th><th>รหัสอ้างอิง</th></tr></thead><tbody>
           {auditRows.map(row => <tr key={`${row.requestId}:${row.action}`}>
             <td>{row.occurredAt}</td><td>{row.action}</td>
             <td>{row.resourceType} {row.resourceId.slice(0, 8)}</td>
             <td>{row.requestId.slice(0, 8)}</td></tr>)}
         </tbody></table></div>
-      </section>
+      </div></details>
     </>}
+    <ConfirmationDialog open={confirming} title="ยืนยันผลคะแนนของงานนี้?" confirmLabel="ยืนยันผลคะแนน" onCancel={() => setConfirming(false)}
+      onConfirm={() => { setConfirming(false); void run("FINAL"); }}>
+      <p>นักศึกษาจะเห็นผลนี้เป็นคะแนนที่อาจารย์ยืนยันแล้ว ระบบจะเก็บคะแนนฉบับก่อนหน้าไว้</p>
+      <p>หากต้องแก้ไขภายหลัง อาจารย์เจ้าของห้องต้องเปิดทบทวนคะแนนพร้อมระบุเหตุผล</p>
+    </ConfirmationDialog>
   </main>;
 }

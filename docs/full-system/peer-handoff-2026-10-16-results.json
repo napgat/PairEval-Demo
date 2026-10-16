@@ -1,0 +1,60 @@
+{
+  "date": "2026-10-16",
+  "scope": "Student prototype; fresh source copy on the same Windows x64 machine, NOT peer hardware acceptance",
+  "node": "v24.18.0",
+  "npmCi": true,
+  "build": true,
+  "migrations": 19,
+  "unitTests": {
+    "passed": 88,
+    "total": 88
+  },
+  "typecheck": true,
+  "externalCheckoutPortRefused": true,
+  "freshUi": {
+    "passed": true,
+    "screens": 21,
+    "errors": 0,
+    "violations": 0,
+    "skipped": [
+      {
+        "scope": "final-report-and-final-score",
+        "reason": "No finalized synthetic assignment; follow docs/TRY_IT.md section D, then rerun. Main-score screens will still be checked."
+      }
+    ]
+  },
+  "existingUi": {
+    "passed": true,
+    "screens": 22,
+    "errors": 0,
+    "skipped": []
+  },
+  "sessionReentry": {
+    "passed": true,
+    "activeSessionPreserved": true,
+    "expiredAndRevokedRemoved": true,
+    "apiAuthenticatedAfterSecondLogin": true
+  },
+  "restart": {
+    "passed": true,
+    "dataPreserved": {
+      "members": 19,
+      "groups": 4,
+      "finalSubmissions": 32,
+      "finalSnapshots": 1,
+      "prepared": true
+    },
+    "auditPending": 0
+  },
+  "finalPreparation": {
+    "prepared": true,
+    "students": 16,
+    "submissions": 32,
+    "resumeAfterInterruptedPreparation": true,
+    "repeatedPreparationUnchanged": true
+  },
+  "peerComputerTested": false,
+  "currentPrimaryDemoRestored": true,
+  "lint": true,
+  "evidenceMapGeneratedUnchanged": true
+}

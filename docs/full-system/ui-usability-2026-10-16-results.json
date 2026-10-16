@@ -1,0 +1,208 @@
+{
+  "passed": true,
+  "origin": "http://localhost:3101",
+  "checks": [
+    {
+      "page": "sign-in",
+      "violations": [],
+      "viewport": {
+        "width": 1366,
+        "height": 900
+      },
+      "horizontalOverflow": false
+    },
+    {
+      "page": "owner-dashboard",
+      "violations": [],
+      "viewport": {
+        "width": 1366,
+        "height": 900
+      },
+      "horizontalOverflow": false
+    },
+    {
+      "page": "owner-assignments",
+      "violations": [],
+      "viewport": {
+        "width": 1366,
+        "height": 900
+      },
+      "horizontalOverflow": false
+    },
+    {
+      "page": "owner-new-assignment",
+      "violations": [],
+      "viewport": {
+        "width": 1366,
+        "height": 900
+      },
+      "horizontalOverflow": false
+    },
+    {
+      "page": "report-group",
+      "violations": [],
+      "viewport": {
+        "width": 1366,
+        "height": 900
+      },
+      "horizontalOverflow": false
+    },
+    {
+      "page": "report-individual",
+      "violations": [],
+      "viewport": {
+        "width": 1366,
+        "height": 900
+      },
+      "horizontalOverflow": false
+    },
+    {
+      "page": "report-coverage",
+      "violations": [],
+      "viewport": {
+        "width": 1366,
+        "height": 900
+      },
+      "horizontalOverflow": false
+    },
+    {
+      "page": "report-quality",
+      "violations": [],
+      "viewport": {
+        "width": 1366,
+        "height": 900
+      },
+      "horizontalOverflow": false
+    },
+    {
+      "page": "owner-final-confirmation",
+      "violations": [],
+      "viewport": {
+        "width": 1366,
+        "height": 900
+      },
+      "horizontalOverflow": false
+    },
+    {
+      "page": "report-final",
+      "violations": [],
+      "viewport": {
+        "width": 1366,
+        "height": 900
+      },
+      "horizontalOverflow": false
+    },
+    {
+      "page": "co-teacher-report",
+      "violations": [],
+      "viewport": {
+        "width": 1366,
+        "height": 900
+      },
+      "horizontalOverflow": false
+    },
+    {
+      "page": "ta-roster",
+      "violations": [],
+      "viewport": {
+        "width": 1366,
+        "height": 900
+      },
+      "horizontalOverflow": false
+    },
+    {
+      "page": "student-dashboard",
+      "violations": [],
+      "viewport": {
+        "width": 1366,
+        "height": 900
+      },
+      "horizontalOverflow": false
+    },
+    {
+      "page": "student-work",
+      "violations": [],
+      "viewport": {
+        "width": 1366,
+        "height": 900
+      },
+      "horizontalOverflow": false
+    },
+    {
+      "page": "student-group",
+      "violations": [],
+      "viewport": {
+        "width": 1366,
+        "height": 900
+      },
+      "horizontalOverflow": false
+    },
+    {
+      "page": "student-submit-confirmation",
+      "violations": [],
+      "viewport": {
+        "width": 1366,
+        "height": 900
+      },
+      "horizontalOverflow": false
+    },
+    {
+      "page": "student-individual",
+      "violations": [],
+      "viewport": {
+        "width": 1366,
+        "height": 900
+      },
+      "horizontalOverflow": false
+    },
+    {
+      "page": "student-final-score",
+      "violations": [],
+      "viewport": {
+        "width": 1366,
+        "height": 900
+      },
+      "horizontalOverflow": false
+    },
+    {
+      "page": "student-archive",
+      "violations": [],
+      "viewport": {
+        "width": 1366,
+        "height": 900
+      },
+      "horizontalOverflow": false
+    },
+    {
+      "page": "mobile-student-work",
+      "violations": [],
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "horizontalOverflow": false
+    },
+    {
+      "page": "mobile-student-group",
+      "violations": [],
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "horizontalOverflow": false
+    },
+    {
+      "page": "small-student-score",
+      "violations": [],
+      "viewport": {
+        "width": 320,
+        "height": 740
+      },
+      "horizontalOverflow": false
+    }
+  ],
+  "errors": [],
+  "skipped": [],
+  "readOnlyHarness": true,
+  "scoreCheck": "UI matches its own API snapshot; this is not an independent scoring oracle"
+}

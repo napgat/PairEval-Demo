@@ -1,6 +1,10 @@
 param([switch]$NoOpen)
 $ErrorActionPreference='Stop'
 $taskRoot=$PSScriptRoot
+if($env:OS -ne 'Windows_NT' -or ![Environment]::Is64BitOperatingSystem){throw 'The local demo launcher requires Windows x64.'}
+if($taskRoot -match '[^\x00-\x7F]'){throw 'Use an English-only path such as C:\PairEvalDemo for the embedded local database.'}
+$nodeMajor=& node.exe -p 'process.versions.node.split(String.fromCharCode(46))[0]'
+if($LASTEXITCODE -ne 0 -or $nodeMajor -ne '24'){throw 'Use Node.js 24 for this verified local demo.'}
 $logRoot=Join-Path $taskRoot '.verification/v20-20261015/launcher'
 New-Item -ItemType Directory -Force -Path $logRoot | Out-Null
 $nodePath=(Get-Command node.exe).Source
@@ -11,6 +15,18 @@ function Test-LocalPort([int]$Port) {
 function Wait-LocalPort([int]$Port) {
   for($attempt=0;$attempt -lt 90;$attempt++){if(Test-LocalPort $Port){return};Start-Sleep -Milliseconds 500}
   throw "Local service on port $Port did not become ready. See $logRoot"
+}
+function Test-OwnedHelper([string]$Name) {
+  $file=Join-Path $logRoot "$Name.json"
+  if(!(Test-Path -LiteralPath $file)){return $false}
+  $prior=Get-Content -LiteralPath $file -Raw | ConvertFrom-Json
+  $running=Get-Process -Id $prior.id -ErrorAction SilentlyContinue
+  return ($running -and $running.StartTime.ToUniversalTime().Ticks -eq ([datetime]$prior.started).ToUniversalTime().Ticks)
+}
+foreach($service in @(@{port=55432;name='database'},@{port=3101;name='application'},@{port=3103;name='presentation'})){
+  if((Test-LocalPort $service.port) -and !(Test-OwnedHelper $service.name)){
+    throw "Port $($service.port) is already used outside this checkout's launcher. Stop the other demo from its own folder before opening this one."
+  }
 }
 function Start-Helper([string]$Name,[string[]]$Arguments,[string]$Directory=$taskRoot) {
   $pidFile=Join-Path $logRoot "$Name.json"

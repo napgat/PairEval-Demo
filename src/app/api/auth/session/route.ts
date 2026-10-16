@@ -7,7 +7,7 @@ export const runtime = "nodejs";
 async function GETHandler(request: NextRequest) {
   const actor = await actorForRequest(request);
   if (!actor) return NextResponse.json({ error: { code: "UNAUTHENTICATED" } }, { status: 401 });
-  return NextResponse.json({ data: { id: actor.id, email: actor.email, platformRole: actor.platformRole,
+  return NextResponse.json({ data: { id: actor.id, email: actor.email, displayName: actor.displayName, platformRole: actor.platformRole,
     canCreateClassroom: actor.canCreateClassroom, privacyAccepted: actor.privacyAccepted } });
 }
 
