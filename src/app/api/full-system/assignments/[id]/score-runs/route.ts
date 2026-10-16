@@ -1,7 +1,7 @@
 import { observeRoute } from "@/lib/observe-route";
 import { NextResponse, type NextRequest } from "next/server";
 import { assignmentActor, assignmentError } from "@/lib/full-system-assignment-http";
-import { createScoreRun, latestScoreRun } from "@/lib/full-system-score-runs";
+import { createScoreRun, latestScoreRun, mayManageFinalScores } from "@/lib/full-system-score-runs";
 import { mayRevealIdentities } from "@/lib/full-system-identity-access";
 import { criterionQualityFeedback } from "@/lib/full-system-quality-feedback";
 
@@ -12,6 +12,7 @@ async function GETHandler(request: NextRequest, context: Context) {
   try { return NextResponse.json({ data: await latestScoreRun(auth.actor, (await context.params).id),
     meta: { rawExportReady: Buffer.byteLength(process.env.PAIR_EVAL_EXPORT_KEY ?? "", "utf8") >= 32,
       canRevealIdentities: await mayRevealIdentities(auth.actor, (await context.params).id),
+      canManageFinalScores: await mayManageFinalScores(auth.actor, (await context.params).id),
       qualityFeedback: await criterionQualityFeedback(auth.actor, (await context.params).id) } }); }
   catch (error) { return assignmentError(error); }
 }

@@ -30,6 +30,7 @@ export default function ReportsPage({ params }: { params: Promise<{ id: string }
   const [snapshot, setSnapshot] = useState<Snapshot | null>(null);
   const [rawExportReady, setRawExportReady] = useState(false);
   const [canRevealIdentities, setCanRevealIdentities] = useState(false);
+  const [canManageFinalScores, setCanManageFinalScores] = useState(false);
   const [identityReason, setIdentityReason] = useState("");
   const [tab, setTab] = useState<Tab>("group");
   const [chartCriterion, setChartCriterion] = useState("");
@@ -60,6 +61,7 @@ export default function ReportsPage({ params }: { params: Promise<{ id: string }
     setSnapshot(payload.data);
     setRawExportReady(payload.meta?.rawExportReady === true);
     setCanRevealIdentities(payload.meta?.canRevealIdentities === true);
+    setCanManageFinalScores(payload.meta?.canManageFinalScores === true);
     setQualityFeedback(payload.meta?.qualityFeedback ?? []);
     if (appealResponse.ok) setAppeals((await appealResponse.json()).data.appeals);
     if (auditResponse.ok) setAuditRows((await auditResponse.json()).data);
@@ -164,10 +166,10 @@ export default function ReportsPage({ params }: { params: Promise<{ id: string }
         "ยังไม่มีผลคำนวณ — เริ่มจากคำนวณผลระหว่างดำเนินงาน"}</p>
       <div className="actions">
         <button className="secondary-button" disabled={busy || snapshot?.assignmentStatus === "FINALIZED"} onClick={() => run("INTERIM")}>คำนวณผลระหว่างดำเนินงานใหม่</button>
-        <button className="primary-button" disabled={busy || !snapshot || snapshot.assignmentStatus === "FINALIZED"}
-          onClick={() => run("FINAL")}>ยืนยันผลคะแนน</button>
+        {canManageFinalScores && <button className="primary-button" disabled={busy || !snapshot || snapshot.assignmentStatus === "FINALIZED"}
+          onClick={() => run("FINAL")}>ยืนยันผลคะแนน</button>}
       </div>
-      {snapshot?.assignmentStatus === "FINALIZED" && <div>
+      {snapshot?.assignmentStatus === "FINALIZED" && canManageFinalScores && <div>
         <label className="field">เหตุผลที่เปิดคะแนนใหม่<textarea value={reason} onChange={e => setReason(e.target.value)} /></label>
         <button className="secondary-button" disabled={busy || reason.trim().length < 10} onClick={reopen}>เปิดคะแนนให้แก้ไข</button>
       </div>}

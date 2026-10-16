@@ -1,0 +1,48 @@
+{
+  "passed": true,
+  "students": 16,
+  "xlsxSheets": 4,
+  "csvXlsxParity": true,
+  "oracleSource": "independent formula recomputation from submitted snapshot inputs; no production scoring imports",
+  "student1": {
+    "id": "61e407d0-6333-4343-90de-d0239e12693f",
+    "name": "นักศึกษาคนที่ 1",
+    "group": 12.440000000000001,
+    "individual": 4.5,
+    "total": 16.94,
+    "M": 1,
+    "answered": 5,
+    "assigned": 5
+  },
+  "revisions": [
+    {
+      "side": "GROUP",
+      "revision_number": 1
+    },
+    {
+      "side": "INDIVIDUAL",
+      "revision_number": 1
+    }
+  ],
+  "oldFinalUnchanged": true,
+  "snapshots": [
+    {
+      "snapshot_no": 1,
+      "kind": "INTERIM"
+    },
+    {
+      "snapshot_no": 2,
+      "kind": "FINAL"
+    },
+    {
+      "snapshot_no": 3,
+      "kind": "INTERIM"
+    },
+    {
+      "snapshot_no": 4,
+      "kind": "FINAL"
+    }
+  ],
+  "appealResolved": true,
+  "pendingAudit": 0
+}

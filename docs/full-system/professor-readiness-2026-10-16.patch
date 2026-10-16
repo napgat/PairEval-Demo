@@ -1,0 +1,93 @@
+--- a/src/app/api/full-system/assignments/[id]/score-runs/route.ts
++++ b/src/app/api/full-system/assignments/[id]/score-runs/route.ts
+@@ -1,7 +1,7 @@
+ import { observeRoute } from "@/lib/observe-route";
+ import { NextResponse, type NextRequest } from "next/server";
+ import { assignmentActor, assignmentError } from "@/lib/full-system-assignment-http";
+-import { createScoreRun, latestScoreRun } from "@/lib/full-system-score-runs";
++import { createScoreRun, latestScoreRun, mayManageFinalScores } from "@/lib/full-system-score-runs";
+ import { mayRevealIdentities } from "@/lib/full-system-identity-access";
+ import { criterionQualityFeedback } from "@/lib/full-system-quality-feedback";
+ 
+@@ -12,6 +12,7 @@
+   try { return NextResponse.json({ data: await latestScoreRun(auth.actor, (await context.params).id),
+     meta: { rawExportReady: Buffer.byteLength(process.env.PAIR_EVAL_EXPORT_KEY ?? "", "utf8") >= 32,
+       canRevealIdentities: await mayRevealIdentities(auth.actor, (await context.params).id),
++      canManageFinalScores: await mayManageFinalScores(auth.actor, (await context.params).id),
+       qualityFeedback: await criterionQualityFeedback(auth.actor, (await context.params).id) } }); }
+   catch (error) { return assignmentError(error); }
+ }
+--- a/src/app/full-system/assignments/[id]/evaluate/[side]/page.tsx
++++ b/src/app/full-system/assignments/[id]/evaluate/[side]/page.tsx
+@@ -114,7 +114,8 @@
+   const submit = async () => {
+     if (!data) return;
+     const missing = data.pairs.filter(pair => pair.choice === null).length;
+-    if (!window.confirm(`ยังไม่ตอบ ${missing} คู่จาก ${data.pairs.length} คู่ ยืนยันส่งคำตอบที่มีหรือไม่?`)) return;
++    const confirmation = missing === 0 ? `ตอบครบ ${data.pairs.length} คู่แล้ว ยืนยันส่งคำตอบหรือไม่?` : `ยังไม่ตอบ ${missing} คู่จาก ${data.pairs.length} คู่ ยืนยันส่งคำตอบที่มีหรือไม่?`;
++    if (!window.confirm(confirmation)) return;
+     setBusy(true);
+     try { await timing.current?.finish(); await flush();
+       submitKey.current ??= crypto.randomUUID();
+--- a/src/app/full-system/assignments/[id]/reports/page.tsx
++++ b/src/app/full-system/assignments/[id]/reports/page.tsx
+@@ -30,6 +30,7 @@
+   const [snapshot, setSnapshot] = useState<Snapshot | null>(null);
+   const [rawExportReady, setRawExportReady] = useState(false);
+   const [canRevealIdentities, setCanRevealIdentities] = useState(false);
++  const [canManageFinalScores, setCanManageFinalScores] = useState(false);
+   const [identityReason, setIdentityReason] = useState("");
+   const [tab, setTab] = useState<Tab>("group");
+   const [chartCriterion, setChartCriterion] = useState("");
+@@ -60,6 +61,7 @@
+     setSnapshot(payload.data);
+     setRawExportReady(payload.meta?.rawExportReady === true);
+     setCanRevealIdentities(payload.meta?.canRevealIdentities === true);
++    setCanManageFinalScores(payload.meta?.canManageFinalScores === true);
+     setQualityFeedback(payload.meta?.qualityFeedback ?? []);
+     if (appealResponse.ok) setAppeals((await appealResponse.json()).data.appeals);
+     if (auditResponse.ok) setAuditRows((await auditResponse.json()).data);
+@@ -164,10 +166,10 @@
+         "ยังไม่มีผลคำนวณ — เริ่มจากคำนวณผลระหว่างดำเนินงาน"}</p>
+       <div className="actions">
+         <button className="secondary-button" disabled={busy || snapshot?.assignmentStatus === "FINALIZED"} onClick={() => run("INTERIM")}>คำนวณผลระหว่างดำเนินงานใหม่</button>
+-        <button className="primary-button" disabled={busy || !snapshot || snapshot.assignmentStatus === "FINALIZED"}
+-          onClick={() => run("FINAL")}>ยืนยันผลคะแนน</button>
++        {canManageFinalScores && <button className="primary-button" disabled={busy || !snapshot || snapshot.assignmentStatus === "FINALIZED"}
++          onClick={() => run("FINAL")}>ยืนยันผลคะแนน</button>}
+       </div>
+-      {snapshot?.assignmentStatus === "FINALIZED" && <div>
++      {snapshot?.assignmentStatus === "FINALIZED" && canManageFinalScores && <div>
+         <label className="field">เหตุผลที่เปิดคะแนนใหม่<textarea value={reason} onChange={e => setReason(e.target.value)} /></label>
+         <button className="secondary-button" disabled={busy || reason.trim().length < 10} onClick={reopen}>เปิดคะแนนให้แก้ไข</button>
+       </div>}
+--- a/src/app/globals.css
++++ b/src/app/globals.css
+@@ -214,7 +214,7 @@
+ .fs-evaluation-pair .rating-options label:hover { border-color: #abd2cd; background: #f7fbfa; }
+ .fs-evaluation-pair .rating-options label:has(input:checked) { border: 2px solid #087c79; background: #e9f6f3; box-shadow: 0 0 0 2px #d8efeb; }
+ .fs-evaluation-pair .rating-number { color: #1e3941; font-size: 1.15rem; }
+-.fs-evaluation-pair .rating-options small { max-width: 108px; color: #62767c; font-size: .7rem; }
++.fs-evaluation-pair .rating-options small { max-width: 108px; color: #415a63; font-size: .7rem; }
+ .fs-scale-hint { display: flex; justify-content: space-between; gap: 10px; margin: 8px 0 0; color: #536970; font-size: .72rem; }
+ .fs-evaluation-pair .clear-choice { margin-top: 9px; }
+ .fs-submit-bar { position: sticky; z-index: 5; bottom: 0; display: flex; justify-content: space-between; align-items: center; gap: 18px; margin: 28px -12px 0; padding: 14px 16px max(14px, env(safe-area-inset-bottom)); border: 1px solid #dfe8e8; border-radius: 16px 16px 0 0; background: #ffffffed; box-shadow: 0 -8px 24px #17353b0b; backdrop-filter: blur(12px); }
+--- a/src/lib/full-system-score-runs.ts
++++ b/src/lib/full-system-score-runs.ts
+@@ -57,6 +57,16 @@
+     throw new AssignmentConflictError("Assignment is not published");
+   }
+   return row;
++}
++
++/** UI capability only; mutations independently enforce the Owner role in their transaction. */
++export async function mayManageFinalScores(actor: FullActor, assignmentId: string): Promise<boolean> {
++  const client = await databasePool().connect();
++  try {
++    const assignment = await editorScope(client, actor, assignmentId);
++    const owner = await client.query("SELECT 1 FROM classroom_member WHERE classroom_id=$1 AND user_id=$2 AND role='OWNER' AND membership_status='ACTIVE'", [assignment.classroom_id, actor.id]);
++    return Boolean(owner.rowCount);
++  } finally { client.release(); }
+ }
+ 
+ const four = (value: number) => Math.round((value + Number.EPSILON) * 10000) / 10000;

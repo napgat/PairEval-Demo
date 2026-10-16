@@ -15,6 +15,7 @@
     "seed:reset": "node scripts/seed.mjs",
     "demo:answers": "node scripts/seed-answers.mjs",
     "demo:prepare": "node scripts/prepare-demo.mjs",
+    "demo:prepare-final": "node scripts/prepare-final-demo.mjs",
     "test:main-flow": "node scripts/day6-main-flow.mjs",
     "test:ui-audit": "node scripts/day6-ui-audit.mjs",
     "db:migrate": "node scripts/full-system-db.mjs migrate",

@@ -59,6 +59,16 @@ export async function editorScope(client: PoolClient, actor: FullActor, assignme
   return row;
 }
 
+/** UI capability only; mutations independently enforce the Owner role in their transaction. */
+export async function mayManageFinalScores(actor: FullActor, assignmentId: string): Promise<boolean> {
+  const client = await databasePool().connect();
+  try {
+    const assignment = await editorScope(client, actor, assignmentId);
+    const owner = await client.query("SELECT 1 FROM classroom_member WHERE classroom_id=$1 AND user_id=$2 AND role='OWNER' AND membership_status='ACTIVE'", [assignment.classroom_id, actor.id]);
+    return Boolean(owner.rowCount);
+  } finally { client.release(); }
+}
+
 const four = (value: number) => Math.round((value + Number.EPSILON) * 10000) / 10000;
 export function assembleScoreRun(input: { assignmentId: string; generation: number;
   kind: "INTERIM" | "FINAL"; formulaVersion: string; settings: ScoreSettings;

@@ -1,0 +1,18 @@
+{
+  "owner": {
+    "status": 200,
+    "canManageFinalScores": true
+  },
+  "beforeDeadline": {
+    "status": 409,
+    "noSnapshotCreated": true
+  },
+  "co": {
+    "status": 200,
+    "canManageFinalScores": false
+  },
+  "ta": {
+    "status": 404,
+    "canManageFinalScores": false
+  }
+}

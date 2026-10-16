@@ -114,7 +114,8 @@ export default function EvaluationPage({ params, searchParams }: {
   const submit = async () => {
     if (!data) return;
     const missing = data.pairs.filter(pair => pair.choice === null).length;
-    if (!window.confirm(`ยังไม่ตอบ ${missing} คู่จาก ${data.pairs.length} คู่ ยืนยันส่งคำตอบที่มีหรือไม่?`)) return;
+    const confirmation = missing === 0 ? `ตอบครบ ${data.pairs.length} คู่แล้ว ยืนยันส่งคำตอบหรือไม่?` : `ยังไม่ตอบ ${missing} คู่จาก ${data.pairs.length} คู่ ยืนยันส่งคำตอบที่มีหรือไม่?`;
+    if (!window.confirm(confirmation)) return;
     setBusy(true);
     try { await timing.current?.finish(); await flush();
       submitKey.current ??= crypto.randomUUID();
