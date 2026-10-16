@@ -288,12 +288,15 @@ export default function ReportsPage({ params }: { params: Promise<{ id: string }
           </article>)}
         </div>}
         {appeals.some(row => row.status === "OPEN") && <>
+          {(snapshot.assignmentStatus !== "FINALIZED" || snapshot.kind !== "FINAL") && <p className="notice" role="status">
+            ยังตอบกลับหรือปิดคำขอไม่ได้ ขณะนี้กำลังทบทวนคะแนน หากต้องปรับคะแนน ให้บันทึกการปรับคะแนนแล้วกด “ยืนยันผลคะแนน” ด้านบนก่อนกลับมาตอบคำขอ
+          </p>}
           <label className="field">คำอุทธรณ์<select value={appealId} onChange={e => setAppealId(e.target.value)}><option value="">เลือก</option>
             {appeals.filter(row => row.status === "OPEN").map(row => <option key={row.id} value={row.id}>{output.students.find(s=>s.id === row.studentId)?.displayName ?? "นักศึกษา"} · {row.message.slice(0, 45)}</option>)}</select></label>
           <label className="field">คำตอบ (อย่างน้อย 10 ตัวอักษร)<textarea value={resolution} onChange={e => setResolution(e.target.value)} /></label>
-          <div className="actions"><button className="primary-button" disabled={busy || !appealId || resolution.trim().length < 10}
+          <div className="actions"><button className="primary-button" disabled={busy || snapshot.assignmentStatus !== "FINALIZED" || snapshot.kind !== "FINAL" || !appealId || resolution.trim().length < 10}
             onClick={() => resolveAppeal("RESOLVED")}>ยืนยัน/ตอบกลับ</button>
-          <button className="secondary-button" disabled={busy || !appealId || resolution.trim().length < 10}
+          <button className="secondary-button" disabled={busy || snapshot.assignmentStatus !== "FINALIZED" || snapshot.kind !== "FINAL" || !appealId || resolution.trim().length < 10}
             onClick={() => resolveAppeal("REJECTED")}>ปฏิเสธพร้อมเหตุผล</button></div>
           <p className="fine-print">หากต้องปรับคะแนน ให้เปิดทบทวนคะแนน ปรับคะแนน และยืนยันผลใหม่ก่อนตอบกลับ</p>
         </>}

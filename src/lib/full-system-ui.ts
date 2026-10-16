@@ -11,6 +11,7 @@ export const scoreFlag = (value: string) => ({
 
 export function friendlyError(value: unknown): string {
   const text = value instanceof Error ? value.message : String(value ?? "");
+  if (/Finalize the current scores before resolving an appeal/i.test(text)) return "กรุณายืนยันผลคะแนนฉบับล่าสุดก่อนตอบกลับหรือปิดคำขอทบทวนคะแนน";
   if (/Wait until both deadlines/i.test(text)) return "ยังยืนยันคะแนนไม่ได้ กรุณารอให้พ้นกำหนดส่งทั้งสองด้านก่อน";
   if (/AUDIT_UNAVAILABLE|audit.*unavailable/i.test(text)) return "ยังยืนยันการบันทึกไม่ได้ กรุณารอสักครู่แล้วโหลดข้อมูลใหม่ก่อนทำรายการซ้ำ";
   if (/UNAUTHENTICATED|SESSION_UNAVAILABLE/i.test(text)) return "เซสชันหมดอายุ กรุณาเข้าสู่ระบบอีกครั้ง";

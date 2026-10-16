@@ -129,9 +129,13 @@ export default function AssignmentsPage({ params }: { params: Promise<{ id: stri
   });
   const saveDeadlines = () => action(async () => {
     if (!selected) return;
+    const changes = {
+      ...(form.groupMaxScore > 0 && form.groupDeadline !== selected.groupDeadline ? { groupDeadline: form.groupDeadline } : {}),
+      ...(form.individualMaxScore > 0 && form.individualDeadline !== selected.individualDeadline ? { individualDeadline: form.individualDeadline } : {}),
+    };
+    if (Object.keys(changes).length === 0) throw new Error("ยังไม่ได้เปลี่ยนกำหนดส่งของด้านที่เปิดใช้งาน");
     await request(`${url(selected.id)}/deadlines`, "PATCH", {
-      ...(form.groupMaxScore > 0 ? { groupDeadline: form.groupDeadline } : {}),
-      ...(form.individualMaxScore > 0 ? { individualDeadline: form.individualDeadline } : {}),
+      ...changes,
     });
     await open(selected.id); setMessage("บันทึกกำหนดส่งแล้ว");
   });
@@ -171,6 +175,8 @@ export default function AssignmentsPage({ params }: { params: Promise<{ id: stri
   });
   const change = <K extends keyof Input>(key: K, value: Input[K]) => { setForm(current => ({ ...current, [key]: value })); setPlan(null); };
   const groups = [...new Map(roster.map(person => [person.groupId, person.groupName])).entries()];
+  const deadlinesChanged = selected && (form.groupMaxScore > 0 && form.groupDeadline !== selected.groupDeadline ||
+    form.individualMaxScore > 0 && form.individualDeadline !== selected.individualDeadline);
   return <main className="fs-page fs-instructor-page">
     <Link className="fs-back-link" href="/full-system"><span aria-hidden="true">←</span> กลับไปหน้าห้องเรียน</Link>
     <header className="fs-page-heading"><div><span className="eyebrow">{roomName || "พื้นที่อาจารย์"}</span>
@@ -231,7 +237,16 @@ export default function AssignmentsPage({ params }: { params: Promise<{ id: stri
       <label className="field">น้ำหนักคำตอบผู้สอน (0–99.99; นักศึกษา = 1)<input type="number" min="0" max="99.99" step="0.01"
         value={form.instructorWeight} disabled={selected?.status !== undefined && selected.status !== "DRAFT"}
         onChange={e => change("instructorWeight", Number(e.target.value))} /></label></div></details>
-      <div className="form-grid">{(["groupDeadline", "individualDeadline"] as const).map(key => <label className="field" key={key}>{key === "groupDeadline" ? "กำหนดส่งกลุ่ม" : "กำหนดส่งรายบุคคล"} ({timezone})<input type="datetime-local" value={utcToClassroomInput(form[key], timezone)} disabled={selected?.status !== undefined && !["DRAFT", "OPEN", "CLOSED"].includes(selected.status)} onChange={e => change(key, classroomInputToUtc(e.target.value, timezone))} /></label>)}</div>
+      <div className="form-grid">{(["groupDeadline", "individualDeadline"] as const).map(key => {
+        const enabled = (key === "groupDeadline" ? form.groupMaxScore : form.individualMaxScore) > 0;
+        return <label className="field" key={key}>{key === "groupDeadline" ? "กำหนดส่งกลุ่ม" : "กำหนดส่งรายบุคคล"} ({timezone})<input type="datetime-local"
+          value={enabled ? utcToClassroomInput(form[key], timezone) : ""}
+          aria-describedby={!enabled ? `${key}-disabled-help` : undefined}
+          disabled={busy || !enabled || selected?.status !== undefined && !["DRAFT", "OPEN", "CLOSED"].includes(selected.status)}
+          onChange={e => change(key, classroomInputToUtc(e.target.value, timezone))} />
+          {!enabled && <small id={`${key}-disabled-help`} className="field-help">ไม่เปิดใช้ด้านนี้ เพราะตั้งคะแนนเต็มไว้ 0 จึงไม่มีกำหนดส่ง</small>}
+        </label>;
+      })}</div>
       <h2>เกณฑ์และน้ำหนัก</h2><p className="fine-print">แต่ละด้านที่เปิดใช้ต้องรวม 100%</p>
       {form.criteria.map((criterion, index) => <div className="criteria-row" key={index}>
         <label>ด้าน<select value={criterion.side} disabled={selected?.status !== undefined && selected.status !== "DRAFT"} onChange={e => change("criteria", form.criteria.map((row, i) => i === index ? { ...row, side: e.target.value as Criterion["side"] } : row))}><option value="GROUP">กลุ่ม</option><option value="INDIVIDUAL">รายบุคคล</option></select></label>
@@ -251,7 +266,7 @@ export default function AssignmentsPage({ params }: { params: Promise<{ id: stri
         ...roster.map(person => ({ side: "INDIVIDUAL" as const, itemId: person.id, name: person.displayName }))].map(item => <label className="field" key={`${item.side}:${item.itemId}`}>{item.name}<input type="url" placeholder="https://…" disabled={selected?.status !== undefined && selected.status !== "DRAFT"} value={form.artifacts.find(row => row.side === item.side && row.itemId === item.itemId)?.url ?? ""} onChange={e => change("artifacts", [...form.artifacts.filter(row => row.side !== item.side || row.itemId !== item.itemId), ...(e.target.value ? [{ side: item.side, itemId: item.itemId, url: e.target.value }] : [])])} /></label>)}
       </div></details>
       <div className="actions">{(!selected || selected.status === "DRAFT") && <button className="primary-button" disabled={busy} onClick={save}>บันทึกฉบับร่าง</button>}
-        {selected && ["OPEN", "CLOSED"].includes(selected.status) && <button className="primary-button" disabled={busy} onClick={saveDeadlines}>บันทึกกำหนดส่ง</button>}
+        {selected && ["OPEN", "CLOSED"].includes(selected.status) && <button className="primary-button" disabled={busy || !deadlinesChanged} onClick={saveDeadlines}>บันทึกกำหนดส่ง</button>}
         {selected && <button className="secondary-button" disabled={busy} onClick={clone}>คัดลอกเป็นงานใหม่</button>}
         {selected && selected.status !== "DRAFT" && <button className="secondary-button" disabled={busy} onClick={unpublish}>ยกเลิกเผยแพร่</button>}</div>
     </div></details></section>}

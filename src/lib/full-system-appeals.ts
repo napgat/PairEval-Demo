@@ -89,11 +89,19 @@ export async function resolveAppeal(actor: FullActor, assignmentId: string, appe
         FOR UPDATE`, [appealId, assignmentId]);
       if (!found.rows[0]) throw new AssignmentNotFoundError("Appeal not found");
       if (found.rows[0].status !== "OPEN") throw new AssignmentConflictError("Appeal already resolved");
-      return a;
+      if (a.status !== "FINALIZED") {
+        throw new AssignmentConflictError("Finalize the current scores before resolving an appeal");
+      }
+      const latest = await client.query<{ id: string; kind: string }>(`SELECT id,kind FROM score_snapshot
+        WHERE assignment_id=$1 AND generation=$2 ORDER BY snapshot_no DESC LIMIT 1`, [assignmentId, a.generation]);
+      if (latest.rows[0]?.kind !== "FINAL") {
+        throw new AssignmentConflictError("Finalize the current scores before resolving an appeal");
+      }
+      return { ...a, resolutionSnapshotId: latest.rows[0].id };
     },
     intent: a => ({ actorUserId: actor.id, classroomId: a.classroom_id,
       action: "APPEAL_RESOLVE_REQUESTED", resourceType: "appeal", resourceId: appealId,
-      before: { status: "OPEN" }, after: { status }, reason: resolution.trim() }),
+      before: { status: "OPEN" }, after: { status, finalSnapshotId: a.resolutionSnapshotId }, reason: resolution.trim() }),
     mutate: async client => {
       await client.query(`UPDATE appeal SET status=$2,resolution=$3,resolved_by=$4,resolved_at=now()
         WHERE id=$1`, [appealId, status, resolution.trim(), actor.id]);

@@ -1,0 +1,63 @@
+{
+  "passed": true,
+  "checks": [
+    {
+      "name": "zero-score deadline disabled, explained, no fake save",
+      "passed": true
+    },
+    {
+      "name": "fixed-disabled-deadline Axe",
+      "passed": true
+    },
+    {
+      "name": "active group deadline saves without inactive individual payload",
+      "passed": true
+    },
+    {
+      "name": "individual deadline persists independently after unchanged group deadline passed",
+      "passed": true
+    },
+    {
+      "name": "fixed-appeal-guard Axe",
+      "passed": true
+    },
+    {
+      "name": "UI blocks resolution/rejection and direct API returns 409 while reopened",
+      "passed": true
+    },
+    {
+      "name": "Interim after override still cannot close appeal",
+      "passed": true
+    },
+    {
+      "name": "GUI Override -> Final -> reply and close",
+      "passed": true
+    },
+    {
+      "name": "student sees new Final, old snapshot immutable, audit references confirmed snapshot",
+      "passed": true
+    },
+    {
+      "name": "fixed-student-final Axe",
+      "passed": true
+    }
+  ],
+  "jsErrors": 0,
+  "auditPending": 0,
+  "studentScore": {
+    "group": 12.013333333333334,
+    "individual": 4.5,
+    "total": 16.5133
+  },
+  "oldSnapshotImmutable": true,
+  "date": "2026-10-17",
+  "baseCommit": "2028c0b",
+  "unitTests": {
+    "passed": 94,
+    "total": 94
+  },
+  "typecheck": true,
+  "lint": true,
+  "productionBuild": true,
+  "scope": "Synthetic local regression on developer machine; peer retest pending"
+}
