@@ -16,6 +16,7 @@
 ## ฟีเจอร์ที่มีสำหรับทดลอง
 
 - ห้องเรียน, roster/กลุ่ม, Owner/Co-teacher/TA/Student และสิทธิ์ตามห้อง
+- Owner จัดการทีมผู้สอนผ่านหน้ารายชื่อและกลุ่ม: เพิ่มด้วยอีเมล ถอด และเพิ่มกลับโดยเก็บประวัติสมาชิก
 - งาน DRAFT, feasibility, seeded pairing, publish/unpublish/clone, deadline และประวัติ generation
 - ประเมิน Group/Individual, draft, ส่งซ้ำแบบเก็บ revision, ตรวจ deadline และคะแนนเฉพาะตน
 - Instructor evaluation/น้ำหนัก, เพิ่มผู้ประเมิน, เปลี่ยนกลุ่ม/ถอนนักศึกษาและทบทวนคำตอบตามขอบเขตในรายงาน
@@ -36,12 +37,13 @@
 | [Peer handoff](full-system/peer-handoff-2026-10-16.md) | ผล source ติดตั้งใหม่, checks ของรุ่นส่ง Git และ branch ที่จัดเก็บ |
 | [แก้ผลทดลองจากเพื่อน 17 ต.ค.](full-system/peer-feedback-2026-10-17.md) | Deadline ของด้านคะแนน 0 และปิดอุทธรณ์หลัง Final; 94/94 tests และ GUI/API regression ผ่าน |
 | [ตรวจซ้ำก่อนให้เพื่อนลองรอบที่ 2](full-system/peer-retest-2026-10-17.md) | ผลตรวจรุ่นแก้ซ้ำ; ใช้ [PEER_RETEST](PEER_RETEST.md) ให้เพื่อนตรวจบนข้อมูลเดิม |
+| [ทีมผู้สอน 17 ต.ค.](full-system/staff-management-2026-10-17.md) | GUI/API เพิ่ม–ถอด–เพิ่มกลับ, ตรวจสิทธิ์, audit และจอ 320/390 px; unit 106/106 |
 | [Evidence map](full-system/prd-v2.0-evidence-map.md) | traceability 132 IDs ของ baseline v2.0; มีข้อ partial และ mapped evidence ไม่ใช่ผ่าน 132/132 |
 
 ## สิ่งที่ยังไม่รับรอง / เลื่อนตามขอบเขตนักศึกษา
 
 - เพื่อนทดลองและส่ง feedback แล้ว แต่ยังรอการตรวจซ้ำหลังแก้ 2 ปัญหา ไม่ปิดเป็น 100% จากผล local อย่างเดียว
-- สาย v2.0 นี้มี API เพิ่ม–ลบ Co-teacher/TA แต่ยังไม่มีฟอร์ม GUI; สาธิตสิทธิ์ด้วยบัญชีผู้สอนที่เตรียมไว้ ไม่อ้างว่าฟอร์มนี้เสร็จแล้ว
+- ทีมผู้สอนเพิ่มได้เฉพาะบัญชีที่มีอยู่และไม่ถูกปิดใช้งาน ยังไม่มีคำเชิญทางอีเมลหรือการสมัครบัญชีแทนผู้อื่น
 - Google OAuth จริง, first-login Privacy Notice จริง และนโยบายก่อนรับข้อมูลส่วนบุคคลจริง
 - ความครบ PRD/NFR ทุกข้อ, โหลดพร้อมกันจริง, uptime และ security review ระดับ production
 - screen reader ทุกหน้า, ทุก browser/OS และทุกเส้นทาง accessibility

@@ -21,6 +21,7 @@
 | [Readiness 15 ต.ค.](full-system/prd-v2.0-readiness-2026-10-15.md) | ผลรับรองเฉพาะชุดทดสอบและข้อจำกัดด้าน NFR |
 | [สาธิต/Final/อุทธรณ์ 16 ต.ค.](full-system/student-local-delivery-2026-10-16.md) | บันทึกการซ้อมและตัวเลขจากเครื่องผู้พัฒนา |
 | [ปรับ UI และผล GUI](full-system/ui-usability-2026-10-16.md) | หลักฐาน 22 หน้าจอ/สถานะก่อน handoff |
+| [ทีมผู้สอน: คู่มือ/API/ผลตรวจ](full-system/staff-management-2026-10-17.md) | ฟอร์มเพิ่ม–ถอด Co-teacher/TA และการเพิ่มกลับในรุ่นปัจจุบัน |
 | [ผลจัดชุดให้เพื่อน](full-system/peer-handoff-2026-10-16.md) | รุ่นส่งเข้า Git, ติดตั้งใหม่ และจัด branch |
 | [แก้ปัญหาจากเพื่อน](full-system/peer-feedback-2026-10-17.md) | ผลทำซ้ำ แก้ และตรวจ deadline/อุทธรณ์ วันที่ 17 ต.ค. |
 | [ผลตรวจซ้ำก่อนให้เพื่อนลอง](full-system/peer-retest-2026-10-17.md) | ผลตรวจรุ่นแก้ 9e1d8fd อีกครั้งพร้อมรายการทดสอบรอบที่ 2 |

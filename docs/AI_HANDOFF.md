@@ -47,6 +47,7 @@ Do not broaden this into production certification or the historical Lab plan.
 
 ## สิ่งที่ AI ต้องรู้
 
+- ฟอร์ม Owner จัดการ Co-teacher/TA อยู่ในหน้ารายชื่อและกลุ่มแล้ว อ่าน `docs/full-system/staff-management-2026-10-17.md` ก่อนตรวจ หากต้องการ mutation regression แยกห้อง ใช้ `node scripts/staff-ui-check.mjs` ขณะ local demo เปิดอยู่ สคริปต์ตรวจฐาน loopback สร้าง/ล้างเฉพาะ fixture ของตนและเก็บ audit ไว้
 - หากเพื่อนกำลังตรวจสองปัญหาที่เคยรายงาน ให้ใช้ `docs/PEER_RETEST.md` บันทึก commit และทดสอบผลจริง ห้ามล้างฐานเดิมเพื่อให้ง่ายต่อการทดสอบ
 - `README.md` เป็นจุดเริ่มปัจจุบัน ไม่เริ่มจากเอกสาร SQLite หรือบันทึก v2.1 เก่า
 - Full System อยู่ที่ `src/app/full-system/`, API ที่ `src/app/api/`, งานหลักที่ `src/lib/full-system-*` และ migration ที่ `db/migrations/`

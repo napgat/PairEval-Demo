@@ -32,7 +32,8 @@ import {
   POST as classroomsPost,
 } from "@/app/api/full-system/classrooms/route";
 import { GET as rosterGet } from "@/app/api/full-system/classrooms/[id]/roster/route";
-import { POST as membersPost } from "@/app/api/full-system/classrooms/[id]/members/route";
+import { GET as membersGet, POST as membersPost } from "@/app/api/full-system/classrooms/[id]/members/route";
+import { DELETE as membersDelete } from "@/app/api/full-system/classrooms/[id]/members/[userId]/route";
 import { POST as exportsPost } from "@/app/api/full-system/assignments/[id]/exports/route";
 import { POST as rawPost } from "@/app/api/full-system/assignments/[id]/exports/raw/route";
 import { GET as auditGet } from "@/app/api/full-system/assignments/[id]/audit/route";
@@ -66,8 +67,12 @@ async function dispatch(
     if (resource === "classrooms" && key) {
       if (sub === "roster" && method === "GET")
         return rosterGet(request, ctx(key));
-      if (sub === "members" && method === "POST")
+      if (sub === "members" && segments.length === 3 && method === "GET")
+        return membersGet(request, ctx(key));
+      if (sub === "members" && segments.length === 3 && method === "POST")
         return membersPost(request, ctx(key));
+      if (sub === "members" && segments.length === 4 && method === "DELETE")
+        return membersDelete(request, { params: Promise.resolve({ id: key, userId: segments[3] }) });
       if (sub === "roster:import" && method === "POST") {
         const role = await classroomRole(actor, key);
         if (!role) throw new AssignmentNotFoundError("Classroom not found");
@@ -247,3 +252,4 @@ export const GET = observeRoute(dispatch);
 export const POST = observeRoute(dispatch);
 export const PATCH = observeRoute(dispatch);
 export const PUT = observeRoute(dispatch);
+export const DELETE = observeRoute(dispatch);

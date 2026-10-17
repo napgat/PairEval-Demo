@@ -3,6 +3,7 @@ import Link from "next/link";
 import { use, useCallback, useEffect, useState } from "react";
 import { Search } from "lucide-react";
 import { friendlyError } from "@/lib/full-system-ui";
+import ClassroomStaffPanel from "@/app/full-system/components/classroom-staff-panel";
 type Member = { id: string; displayName: string; email: string; groupName: string; studentId: string | null };
 type Preview = { version: number; digest: string; diff: { added: number; moved: number; unchanged: number }; warnings: string[] };
 export default function RosterPage({ params }: { params: Promise<{ id: string }> }) {
@@ -43,11 +44,12 @@ export default function RosterPage({ params }: { params: Promise<{ id: string }>
     {message && <p className={error?"error-box":"notice"} role={error?"alert":"status"}>{message}</p>}
     <section className="form-panel"><div className="fs-section-heading"><h2>นักศึกษาในห้องเรียน</h2><span className="fs-count-badge">{rows.length} คน</span></div>
       <label className="fs-search"><Search size={18} aria-hidden="true"/><span className="sr-only">ค้นหานักศึกษา</span><input type="search" value={search} onChange={e=>setSearch(e.target.value)} placeholder="ค้นหาชื่อ รหัสนักศึกษา อีเมล หรือกลุ่ม"/></label>
-      {loading ? <p role="status">กำลังโหลดรายชื่อ…</p> : <div className="table-wrap"><table><thead><tr><th>ชื่อ</th><th>อีเมล</th><th>รหัสนักศึกษา</th><th>กลุ่ม</th></tr></thead><tbody>
+      {loading ? <p role="status">กำลังโหลดรายชื่อ…</p> : <div className="table-wrap" tabIndex={0} role="region" aria-label="ตารางรายชื่อนักศึกษา"><table><thead><tr><th>ชื่อ</th><th>อีเมล</th><th>รหัสนักศึกษา</th><th>กลุ่ม</th></tr></thead><tbody>
         {visible.map(row=><tr key={row.id}><td>{row.displayName}</td><td>{row.email}</td><td>{row.studentId??"—"}</td><td>{row.groupName}</td></tr>)}
         {visible.length===0 && !error && <tr><td colSpan={4}>{search ? "ไม่พบรายชื่อที่ตรงกับการค้นหา" : "ยังไม่มีนักศึกษาในห้องนี้"}</td></tr>}
       </tbody></table></div>}
     </section>
+    {room?.role === "OWNER" && <ClassroomStaffPanel key={id} classroomId={id} />}
     <details className="form-panel fs-disclosure"><summary>นำเข้าหรือปรับกลุ่มด้วยไฟล์ CSV</summary><div className="fs-disclosure-body">
       <p>วางรายชื่อในรูปแบบ CSV แล้วตรวจข้อมูลก่อนยืนยันนำเข้า หากมีงานที่เผยแพร่อยู่ ต้องยกเลิกเผยแพร่ก่อนเปลี่ยนกลุ่ม</p>
       <label className="field">CSV รายชื่อ<textarea value={csv} onChange={e=>{setCsv(e.target.value);setPreview(null);}} placeholder="email,group_name,student_id,display_name" aria-describedby="roster-format"/></label>

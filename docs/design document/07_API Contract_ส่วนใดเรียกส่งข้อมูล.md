@@ -1,5 +1,7 @@
 # 07 — API Contract: ใครเรียกข้อมูลอะไร
 
+**ส่วนเพิ่มเติมของรุ่นส่งมอบ v2.0 วันที่ 17 ต.ค. 2026:** contract ที่ใช้งานจริงของทีมผู้สอน (GET/POST/DELETE, อีเมลและ userId, status และ audit) อยู่ใน [Staff management](../full-system/staff-management-2026-10-17.md#api-ที่ใช้งานจริง) ตารางร่าง v2.1 ด้านล่างเป็นข้อมูลออกแบบย้อนหลัง
+
 **ฐานอ้างอิง:** [PRD v2.1](pairwise_evaluation_prd%201.md) หัวข้อ 12 และ [ข้อตัดสินใจสำหรับพัฒนา](13_Decisions%20Needed.md) · **สถานะ:** ร่าง contract เพื่อพัฒนาด้วยข้อมูลสังเคราะห์; ตาราง field ด้านล่างเป็นข้อเสนอ DQ-11 ที่ยังต้อง review และทำ contract tests ไม่ใช่คู่มือ API ของ Demo
 
 ทุก endpoint ใช้ REST + JSON ยกเว้น import/export ไฟล์. ระบบเต็มใช้ session จาก OIDC และตรวจ role, classroom scope, ownership จากฐานข้อมูลทุกครั้ง (FR-AUTHZ-01/02, FR-API-06); การซ่อนปุ่มที่ UI ไม่ใช่การตรวจสิทธิ์
