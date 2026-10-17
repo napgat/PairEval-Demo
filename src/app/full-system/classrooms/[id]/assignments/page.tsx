@@ -45,6 +45,7 @@ export default function AssignmentsPage({ params }: { params: Promise<{ id: stri
   const [rosterVersion, setRosterVersion] = useState(0);
   const [roomName, setRoomName] = useState("");
   const [loading, setLoading] = useState(true);
+  const [loadFailed, setLoadFailed] = useState(false);
   const [editorOpen, setEditorOpen] = useState(false);
   const [owner, setOwner] = useState(false);
   const [withdrawUser, setWithdrawUser] = useState("");
@@ -89,6 +90,7 @@ export default function AssignmentsPage({ params }: { params: Promise<{ id: stri
   useEffect(() => {
     let active = true;
     (async () => {
+      setLoading(true); setLoadFailed(false);
       try {
         const [assignments, people, classrooms] = await Promise.all([
           request(`/api/full-system/classrooms/${classroomId}/assignments`),
@@ -99,7 +101,7 @@ export default function AssignmentsPage({ params }: { params: Promise<{ id: stri
           setOwner(classrooms.find((room: { id: string }) => room.id === classroomId)?.role === "OWNER");
           setRosterVersion(classrooms.find((room: { id: string }) => room.id === classroomId)?.rosterVersion ?? 0);
           setTimezone(classrooms.find((room: { id: string }) => room.id === classroomId)?.timezone ?? "Asia/Bangkok"); }
-      } catch (error) { if (active) setMessage(friendlyError(error)); }
+      } catch (error) { if (active) { setMessage(friendlyError(error)); setLoadFailed(true); } }
       finally { if (active) setLoading(false); }
     })();
     return () => { active = false; };
@@ -177,6 +179,14 @@ export default function AssignmentsPage({ params }: { params: Promise<{ id: stri
   const groups = [...new Map(roster.map(person => [person.groupId, person.groupName])).entries()];
   const deadlinesChanged = selected && (form.groupMaxScore > 0 && form.groupDeadline !== selected.groupDeadline ||
     form.individualMaxScore > 0 && form.individualDeadline !== selected.individualDeadline);
+  if (loading || loadFailed) return <main className="fs-page fs-instructor-page">
+    <Link className="fs-back-link" href="/full-system">← กลับไปหน้าห้องเรียน</Link>
+    <h1>{loading ? "กำลังโหลดงานประเมิน…" : "ไม่สามารถเปิดงานประเมิน"}</h1>
+    <p role={loading ? "status" : "alert"} className={loading ? "fs-muted-copy" : "error-box"}>
+      {loading ? "กำลังตรวจสิทธิ์และเตรียมข้อมูลห้องเรียน" : message}
+    </p>
+    {loadFailed && <button className="secondary-button" onClick={() => window.location.reload()}>ลองโหลดใหม่</button>}
+  </main>;
   return <main className="fs-page fs-instructor-page">
     <Link className="fs-back-link" href="/full-system"><span aria-hidden="true">←</span> กลับไปหน้าห้องเรียน</Link>
     <header className="fs-page-heading"><div><span className="eyebrow">{roomName || "พื้นที่อาจารย์"}</span>
@@ -276,8 +286,8 @@ export default function AssignmentsPage({ params }: { params: Promise<{ id: stri
       {selected.status === "DRAFT" && <button className="secondary-button" disabled={busy} onClick={feasible}>ตรวจความพร้อมการจับคู่</button>}
       {plan && <div className={plan.feasible ? "preview-box" : "error-box"}>
         <strong>{plan.feasible ? "พร้อมเผยแพร่" : "ยังจับคู่ไม่ได้"}</strong>
-        <div className="table-wrap"><table><thead><tr><th>ด้าน</th><th>จำนวนคู่</th><th>ผู้ประเมินต่อคู่</th><th>งานที่แจก</th><th>เหตุผล/ข้อควรระวัง</th></tr></thead><tbody>
-          {plan.parts.map((part, index) => <tr key={index}><td>{sideName(part.side)}{part.groupId ? ` · ${groups.find(group => group[0] === part.groupId)?.[1] ?? part.groupId}` : ""}</td><td>{part.pairCount}</td><td>{part.coverage}/{part.requested}</td><td>{part.assignmentCount}</td><td>{part.reason ?? (part.lowConfidence ? "กลุ่ม 3 คน: ความเชื่อมั่นต่ำ" : "พร้อม")}</td></tr>)}
+        <div className="table-wrap" tabIndex={0} role="region" aria-label="ตารางแผนจับคู่"><table><thead><tr><th>ด้าน</th><th>จำนวนคู่</th><th>ผู้ประเมินต่อคู่</th><th>งานที่แจก</th><th>เหตุผล/ข้อควรระวัง</th></tr></thead><tbody>
+          {plan.parts.map((part, index) => <tr key={index}><td>{sideName(part.side)}{part.groupId ? ` · ${groups.find(group => group[0] === part.groupId)?.[1] ?? part.groupId}` : ""}</td><td>{part.pairCount}</td><td>{part.coverage}/{part.requested}</td><td>{part.assignmentCount}</td><td>{[part.reason, part.lowConfidence ? "กลุ่ม 3 คน: ความเชื่อมั่นต่ำ" : null].filter(Boolean).join(" · ") || "พร้อม"}</td></tr>)}
         </tbody></table></div></div>}
       {selected.status === "DRAFT" && plan?.feasible && <button className="primary-button" disabled={busy} onClick={publish}>เผยแพร่และบันทึกคู่</button>}
       {selected.status === "OPEN" && selected.currentPairs.length > 0 && <div className="preview-box">

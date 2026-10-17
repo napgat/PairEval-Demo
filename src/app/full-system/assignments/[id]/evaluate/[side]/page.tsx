@@ -23,6 +23,7 @@ export default function EvaluationPage({ params, searchParams }: {
   const returnHref = classroom ? `/full-system/classrooms/${encodeURIComponent(classroom)}/work` : "/full-system";
   const path = `/api/full-system/assignments/${id}/evaluation/${side}`;
   const [data, setData] = useState<Evaluation | null>(null);
+  const [loadFailed, setLoadFailed] = useState(false);
   const [message, setMessage] = useState("");
   const [confirming, setConfirming] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -49,6 +50,7 @@ export default function EvaluationPage({ params, searchParams }: {
     setData(payload.data);
   };
   useEffect(() => { let active = true; (async () => { try {
+    setData(null); setLoadFailed(false);
     const response = await fetch(path, { cache: "no-store" }); const payload = await response.json();
     if (!response.ok) throw new Error(payload.error?.message ?? payload.error?.code ?? "โหลดงานไม่สำเร็จ");
     if (active) {
@@ -62,7 +64,7 @@ export default function EvaluationPage({ params, searchParams }: {
       setData({ ...initial, pairs: initial.pairs.map(p => pending.current.has(p.id) ? { ...p, choice: pending.current.get(p.id)! } : p) });
       if (pending.current.size) { setMessage("กู้คืนคำตอบที่รอเชื่อมต่อแล้ว กำลังส่งฉบับร่างให้ระบบ"); void sync.current().catch(() => {}); }
     }
-  } catch (error) { if (active) setMessage(friendlyError(error)); } })();
+  } catch (error) { if (active) { setMessage(friendlyError(error)); setLoadFailed(true); } } })();
     return () => { active = false; if (timer.current) clearTimeout(timer.current); }; }, [path, id, side]);
   useEffect(() => {
     const interval = setInterval(() => setClock(Date.now()), 1000);
@@ -126,14 +128,16 @@ export default function EvaluationPage({ params, searchParams }: {
       submitKey.current = null;
       await load(); setMessage(`ส่งคำตอบรุ่น ${payload.data.revision} แล้ว (${payload.data.answered}/${payload.data.assigned})`);
     } catch (error) { setMessage(friendlyError(error)); }
-    finally { setBusy(false); }
+    finally { timing.current?.resumeRecording(); setBusy(false); }
   };
   const answered = data?.pairs.filter(pair => pair.choice !== null).length ?? 0;
   const remaining = data?.deadline ? Date.parse(data.deadline) - clock : null;
   return <main className="fs-page fs-evaluation-page">
     <Link className="fs-back-link" href={returnHref}><span aria-hidden="true">←</span> กลับไปงานประเมิน</Link>
-    {message && !data && <p className="notice" role="status" aria-live="polite">{message}</p>}
-    {!data ? <div className="fs-loading-card" role="status">กำลังเตรียมแบบประเมิน…</div> : <>
+    {!data ? loadFailed ? <section className="form-panel"><h1>เปิดแบบประเมินไม่ได้</h1>
+      <p className="error-box" role="alert">{message}</p>
+      <button className="secondary-button" onClick={() => window.location.reload()}>ลองโหลดใหม่</button>
+    </section> : <div className="fs-loading-card" role="status">กำลังเตรียมแบบประเมิน…</div> : <>
       <header className="fs-page-heading fs-evaluation-heading"><div>
         <span className="eyebrow">แบบประเมิน · {side === "group" ? "ประเมินกลุ่ม" : "ประเมินรายบุคคล"}</span>
         <h1>{side === "group" ? "เปรียบเทียบผลงานกลุ่ม" : "เปรียบเทียบผลงานรายบุคคล"}</h1>
@@ -161,7 +165,7 @@ export default function EvaluationPage({ params, searchParams }: {
         <div className="criterion-heading"><h2>{criterion.name}</h2><span>{data.pairs.filter(pair => pair.criterionId === criterion.id && pair.choice !== null).length} / {data.pairs.filter(pair => pair.criterionId === criterion.id).length}</span></div>
         {criterion.description && <p>{criterion.description}</p>}
         {data.pairs.filter(pair => pair.criterionId === criterion.id).map((pair, index) => <fieldset className="evaluation-pair fs-evaluation-pair" key={pair.id}
-          data-pair-id={pair.id} onPointerEnter={() => timing.current?.select(pair.id)} onFocusCapture={() => timing.current?.select(pair.id)}>
+          data-pair-id={pair.id} onPointerEnter={() => { if (!busy && !confirming) timing.current?.select(pair.id); }} onFocusCapture={() => { if (!busy && !confirming) timing.current?.select(pair.id); }}>
           <legend>คู่ที่ {index + 1} · {criterion.name}: {pair.leftName} เทียบกับ {pair.rightName}</legend><div className="candidate-labels">
             <div className="fs-candidate-card is-left"><span>ผลงาน A</span><strong>{pair.leftName}</strong>{pair.leftArtifactUrl ? <a href={pair.leftArtifactUrl} target="_blank" rel="noopener noreferrer">เปิดผลงาน ↗</a> : <small>ยังไม่มีลิงก์ผลงาน</small>}</div>
             <span className="fs-versus-label">เทียบกับ</span>

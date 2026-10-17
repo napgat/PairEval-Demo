@@ -64,8 +64,10 @@ try {
     await page.goto(`${origin}/full-system`);
     await page.getByRole("heading", { name: "เลือกห้องเรียน" }).waitFor();
     await page.getByRole("link", { name: "จัดการห้องเรียน" }).click();
-    await page.getByRole("heading", { name: "งานประเมินและแผนจับคู่" }).waitFor();
+    await page.getByRole("heading", { name: "จัดการงานประเมิน" }).waitFor();
+    await page.getByRole("button", { name: "＋ สร้างงานใหม่", exact: true }).click();
     await page.getByLabel("ชื่องาน").fill("Synthetic evaluation");
+    await page.getByLabel("คะแนนรายบุคคล").fill("10");
     await page.getByLabel(/กำหนดส่งกลุ่ม/).fill("2030-12-01T16:59");
     await page.getByLabel(/กำหนดส่งรายบุคคล/).fill("2030-12-01T16:59");
     await page.getByLabel("คะแนนรายบุคคล").fill("10");
@@ -75,12 +77,13 @@ try {
     await individualCriterion.locator("select").selectOption("INDIVIDUAL");
     await individualCriterion.getByRole("textbox").fill("Individual quality");
     await individualCriterion.locator("input[type=number]").fill("100");
+    await page.getByText("ตั้งค่าการจับคู่และน้ำหนักผู้ประเมิน", { exact: true }).click();
     await page.getByLabel("ผู้ประเมินต่อคู่ที่ต้องการ").fill("1");
-    await page.getByRole("button", { name: "บันทึก DRAFT" }).click();
-    await page.getByText("บันทึก DRAFT แล้ว").waitFor();
+    await page.getByRole("button", { name: "บันทึกฉบับร่าง" }).click();
+    await page.getByText("บันทึกฉบับร่างแล้ว").waitFor();
     assignment = (await pool.query("SELECT id FROM assignment WHERE classroom_id=$1", [room])).rows[0]?.id;
     if (!assignment) throw new Error("UI did not persist DRAFT");
-    await page.getByRole("button", { name: "คำนวณ feasibility" }).click();
+    await page.getByRole("button", { name: "ตรวจความพร้อมการจับคู่" }).click();
     await page.getByText("พร้อมเผยแพร่").waitFor();
     await page.getByRole("button", { name: "เผยแพร่และบันทึกคู่" }).click();
     await page.getByText("เผยแพร่และบันทึกคู่แล้ว").waitFor();
@@ -120,10 +123,10 @@ try {
     const page = await context.newPage(); page.setDefaultTimeout(60000);
     page.on("dialog", dialog => void dialog.accept());
     await page.goto(`${origin}/full-system`);
-    await page.getByRole("heading", { name: /สวัสดี,/ }).waitFor();
+    await page.getByRole("heading", { name: "ห้องเรียนของฉัน" }).waitFor();
     await page.getByRole("link", { name: "ดูงานของฉัน" }).click();
     await page.getByRole("heading", { name: "งานประเมินของฉัน" }).waitFor();
-    await page.getByRole("link", { name: "เริ่มประเมินกลุ่ม" }).click();
+    await page.getByRole("link", { name: "ประเมินกลุ่ม" }).click();
     await page.getByRole("heading", { name: "เปรียบเทียบผลงานกลุ่ม" }).waitFor();
     const firstRadio = page.locator(`input[name="${pair.id}"]`).first();
     await firstRadio.focus();
@@ -147,6 +150,7 @@ try {
     await page.reload();
     if (!await page.locator(`input[name="${pair.id}"]`).first().isChecked()) throw new Error("UI draft not restored after refresh");
     await page.getByRole("button", { name: "ยืนยันส่งคำตอบ" }).click();
+    await page.getByRole("dialog").getByRole("button", { name: "ยืนยันส่งคำตอบ", exact: true }).click();
     await page.getByText(/ส่งคำตอบรุ่น 1 แล้ว/).waitFor();
 
     const firstGroupScore = check(await api(scorePath, targetStudent), 200, "score after Group revision 1");
@@ -157,7 +161,7 @@ try {
 
     await page.getByRole("link", { name: "กลับไปงานประเมิน" }).click();
     await page.getByRole("heading", { name: "งานประเมินของฉัน" }).waitFor();
-    await page.getByRole("link", { name: "เริ่มประเมินรายบุคคล" }).click();
+    await page.getByRole("link", { name: "ประเมินรายบุคคล" }).click();
     await page.getByRole("heading", { name: "เปรียบเทียบผลงานรายบุคคล" }).waitFor();
     const individualCard = page.locator(".evaluation-pair").first();
     if (await individualCard.getAttribute("data-pair-id") !== individualPairId) {
@@ -173,19 +177,21 @@ try {
     await page.reload();
     if (!await individualRadios.first().isChecked()) throw new Error("Individual draft did not survive page reload");
     await page.getByRole("button", { name: "ยืนยันส่งคำตอบ", exact: true }).click();
+    await page.getByRole("dialog").getByRole("button", { name: "ยืนยันส่งคำตอบ", exact: true }).click();
     await page.getByText(/ส่งคำตอบรุ่น 1 แล้ว/).waitFor();
     const individualChanged = page.waitForResponse(response => response.url().endsWith(individualPath) &&
       response.request().method() === "PUT" && response.status() === 200);
     await individualRadios.nth(1).check();
     await individualChanged;
     await page.getByRole("button", { name: "ส่งฉบับแก้ไข", exact: true }).click();
+    await page.getByRole("dialog").getByRole("button", { name: "ส่งฉบับแก้ไข", exact: true }).click();
     await page.getByText(/ส่งคำตอบรุ่น 2 แล้ว/).waitFor();
     await page.reload();
     if (!await individualRadios.nth(1).isChecked()) throw new Error("Individual revision 2 was not restored after reload");
 
     await page.getByRole("link", { name: "กลับไปงานประเมิน" }).click();
     await page.getByRole("heading", { name: "งานประเมินของฉัน" }).waitFor();
-    await page.getByRole("link", { name: "เริ่มประเมินกลุ่ม" }).click();
+    await page.getByRole("link", { name: "ประเมินกลุ่ม" }).click();
     await page.getByRole("heading", { name: "เปรียบเทียบผลงานกลุ่ม" }).waitFor();
     const groupRadios = page.locator(`input[name="${pair.id}"]`);
     const changedGroupDraft = page.waitForResponse(response => response.url().endsWith(path) &&
@@ -193,6 +199,7 @@ try {
     await groupRadios.nth(5).check();
     await changedGroupDraft;
     await page.getByRole("button", { name: "ส่งฉบับแก้ไข", exact: true }).click();
+    await page.getByRole("dialog").getByRole("button", { name: "ส่งฉบับแก้ไข", exact: true }).click();
     await page.getByText(/ส่งคำตอบรุ่น 2 แล้ว/).waitFor();
     await page.reload();
     if (!await groupRadios.nth(5).isChecked()) throw new Error("Group revision 2 was not restored after reload");
@@ -215,7 +222,7 @@ try {
     const page = await context.newPage(); page.setDefaultTimeout(60000);
     await page.goto(`${origin}/full-system/assignments/${assignment}/my-score`);
     await page.getByRole("heading", { name: "คะแนนของฉัน" }).waitFor();
-    await page.getByText("ชั่วคราว — อาจเปลี่ยนแปลงได้").waitFor();
+    await page.getByText("คะแนนระหว่างดำเนินงาน").waitFor();
     await page.getByText(score1.groupComponent.toFixed(2), { exact: true }).first().waitFor();
     if ((await page.locator("main").innerText()).includes("ผู้ประเมิน:") ||
         (await page.locator("main").innerText()).includes("เปลี่ยนจากเมื่อวาน")) {
@@ -241,8 +248,8 @@ try {
     await page.goto(`${origin}/full-system/assignments/${assignment}/reports`);
     await page.getByRole("heading", { name: "รายงานและตัดสินคะแนน" }).waitFor();
     await page.getByRole("button", { name: "คำนวณผลระหว่างดำเนินงานใหม่", exact: true }).click();
-    await page.getByText("คำนวณ Interim snapshot แล้ว", { exact: true }).waitFor();
-    await page.getByText(/รุ่น 1 · ผลระหว่างดำเนินงาน/).waitFor();
+    await page.getByText("คำนวณคะแนนชั่วคราวแล้ว", { exact: true }).waitFor();
+    await page.getByText(/คะแนนฉบับที่ 1/).waitFor();
     await page.getByRole("tab", { name: "คะแนนรายบุคคล", exact: true }).click();
     await page.getByRole("columnheader", { name: "รายบุคคล", exact: true }).waitFor();
     await context.close();
@@ -255,9 +262,9 @@ try {
     const page = await context.newPage(); page.setDefaultTimeout(60000);
     await page.goto(`${origin}/full-system/assignments/${assignment}/my-score`);
     await page.getByRole("heading", { name: "คะแนนของฉัน" }).waitFor();
-    await page.getByText(/ส่งคำตอบแล้ว \d+\/\d+/).waitFor();
-    await page.getByText("ส่วนกลุ่ม", { exact: true }).waitFor();
-    await page.getByText("ส่วนรายบุคคล", { exact: true }).waitFor();
+    await page.getByText(/ส่งคำตอบแล้ว \d+ จาก \d+ คู่/).waitFor();
+    await page.getByText("คะแนนกลุ่ม", { exact: true }).waitFor();
+    await page.getByText("คะแนนรายบุคคล", { exact: true }).waitFor();
     if ((await page.locator("main").innerText()).includes("ผู้ประเมิน:")) {
       throw new Error("Updated My Score UI exposed evaluator identity");
     }

@@ -49,7 +49,7 @@ try{
  await expect(page.getByText('เปิดทบทวนคะแนนที่ยืนยันแล้ว',{exact:true})).toBeVisible();await scan('report-final');}
  await enter('ผู้สอนร่วม');await page.goto(origin+`/full-system/assignments/${finalReady?final.assignmentId:state.assignment}/reports`);await expect(page.getByRole('tab',{name:'คะแนนกลุ่ม',exact:true})).toBeVisible();
  await expect(page.getByRole('button',{name:'ยืนยันผลคะแนน',exact:true})).toHaveCount(0);await expect(page.getByText('เปิดทบทวนคะแนนที่ยืนยันแล้ว',{exact:true})).toHaveCount(0);await scan('co-teacher-report');
- await enter('ผู้ช่วยสอน');await page.getByRole('link',{name:'จัดการรายชื่อและกลุ่ม',exact:true}).click();await expect(page.getByRole('cell',{name:'นักศึกษาคนที่ 1',exact:true})).toBeVisible();
+ await enter('ผู้ช่วยสอน');await page.locator(`a[href="/full-system/classrooms/${state.room}/roster"]`).click();await expect(page.getByRole('cell',{name:'นักศึกษาคนที่ 1',exact:true})).toBeVisible();
  await page.getByRole('searchbox',{name:'ค้นหานักศึกษา',exact:true}).fill('S001');await expect(page.locator('tbody tr')).toHaveCount(1);await page.getByRole('searchbox',{name:'ค้นหานักศึกษา',exact:true}).fill('');await scan('ta-roster');
  await enter('นักศึกษาคนที่ 1');await scan('student-dashboard');await page.goto(workUrl);await expect(page.getByRole('heading',{name:'ประเมินผลงานโครงงาน — ข้อมูลจำลอง',exact:true})).toBeVisible();
  await page.getByRole('searchbox',{name:'ค้นหางานประเมิน',exact:true}).fill('ไม่พบคำนี้');await expect(page.getByRole('heading',{name:'ไม่พบงานที่ตรงกับการค้นหา',exact:true})).toBeVisible();await page.getByRole('button',{name:'ดูงานทั้งหมด',exact:true}).click();await scan('student-work');

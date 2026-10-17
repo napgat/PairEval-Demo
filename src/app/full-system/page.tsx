@@ -15,6 +15,7 @@ export default function FullSystemHome() {
   const [classrooms, setClassrooms] = useState<Classroom[]>([]);
   const [notices, setNotices] = useState<Notice[]>([]);
   const [loading, setLoading] = useState(true);
+  const [sessionError, setSessionError] = useState("");
   const [message, setMessage] = useState("");
   const [feedbackError, setFeedbackError] = useState(false);
   const [acknowledging, setAcknowledging] = useState(false);
@@ -70,11 +71,14 @@ export default function FullSystemHome() {
   useEffect(() => {
     let active = true;
     (async () => {
+      let sessionLoaded = false;
       try {
         const auth = await fetch("/api/auth/session", { cache: "no-store" });
         if (auth.status === 401) return;
+        if (auth.status === 429) throw new Error("AUTH_RATE_LIMITED");
         if (!auth.ok) throw new Error("SESSION_UNAVAILABLE");
         const actor = (await auth.json()).data as Session;
+        sessionLoaded = true;
         if (!active) return;
         setSession(actor);
         if (actor.privacyAccepted) {
@@ -85,8 +89,13 @@ export default function FullSystemHome() {
           const notifications = await fetch("/api/full-system/notifications", { cache: "no-store" });
           if (notifications.ok && active) setNotices((await notifications.json()).data as Notice[]);
         }
-      } catch {
-        if (active) { setFeedbackError(true); setMessage("โหลดห้องเรียนไม่สำเร็จ กรุณาลองใหม่อีกครั้ง"); }
+      } catch (error) {
+        if (active) {
+          if (!sessionLoaded) setSessionError(error instanceof Error && error.message === "AUTH_RATE_LIMITED"
+            ? "มีการเรียกข้อมูลถี่เกินไป กรุณารอสักครู่แล้วลองใหม่"
+            : "ตรวจสอบบัญชีไม่สำเร็จ กรุณาตรวจการเชื่อมต่อแล้วลองใหม่");
+          setFeedbackError(true); setMessage("โหลดห้องเรียนไม่สำเร็จ กรุณาลองใหม่อีกครั้ง");
+        }
       } finally { if (active) setLoading(false); }
     })();
     return () => { active = false; };
@@ -95,6 +104,12 @@ export default function FullSystemHome() {
   if (loading) return <main className="fs-auth-shell"><section className="fs-auth-card">
     <span className="eyebrow">PairEval · ประเมินผลงาน</span><h1>กำลังตรวจสอบบัญชี</h1>
     <p className="lead">กำลังเตรียมพื้นที่ทำงานของคุณ…</p>
+  </section></main>;
+
+  if (sessionError) return <main className="fs-auth-shell"><section className="fs-auth-card">
+    <span className="eyebrow">PairEval · ประเมินผลงาน</span><h1>ยังตรวจสอบบัญชีไม่ได้</h1>
+    <p className="error-box" role="alert">{sessionError}</p>
+    <button className="primary-button" onClick={() => window.location.reload()}>ลองใหม่</button>
   </section></main>;
 
   if (session === null) return <main className="fs-auth-shell"><section className="fs-auth-card fs-login-card">

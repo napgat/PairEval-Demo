@@ -203,7 +203,7 @@ try {
     const page = await context.newPage(); page.setDefaultTimeout(60000);
     await page.goto(`${origin}/full-system/assignments/${assignment}/reports`);
     await page.getByRole("heading", { name: "รายงานและตัดสินคะแนน" }).waitFor();
-    await page.getByText("รุ่น 2 · ผลระหว่างดำเนินงาน").waitFor();
+    await page.getByText(/คะแนนฉบับที่ 2/).waitFor();
     await page.getByRole("tab", { name: "คะแนนรายบุคคล", exact: true }).click();
     await page.getByRole("columnheader", { name: "ส่ง/มอบหมาย" }).waitFor();
     await page.getByRole("tab", { name: "คุณภาพคำตอบ", exact: true }).click();
@@ -326,14 +326,14 @@ try {
         else await route.continue();
       });
       await page.getByRole("button", { name: "ตัดคำตอบออกและคำนวณใหม่", exact: true }).click();
-      await page.getByText("ยังรอยืนยันบันทึก audit โปรดโหลดข้อมูลใหม่ก่อนทำรายการซ้ำ", { exact: true }).waitFor();
+      await page.getByText("รายการยังรอยืนยัน กรุณาโหลดข้อมูลใหม่ก่อนทำรายการซ้ำ", { exact: true }).waitFor();
       await page.unroute("**/comparison-reviews");
       const result = page.waitForResponse(r => r.url().endsWith("/comparison-reviews") && r.request().method() === "POST");
       await page.getByRole("button", { name: "ตัดคำตอบออกและคำนวณใหม่", exact: true }).click();
       const response = await result;
       if (response.status() !== 200) throw new Error("Browser comparison exclusion failed");
       reviewId = (await response.json()).data.reviewId;
-      await page.getByText("บันทึกการทบทวนคำตอบและคำนวณ snapshot ใหม่แล้ว", { exact: true }).waitFor();
+      await page.getByText("บันทึกการทบทวนคำตอบและคำนวณ คะแนนฉบับใหม่แล้ว", { exact: true }).waitFor();
       if (process.env.PAIR_EVAL_REVIEW_SCREENSHOT) await page.screenshot({ path: process.env.PAIR_EVAL_REVIEW_SCREENSHOT, fullPage: true });
       await context.close();
     } finally { await browser.close(); }

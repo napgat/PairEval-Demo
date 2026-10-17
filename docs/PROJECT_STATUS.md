@@ -31,6 +31,8 @@
 
 | หลักฐาน | ผลและขอบเขต |
 |---|---|
+| [UI ครบคู่มือ 98 กรณี 17 ต.ค.](testing/MANUAL_UI_98_RESULTS_2026-10-17.md) | 98 PASS, 0 FAIL/BLOCKED/NOT RUN; แก้เพิ่ม 6 จุด, จอเล็ก 14 สถานะ/zoom 6 สถานะ, unit 107/107; ยังไม่ใช่ PRD หรือ production ครบทุกข้อ |
+| [Backend และ GUI รอบเต็ม 17 ต.ค.](testing/FULL_SYSTEM_BACKEND_UI_2026-10-17.md) | unit 107/107, acceptance 41 checkpoints, GUI เส้นทางหลัก, ตรวจสูตร/CSV/XLSX 16 คน, audit/recovery; แก้ contrast/timing/หน้าจอเมื่อไม่มีสิทธิ์; ไม่อ้าง manual 98/98 |
 | [Readiness v2.0](full-system/prd-v2.0-readiness-2026-10-15.md) | acceptance ชุดเดิม 41/41, recovery สังเคราะห์ และผลโหลดที่ยังมีข้อไม่ผ่าน |
 | [ซ้อมส่งมอบ](full-system/student-local-delivery-2026-10-16.md) | GUI Group/Individual, Final→อุทธรณ์→Reopen→Override→Final; ตรวจคะแนนอิสระ 16 คนและ CSV/XLSX |
 | [UI usability](full-system/ui-usability-2026-10-16.md) | unit 88/88, typecheck/lint/build, GUI/Axe 22 หน้าจอ/สถานะ; ไม่รับรอง WCAG ทุกข้อ |

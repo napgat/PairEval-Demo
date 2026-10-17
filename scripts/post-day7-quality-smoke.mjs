@@ -123,6 +123,7 @@ try {
     await page.waitForResponse(r => r.url().endsWith("/timing") && r.request().method() === "PUT" && r.status() === 200);
     await field.getByRole("radio").first().check();
     await page.getByRole("button", { name: "ยืนยันส่งคำตอบ", exact: true }).click();
+    await page.getByRole("dialog").getByRole("button", { name: "ยืนยันส่งคำตอบ", exact: true }).click();
     await page.getByText("ส่งคำตอบรุ่น 1 แล้ว (1/1)", { exact: true }).waitFor();
     await context.close();
     const stored = (await pool.query(`SELECT sa.active_duration_ms FROM submission_answer sa JOIN submission_revision r ON r.id=sa.revision_id

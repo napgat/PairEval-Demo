@@ -1,5 +1,7 @@
 # ให้ AI ช่วยติดตั้งและตรวจ PairEval
 
+ผลอ้างอิงล่าสุด: [UI ครบ 98 กรณี](testing/MANUAL_UI_98_RESULTS_2026-10-17.md) พร้อม [JSON รายข้อ](testing/manual-ui-98-results-2026-10-17.json) เป็นผล local หลังแก้ ไม่ใช้แทนการตรวจบนเครื่องเพื่อน
+
 ให้เพื่อน clone **main** หรือแตก source ZIP ก่อน จากนั้นเปิดโฟลเดอร์โปรเจกต์ในเครื่องมือ AI และใช้ข้อความนี้:
 
 รีโปเป็น Private เพื่อนต้องได้รับสิทธิ์ด้วยบัญชีตนเองก่อน หากยังเข้าถึงไม่ได้ ให้เจ้าของจัด source ZIP ไม่ขอ token ของเจ้าของมาใส่ใน AI
@@ -47,6 +49,7 @@ Do not broaden this into production certification or the historical Lab plan.
 
 ## สิ่งที่ AI ต้องรู้
 
+- คู่มือคนคลิกทดสอบครบฟีเจอร์อยู่ใน `docs/MANUAL_UI_TEST.md` มี 98 กรณีและแบบบันทึก `docs/testing/MANUAL_UI_RESULTS_TEMPLATE.md` ใช้ ID เดียวกันเมื่อช่วยเพื่อนแจ้งบั๊ก บันทึกข้อที่ต้องเตรียม fixture เป็น BLOCKED; การอ่านโค้ดหรือรัน API ไม่แทนผล PASS ของการคลิกจริง
 - ฟอร์ม Owner จัดการ Co-teacher/TA อยู่ในหน้ารายชื่อและกลุ่มแล้ว อ่าน `docs/full-system/staff-management-2026-10-17.md` ก่อนตรวจ หากต้องการ mutation regression แยกห้อง ใช้ `node scripts/staff-ui-check.mjs` ขณะ local demo เปิดอยู่ สคริปต์ตรวจฐาน loopback สร้าง/ล้างเฉพาะ fixture ของตนและเก็บ audit ไว้
 - หากเพื่อนกำลังตรวจสองปัญหาที่เคยรายงาน ให้ใช้ `docs/PEER_RETEST.md` บันทึก commit และทดสอบผลจริง ห้ามล้างฐานเดิมเพื่อให้ง่ายต่อการทดสอบ
 - `README.md` เป็นจุดเริ่มปัจจุบัน ไม่เริ่มจากเอกสาร SQLite หรือบันทึก v2.1 เก่า

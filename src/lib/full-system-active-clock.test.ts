@@ -1,7 +1,41 @@
-import { describe, expect, it } from "vitest";
-import { ActiveComparisonClock } from "./full-system-active-clock";
+import { describe, expect, it, vi } from "vitest";
+import { ActiveComparisonClock, installSyntheticTiming } from "./full-system-active-clock";
 import { timingEvent } from "./full-system-active-timing";
 describe("bounded active comparison time", () => {
+  it("keeps timing leases closed while submission is in flight, then permits editing again", async () => {
+    const element = { dataset: { pairId: "pair-1" } };
+    let observe!: (entries: unknown[]) => void;
+    const listeners = new Map<string, () => void>();
+    vi.stubGlobal("document", {
+      visibilityState: "visible", hasFocus: () => true,
+      querySelectorAll: () => [element], addEventListener: vi.fn(), removeEventListener: vi.fn(),
+    });
+    vi.stubGlobal("window", {
+      addEventListener: (event: string, listener: () => void) => listeners.set(event, listener),
+      removeEventListener: vi.fn(),
+    });
+    vi.stubGlobal("IntersectionObserver", class {
+      constructor(callback: typeof observe) { observe = callback; }
+      observe() {} disconnect() {}
+    });
+    const request = vi.fn(async (_url: string, options: RequestInit) => ({
+      ok: true, json: async () => ({ data: { leaseId: "lease-1" } }), method: options.method,
+    }));
+    vi.stubGlobal("fetch", request);
+    const recorder = installSyntheticTiming("/synthetic/evaluation");
+    try {
+      const visible = [{ target: element, isIntersecting: true, intersectionRatio: 1 }];
+      observe(visible);
+      const finishing = recorder.finish();
+      recorder.select("pair-1"); observe(visible); listeners.get("focus")?.();
+      await finishing;
+      expect(request.mock.calls.filter(([, options]) => options.method === "POST")).toHaveLength(1);
+      expect(request.mock.calls.filter(([, options]) => options.method === "PUT").map(([, options]) => JSON.parse(String(options.body)).close)).toEqual([true]);
+      recorder.resumeRecording(); recorder.select("pair-1");
+      expect(request.mock.calls.filter(([, options]) => options.method === "POST")).toHaveLength(2);
+      await recorder.finish();
+    } finally { recorder.destroy(); vi.unstubAllGlobals(); }
+  });
   it("excludes background/focus/throttled gaps and caps idle time at 30 seconds", () => {
     const clock = new ActiveComparisonClock(0);
     expect(clock.advance(500, true)).toBe(500);

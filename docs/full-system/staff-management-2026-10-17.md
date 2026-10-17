@@ -56,3 +56,25 @@ UI ไม่อ่าน JSON ของ DELETE 204 และไม่แจ้�
 ## ข้อจำกัดและส่งต่อ
 
 ยังรอเพื่อนตรวจรุ่นนี้บนเครื่องของตน ไม่ยกระดับเป็น production-ready หรือผ่าน PRD ทุกข้อจากผลชุดนี้ ขอบเขต invitation, Google OAuth/first-login จริง และการรับรอง accessibility ทุกหน้าไม่อยู่ในงานนี้ รุ่นเดิมอัปเดต main → `npm ci` → `npm run build` → เปิด launcher โดยเก็บฐานเดิมตามคู่มือได้
+
+## ตรวจซ้ำตามแผนหลัง commit 8c33107 — 17 ตุลาคม 2026
+
+ทดสอบบนสำเนา local ที่แยกฐานจากชุดนำเสนอ ใช้ Windows x64, Node.js 24 และ Chromium ข้อมูลทุกบัญชีเป็นข้อมูลสังเคราะห์ ไม่แก้โค้ดแอปในรอบนี้
+
+| ชุดตรวจ | ผลจริง |
+|---|---|
+| Unit/typecheck/lint/build | 106/106 tests ใน 24 ไฟล์ และทุกคำสั่งผ่าน |
+| Staff GUI/API regression | สคริปต์ `staff-ui-check.mjs` ผ่าน 8 กลุ่มตรวจ รวมเพิ่ม–ถอด–เพิ่มกลับ สิทธิ์ทุกบทบาท alias และ API userId เดิม |
+| Audit ของ staff regression | 4 ADD_COMMITTED + 2 REMOVE_COMMITTED, outbox ค้าง 0 |
+| กรอกอีเมลผิดรูปแบบ | browser แสดง validation และไม่ส่ง POST |
+| Keyboard | Tab จากอีเมลไปบทบาทและปุ่มเพิ่ม แล้ว Enter ส่งจริงได้ทั้ง Co-teacher/TA; Escape ของกล่องถอดคืน focus ตาม regression |
+| ปิด–เปิดจริง | หยุดและเปิดทั้งแอป/ฐานด้วย launcher; ID, role, status, joined_at และ withdrawn_at ของสมาชิกตรงกับก่อนปิด |
+| สิทธิ์หลังเปิดใหม่ | Co-teacher ที่ active อ่าน roster ได้; TA ที่ถูกถอดยังถูกปฏิเสธและไม่ปรากฏในรายชื่อผู้สอน |
+| เพิ่มกลับหลังเปิดใหม่ | TA กลับเป็น ACTIVE โดยใช้ membership ID และ joined_at เดิม |
+| Audit ของ persistence | 3 ADD_COMMITTED + 1 REMOVE_COMMITTED, outbox ค้าง 0 |
+| UI เดิม | `npm run test:demo-ui` ผ่าน 22 หน้าจอ/สถานะ ไม่มีข้อข้าม ไม่มี Axe violations, page overflow หรือ browser page errors |
+| เก็บข้อมูลและ cleanup | fingerprint สมาชิก/score snapshots ของห้องสาธิตเดิมไม่เปลี่ยน; ห้อง persistence ถูกล้างเหลือ 0 พร้อมเก็บ audit |
+
+ไม่พบข้อผิดพลาดของแอปในขอบเขตที่ตรวจ รอบนี้เพิ่มการตรวจ keyboard และ restart จริงจากหลักฐานรอบพัฒนาเดิม ภาพและผลละเอียดอยู่ใน `.verification/staff-retest-20261017/`, `.verification/staff-ui-20261017/` และ `.verification/ui-usability-20261016/` ของสำเนาทดสอบ ซึ่งไม่ส่งขึ้น Git
+
+การตรวจ 202/503/network failure ยังเป็นการจำลองที่ browser transport ตามที่ระบุด้านบน ส่วน UI เดิมเป็น read-only regression ไม่ใช่การส่ง Group/Individual หรือปิดอุทธรณ์ใหม่ครบเส้นทางในรอบนี้ เปิดชุดนำเสนอเดิมกลับหลังจบทดสอบแล้ว และยังรอเพื่อนตรวจบนเครื่องของตน

@@ -1,0 +1,669 @@
+{
+  "date": "2026-10-17",
+  "baselineCommit": "8c33107",
+  "fixesIncludedInThisRevision": true,
+  "scope": "Local synthetic student prototype; UI automation of the 98 manual-guide cases",
+  "passed": 98,
+  "failed": 0,
+  "blocked": 0,
+  "notRun": 0,
+  "unitTests": 107,
+  "mobileStates": 14,
+  "zoomStates": 6,
+  "regularUiStates": 22,
+  "pageErrors": 0,
+  "cleanup": {
+    "date": "2026-10-17",
+    "cleanedRooms": 9,
+    "fixtureRoomsRemaining": 0,
+    "pendingAudit": 0,
+    "baselineStudents": 16,
+    "pageErrors": 0
+  },
+  "authFaultRegression": [
+    {
+      "fault": 429,
+      "recovered": true,
+      "cookiePreserved": true
+    },
+    {
+      "fault": 503,
+      "recovered": true,
+      "cookiePreserved": true
+    },
+    {
+      "fault": "network",
+      "recovered": true,
+      "cookiePreserved": true
+    }
+  ],
+  "roleErrorRegression": [
+    {
+      "role": "ผู้ช่วยสอน",
+      "title": "ไม่สามารถเปิดรายงาน",
+      "controlsHidden": true,
+      "axe": 0
+    },
+    {
+      "role": "ผู้ช่วยสอน",
+      "title": "ไม่สามารถเปิดงานประเมิน",
+      "controlsHidden": true,
+      "axe": 0
+    },
+    {
+      "role": "ผู้ช่วยสอน",
+      "title": "เปิดแบบประเมินไม่ได้",
+      "controlsHidden": true,
+      "axe": 0
+    },
+    {
+      "role": "นักศึกษาคนที่ 1",
+      "title": "ไม่สามารถเปิดรายงาน",
+      "controlsHidden": true,
+      "axe": 0
+    },
+    {
+      "role": "นักศึกษาคนที่ 1",
+      "title": "ไม่สามารถเปิดงานประเมิน",
+      "controlsHidden": true,
+      "axe": 0
+    }
+  ],
+  "cases": [
+    {
+      "id": "SET-01",
+      "status": "PASS",
+      "observed": "classroom created via GUI: 16 students / 4 groups",
+      "relatedBug": null
+    },
+    {
+      "id": "SET-02",
+      "status": "PASS",
+      "observed": "baseline GUI roster 16 students / 4 distinct groups",
+      "relatedBug": null
+    },
+    {
+      "id": "SET-03",
+      "status": "PASS",
+      "observed": "classroom created via GUI: 16 students / 4 groups",
+      "relatedBug": null
+    },
+    {
+      "id": "SET-04",
+      "status": "PASS",
+      "observed": "prepare-final preserved separate pre-existing fixture; real deadline visible in editor",
+      "relatedBug": null
+    },
+    {
+      "id": "NAV-01",
+      "status": "PASS",
+      "observed": "dashboard search and no-result state",
+      "relatedBug": null
+    },
+    {
+      "id": "NAV-02",
+      "status": "PASS",
+      "observed": "all five roles use correct room card; profile name, back link, logo and main nav work",
+      "relatedBug": "B98-01"
+    },
+    {
+      "id": "NAV-03",
+      "status": "PASS",
+      "observed": "all five roles use correct room card; profile name, back link, logo and main nav work",
+      "relatedBug": null
+    },
+    {
+      "id": "NAV-04",
+      "status": "PASS",
+      "observed": "GUI logout returns to sign in and session API is unauthorized",
+      "relatedBug": null
+    },
+    {
+      "id": "NAV-05",
+      "status": "PASS",
+      "observed": "second student independently submitted both sides",
+      "relatedBug": null
+    },
+    {
+      "id": "CLS-01",
+      "status": "PASS",
+      "observed": "classroom created via GUI: 16 students / 4 groups",
+      "relatedBug": null
+    },
+    {
+      "id": "CLS-02",
+      "status": "PASS",
+      "observed": "GUI empty/short room name and malformed CSV create no classroom",
+      "relatedBug": null
+    },
+    {
+      "id": "CLS-03",
+      "status": "PASS",
+      "observed": "GUI empty/short room name and malformed CSV create no classroom",
+      "relatedBug": null
+    },
+    {
+      "id": "CLS-04",
+      "status": "PASS",
+      "observed": "GUI roster search by name, student number, email and absent term; clears correctly",
+      "relatedBug": null
+    },
+    {
+      "id": "CLS-05",
+      "status": "PASS",
+      "observed": "GUI original roster preview/import is idempotent",
+      "relatedBug": null
+    },
+    {
+      "id": "CLS-06",
+      "status": "PASS",
+      "observed": "GUI duplicate CSV cannot import; 16 existing members preserved",
+      "relatedBug": null
+    },
+    {
+      "id": "STA-01",
+      "status": "PASS",
+      "observed": "Owner email/name/role visible with no remove action",
+      "relatedBug": null
+    },
+    {
+      "id": "STA-02",
+      "status": "PASS",
+      "observed": "Owner read-only and staff GUI add",
+      "relatedBug": null
+    },
+    {
+      "id": "STA-03",
+      "status": "PASS",
+      "observed": "GUI duplicate/unknown/invalid email and Owner/Student conversion rejected; members unchanged",
+      "relatedBug": null
+    },
+    {
+      "id": "STA-04",
+      "status": "PASS",
+      "observed": "GUI cancel button/Escape then confirmed Co removal; direct URL revoked, baseline room still readable",
+      "relatedBug": null
+    },
+    {
+      "id": "STA-05",
+      "status": "PASS",
+      "observed": "Co restored through GUI, same membership id/join date, access restored",
+      "relatedBug": null
+    },
+    {
+      "id": "STA-06",
+      "status": "PASS",
+      "observed": "TA removed/restored as Co with editor access, then removed/restored as TA without editor access",
+      "relatedBug": null
+    },
+    {
+      "id": "STA-07",
+      "status": "PASS",
+      "observed": "GUI duplicate/unknown/invalid email and Owner/Student conversion rejected; members unchanged",
+      "relatedBug": null
+    },
+    {
+      "id": "STA-08",
+      "status": "PASS",
+      "observed": "Co/TA can read roster without staff editor; Student has no roster data",
+      "relatedBug": null
+    },
+    {
+      "id": "ASN-01",
+      "status": "PASS",
+      "observed": "DRAFT survives reload",
+      "relatedBug": null
+    },
+    {
+      "id": "ASN-02",
+      "status": "PASS",
+      "observed": "GUI permits unfinished DRAFT with group criteria 90; feasibility rejects it and cannot publish; restores 60+40",
+      "relatedBug": null
+    },
+    {
+      "id": "ASN-03",
+      "status": "PASS",
+      "observed": "GUI negative score, reversed floor/ceiling, and instructor weight 100 rejected; valid values restored",
+      "relatedBug": null
+    },
+    {
+      "id": "ASN-04",
+      "status": "PASS",
+      "observed": "GUI feasibility repeated with same seed returns identical part counts/coverage/workload/reasons",
+      "relatedBug": null
+    },
+    {
+      "id": "ASN-05",
+      "status": "PASS",
+      "observed": "student Group pairs exclude own group",
+      "relatedBug": null
+    },
+    {
+      "id": "ASN-06",
+      "status": "PASS",
+      "observed": "feasibility, publish and locked criteria",
+      "relatedBug": null
+    },
+    {
+      "id": "ASN-07",
+      "status": "PASS",
+      "observed": "GUI extends Individual deadline alone and preserves Group after reload in Asia/Bangkok",
+      "relatedBug": null
+    },
+    {
+      "id": "ASN-08",
+      "status": "PASS",
+      "observed": "GUI clone is new DRAFT, disabled Individual has no deadline and no student evaluation link after publish",
+      "relatedBug": null
+    },
+    {
+      "id": "ASN-09",
+      "status": "PASS",
+      "observed": "real elapsed deadline disables editing/submission",
+      "relatedBug": null
+    },
+    {
+      "id": "EVG-01",
+      "status": "PASS",
+      "observed": "GUI open filter/search, six choices, both linked and missing artifacts; actual HTTPS artifact popup loaded Example Domain and closed",
+      "relatedBug": "B98-06"
+    },
+    {
+      "id": "EVG-02",
+      "status": "PASS",
+      "observed": "fresh GUI draft/reload keeps choice/progress and remains unsubmitted",
+      "relatedBug": null
+    },
+    {
+      "id": "EVG-03",
+      "status": "PASS",
+      "observed": "progress decrements/restores on clear; navigating away/back preserves draft with submitted revision still 2",
+      "relatedBug": null
+    },
+    {
+      "id": "EVG-04",
+      "status": "PASS",
+      "observed": "fresh partial dialog counts correct; cancel creates no revision, confirmed partial creates first revision/time",
+      "relatedBug": null
+    },
+    {
+      "id": "EVG-05",
+      "status": "PASS",
+      "observed": "Group revision 2 submitted via GUI",
+      "relatedBug": null
+    },
+    {
+      "id": "EVG-06",
+      "status": "PASS",
+      "observed": "progress decrements/restores on clear; navigating away/back preserves draft with submitted revision still 2",
+      "relatedBug": null
+    },
+    {
+      "id": "EVG-07",
+      "status": "PASS",
+      "observed": "real elapsed deadline disables editing/submission",
+      "relatedBug": null
+    },
+    {
+      "id": "EVI-01",
+      "status": "PASS",
+      "observed": "Individual peer pairs exclude self and draft/progress survive reload independently",
+      "relatedBug": null
+    },
+    {
+      "id": "EVI-02",
+      "status": "PASS",
+      "observed": "Individual draft and two GUI submissions independent of Group",
+      "relatedBug": null
+    },
+    {
+      "id": "EVI-03",
+      "status": "PASS",
+      "observed": "personal Interim and participation explanation",
+      "relatedBug": null
+    },
+    {
+      "id": "EVI-04",
+      "status": "PASS",
+      "observed": "both students UI Group/Individual/Total match independent latest Final; refresh stable, personal data isolated",
+      "relatedBug": null
+    },
+    {
+      "id": "TEA-01",
+      "status": "PASS",
+      "observed": "extra student evaluator assigned through GUI",
+      "relatedBug": null
+    },
+    {
+      "id": "TEA-02",
+      "status": "PASS",
+      "observed": "Owner self-assigned a pair and submitted GUI evaluation",
+      "relatedBug": null
+    },
+    {
+      "id": "TEA-03",
+      "status": "PASS",
+      "observed": "duplicate self assignment and excessive additional student count rejected without adding pairs",
+      "relatedBug": null
+    },
+    {
+      "id": "TEA-04",
+      "status": "PASS",
+      "observed": "TA direct instructor editor/evaluation/report URLs reveal no editor, pairs or report",
+      "relatedBug": "B98-04"
+    },
+    {
+      "id": "RPT-01",
+      "status": "PASS",
+      "observed": "saved snapshot number/time recorded; refresh does not create or lose snapshot",
+      "relatedBug": null
+    },
+    {
+      "id": "RPT-02",
+      "status": "PASS",
+      "observed": "all report tabs, quality limitations and histogram",
+      "relatedBug": null
+    },
+    {
+      "id": "RPT-03",
+      "status": "PASS",
+      "observed": "all quality rows/QS reasons visible and histogram switches every criterion",
+      "relatedBug": null
+    },
+    {
+      "id": "RPT-04",
+      "status": "PASS",
+      "observed": "GUI exclusion persisted, snapshot increased, participation unchanged",
+      "relatedBug": null
+    },
+    {
+      "id": "RPT-05",
+      "status": "PASS",
+      "observed": "short review reason cannot exclude/restore; complete cut/restore and snapshot checks passed earlier",
+      "relatedBug": null
+    },
+    {
+      "id": "EXP-01",
+      "status": "PASS",
+      "observed": "CSV/XLSX parsed and all 16 totals checked against independent weighted calculation",
+      "relatedBug": null
+    },
+    {
+      "id": "EXP-02",
+      "status": "PASS",
+      "observed": "CSV Answered/Assigned and workbook Created UTC/4 sheets/QS metadata additionally checked against exported snapshot; weighted independent score oracle already passed",
+      "relatedBug": null
+    },
+    {
+      "id": "EXP-03",
+      "status": "PASS",
+      "observed": "CSV Answered/Assigned and workbook Created UTC/4 sheets/QS metadata additionally checked against exported snapshot; weighted independent score oracle already passed",
+      "relatedBug": null
+    },
+    {
+      "id": "EXP-04",
+      "status": "PASS",
+      "observed": "Co can download pseudonymous raw choices/weights/review status, has no identity export, Final or Reopen controls",
+      "relatedBug": null
+    },
+    {
+      "id": "EXP-05",
+      "status": "PASS",
+      "observed": "identity export also rejects short reason; Owner confirmed/cancelled download in prior phase",
+      "relatedBug": null
+    },
+    {
+      "id": "SCR-01",
+      "status": "PASS",
+      "observed": "GUI Final before deadline rejected",
+      "relatedBug": null
+    },
+    {
+      "id": "SCR-02",
+      "status": "PASS",
+      "observed": "GUI cancel then Final after real deadline",
+      "relatedBug": null
+    },
+    {
+      "id": "SCR-03",
+      "status": "PASS",
+      "observed": "both students UI Group/Individual/Total match independent latest Final; refresh stable, personal data isolated",
+      "relatedBug": null
+    },
+    {
+      "id": "SCR-04",
+      "status": "PASS",
+      "observed": "GUI Reopen requires reason and retains old Final",
+      "relatedBug": null
+    },
+    {
+      "id": "SCR-05",
+      "status": "PASS",
+      "observed": "GUI Override to Interim does not allow closing appeal",
+      "relatedBug": null
+    },
+    {
+      "id": "SCR-06",
+      "status": "PASS",
+      "observed": "out-of-range override rejected; successful 4.25 retained",
+      "relatedBug": null
+    },
+    {
+      "id": "SCR-07",
+      "status": "PASS",
+      "observed": "Co can download pseudonymous raw choices/weights/review status, has no identity export, Final or Reopen controls",
+      "relatedBug": null
+    },
+    {
+      "id": "APL-01",
+      "status": "PASS",
+      "observed": "student submits appeal and duplicate form disappears",
+      "relatedBug": null
+    },
+    {
+      "id": "APL-02",
+      "status": "PASS",
+      "observed": "instructor sees student appeal and can select it",
+      "relatedBug": null
+    },
+    {
+      "id": "APL-03",
+      "status": "PASS",
+      "observed": "GUI Override to Interim does not allow closing appeal",
+      "relatedBug": null
+    },
+    {
+      "id": "APL-04",
+      "status": "PASS",
+      "observed": "GUI new Final then resolved appeal",
+      "relatedBug": null
+    },
+    {
+      "id": "APL-05",
+      "status": "PASS",
+      "observed": "student 1 sees revised score and own reply, student 2 does not see it",
+      "relatedBug": null
+    },
+    {
+      "id": "APL-06",
+      "status": "PASS",
+      "observed": "rejected second appeal status/reason visible to its own student",
+      "relatedBug": null
+    },
+    {
+      "id": "CHG-01",
+      "status": "PASS",
+      "observed": "GUI roster change while OPEN rejected, roster unchanged",
+      "relatedBug": null
+    },
+    {
+      "id": "CHG-02",
+      "status": "PASS",
+      "observed": "GUI cancel then unpublish retains old generation",
+      "relatedBug": null
+    },
+    {
+      "id": "CHG-03",
+      "status": "PASS",
+      "observed": "GUI preview and atomic group move of exactly one student",
+      "relatedBug": null
+    },
+    {
+      "id": "CHG-04",
+      "status": "PASS",
+      "observed": "both Group and Individual new-generation UI have no inherited draft/submitted revision",
+      "relatedBug": null
+    },
+    {
+      "id": "WDR-01",
+      "status": "PASS",
+      "observed": "withdrawal needs a complete reason",
+      "relatedBug": null
+    },
+    {
+      "id": "WDR-02",
+      "status": "PASS",
+      "observed": "GUI cancellation keeps membership; confirmed withdrawal leaves 15 active students",
+      "relatedBug": null
+    },
+    {
+      "id": "WDR-03",
+      "status": "PASS",
+      "observed": "report still loads after withdrawal and recompute",
+      "relatedBug": null
+    },
+    {
+      "id": "WDR-04",
+      "status": "PASS",
+      "observed": "GUI infeasible withdrawal rolls back: five members and assignment generation/status unchanged",
+      "relatedBug": null
+    },
+    {
+      "id": "ARC-01",
+      "status": "PASS",
+      "observed": "GUI archive cancellation and confirmation; read-only archive opens",
+      "relatedBug": null
+    },
+    {
+      "id": "ARC-02",
+      "status": "PASS",
+      "observed": "archived details readable; direct editor/evaluation have no mutations, classroom absent from active dashboard",
+      "relatedBug": null
+    },
+    {
+      "id": "ARC-03",
+      "status": "PASS",
+      "observed": "archived Student sees own row, TA sees no scores/restore control",
+      "relatedBug": null
+    },
+    {
+      "id": "ARC-04",
+      "status": "PASS",
+      "observed": "GUI restore cancellation/confirmation after restart preserves 15 members, exact assignment status/generation and both deadlines",
+      "relatedBug": null
+    },
+    {
+      "id": "NOT-01",
+      "status": "PASS",
+      "observed": "publish/group-change/Final messages visible without numeric score/evaluator identity; both work and score notification deep links open correct destinations",
+      "relatedBug": null
+    },
+    {
+      "id": "NOT-02",
+      "status": "PASS",
+      "observed": "publish/group-change/Final messages visible without numeric score/evaluator identity; both work and score notification deep links open correct destinations",
+      "relatedBug": null
+    },
+    {
+      "id": "NOT-03",
+      "status": "PASS",
+      "observed": "both Owner and Co report UI display committed classroom activity history",
+      "relatedBug": null
+    },
+    {
+      "id": "DAT-01",
+      "status": "PASS",
+      "observed": "GUI JSON downloads for two students contain only own profile, submissions and scores",
+      "relatedBug": null
+    },
+    {
+      "id": "DAT-02",
+      "status": "PASS",
+      "observed": "GUI JSON downloads for two students contain only own profile, submissions and scores",
+      "relatedBug": null
+    },
+    {
+      "id": "DAT-03",
+      "status": "PASS",
+      "observed": "Student and TA direct URLs for non-member classroom expose no roster or teacher editor; role report denials checked",
+      "relatedBug": "B98-04"
+    },
+    {
+      "id": "DAT-04",
+      "status": "PASS",
+      "observed": "fresh synthetic session: notice blocks rooms, logout without acceptance, acknowledge then reload persists; no real OAuth claim",
+      "relatedBug": null
+    },
+    {
+      "id": "UX-01",
+      "status": "PASS",
+      "observed": "Full keyboard-only journey after role selection: dashboard room link > teacher editor > roster > staff form with Tab/Enter/Space/Shift+Tab; student dashboard > work > Group radio arrows. Visible focus and no unintended mutation.",
+      "relatedBug": null
+    },
+    {
+      "id": "UX-02",
+      "status": "PASS",
+      "observed": "report ArrowLeft/Right/Home/End activate and focus expected tabs; account Escape restores focus; dialogs tested cancel/Escape with focus return",
+      "relatedBug": null
+    },
+    {
+      "id": "UX-03",
+      "status": "PASS",
+      "observed": "390px and 320px: dashboard, roster/staff, assignment editor, report/appeals, Group/Individual, score/appeal; Axe zero, no page overflow, last radio visible above non-sticky submission footer",
+      "relatedBug": "B98-05 / B98-06"
+    },
+    {
+      "id": "UX-04",
+      "status": "PASS",
+      "observed": "Real Chromium tabs.setZoom=2 verified via getZoom/DPR=2, CSS zoom=1; six screens reflow, keyboard scroll of report table, Axe no violations",
+      "relatedBug": "B98-05"
+    },
+    {
+      "id": "UX-05",
+      "status": "PASS",
+      "observed": "real browser Offline/Online queues choice, reconnect syncs draft, reload retains choice and never auto-submits",
+      "relatedBug": null
+    },
+    {
+      "id": "UX-06",
+      "status": "PASS",
+      "observed": "after real restart, removed Co remains denied, archived classroom stays archived, Individual unsubmitted draft persists; all recorded revisions/Final/appeals match",
+      "relatedBug": null
+    },
+    {
+      "id": "SPC-01",
+      "status": "PASS",
+      "observed": "groups of two have no Individual action/pair; direct URL shows clear disabled reason without endless loading",
+      "relatedBug": "B98-02"
+    },
+    {
+      "id": "SPC-02",
+      "status": "PASS",
+      "observed": "groups of three: feasibility low-confidence warning, only two peers in Individual, report retains low confidence",
+      "relatedBug": "B98-03"
+    },
+    {
+      "id": "SPC-03",
+      "status": "PASS",
+      "observed": "two groups of four cannot publish; feasibility reason remains visible",
+      "relatedBug": null
+    }
+  ],
+  "presentation": {
+    "sourceMatches": true,
+    "uiStates": 22,
+    "uiPassed": true,
+    "url": "http://localhost:3103",
+    "revision": "same source revision as this report"
+  }
+}

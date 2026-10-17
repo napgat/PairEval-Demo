@@ -11,7 +11,7 @@ export class ActiveComparisonClock {
 }
 export function installSyntheticTiming(path: string) {
   type Lease = { pairId: string; start: Promise<string>; sequence: number; pending: number; closed: boolean; failed: boolean };
-  let active: Lease | null = null, wanted: string | null = null;
+  let active: Lease | null = null, wanted: string | null = null, accepting = true;
   let clock = new ActiveComparisonClock(performance.now());
   let chain: Promise<void> = Promise.resolve();
   const visible = new Set<string>();
@@ -38,6 +38,7 @@ export function installSyntheticTiming(path: string) {
     });
   };
   const start = (pairId: string) => {
+    if (!accepting) return;
     if (active && !active.closed && active.pairId === pairId) return;
     flush(true); wanted = pairId; clock = new ActiveComparisonClock(performance.now());
     const promise = fetch(`${path}/timing`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ pairId }) })
@@ -63,10 +64,11 @@ export function installSyntheticTiming(path: string) {
   document.addEventListener("keydown", activity); window.addEventListener("focus", resume); window.addEventListener("blur", suspend);
   window.addEventListener("pagehide", suspend);
   return {
-    select(pairId: string) { wanted = pairId; if (visible.has(pairId) && document.hasFocus() && document.visibilityState === "visible") start(pairId); activity(); },
+    select(pairId: string) { if (!accepting) return; wanted = pairId; if (visible.has(pairId) && document.hasFocus() && document.visibilityState === "visible") start(pairId); activity(); },
     complete(pairId: string) { if (active?.pairId === pairId) { flush(true); wanted = null; } },
     async settle() { await chain; },
-    async finish() { flush(true); wanted = null; await chain; },
+    async finish() { accepting = false; flush(true); wanted = null; await chain; },
+    resumeRecording() { accepting = true; },
     destroy() { suspend(); clearInterval(interval); observer.disconnect();
       document.removeEventListener("visibilitychange", visibility); document.removeEventListener("pointermove", activity);
       document.removeEventListener("keydown", activity); window.removeEventListener("focus", resume); window.removeEventListener("blur", suspend); window.removeEventListener("pagehide", suspend);

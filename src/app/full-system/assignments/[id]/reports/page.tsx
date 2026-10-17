@@ -74,9 +74,17 @@ export default function ReportsPage({ params }: { params: Promise<{ id: string }
       setReviews(reviewData.items); setReviewCursor(reviewData.nextCursor);
     }
   }, [endpoint]);
+  const [loadedId, setLoadedId] = useState<string | null>(null);
+  const [loadError, setLoadError] = useState("");
   useEffect(() => {
-    void (async () => { try { await refresh(); } catch (error) { setMessage(friendlyError(error)); } })();
-  }, [refresh]);
+    let active = true;
+    void (async () => {
+      setLoadError("");
+      try { await refresh(); if (active) setLoadedId(id); }
+      catch (error) { if (active) setLoadError(friendlyError(error)); }
+    })();
+    return () => { active = false; };
+  }, [refresh, id]);
   const post = async (path: string, body: unknown) => {
     const response = await fetch(`${endpoint}/${path}`, { method: "POST",
       headers: { "Content-Type": "application/json", Origin: window.location.origin },
@@ -156,6 +164,14 @@ export default function ReportsPage({ params }: { params: Promise<{ id: string }
     .map(c => c.q!);
   const distribution = [0, 1, 2, 3, 4].map(index => chartValues.filter(value =>
     Math.min(4, Math.floor(value * 5)) === index).length);
+  if (loadedId !== id) return <main className="fs-page fs-report-page">
+    <Link className="fs-back-link" href="/full-system">← กลับไปหน้าห้องเรียน</Link>
+    <h1>{loadError ? "ไม่สามารถเปิดรายงาน" : "กำลังโหลดรายงาน…"}</h1>
+    <p className={loadError ? "error-box" : "fs-muted-copy"} role={loadError ? "alert" : "status"}>
+      {loadError || "กำลังตรวจสิทธิ์และเตรียมข้อมูลคะแนน"}
+    </p>
+    {loadError && <button className="secondary-button" onClick={() => window.location.reload()}>ลองโหลดใหม่</button>}
+  </main>;
   return <main className="fs-page fs-report-page">
     <Link className="fs-back-link" href="/full-system"><span aria-hidden="true">←</span> กลับไปหน้าห้องเรียน</Link>
     <header className="fs-page-heading"><div><span className="eyebrow">พื้นที่อาจารย์ · ผลการประเมิน</span>
@@ -189,17 +205,17 @@ export default function ReportsPage({ params }: { params: Promise<{ id: string }
           <button key={item.id} role="tab" id={`report-tab-${item.id}`} aria-controls="report-panel" tabIndex={tab === item.id ? 0 : -1} aria-selected={tab === item.id} className="secondary-button"
             onClick={() => setTab(item.id)}>{item.label}</button>)}</div>
         <div role="tabpanel" id="report-panel" aria-labelledby={`report-tab-${tab}`} tabIndex={0}>
-        {tab === "group" && <div className="table-wrap"><table><thead><tr><th>กลุ่ม</th><th>เกณฑ์</th><th>ค่าเปรียบเทียบ (q)</th><th>จำนวน</th><th>คะแนนถ่วง</th><th>รวมกลุ่ม</th><th>หมายเหตุ</th></tr></thead><tbody>
+        {tab === "group" && <div className="table-wrap" tabIndex={0} role="region" aria-label="ตารางคะแนนกลุ่ม"><table><thead><tr><th>กลุ่ม</th><th>เกณฑ์</th><th>ค่าเปรียบเทียบ (q)</th><th>จำนวน</th><th>คะแนนถ่วง</th><th>รวมกลุ่ม</th><th>หมายเหตุ</th></tr></thead><tbody>
           {output.groups.flatMap(g => g.criteria.map(c => <tr key={`${g.id}:${c.criterionId}`}>
             <td>{g.name}</td><td>{c.name}</td><td>{show(c.q)}</td><td>{c.comparisons}</td>
             <td>{show(c.weightedScore)}</td><td>{show(g.component)}</td><td>{g.flags.map(scoreFlag).join(", ")}</td></tr>))}
         </tbody></table></div>}
-        {tab === "individual" && <div className="table-wrap"><table><thead><tr><th>นักศึกษา</th><th>กลุ่ม</th><th>รายบุคคล</th><th>ส่ง/มอบหมาย</th><th>ตัวคูณ (M)</th><th>รวม</th><th>หมายเหตุ</th></tr></thead><tbody>
+        {tab === "individual" && <div className="table-wrap" tabIndex={0} role="region" aria-label="ตารางคะแนนรายบุคคล"><table><thead><tr><th>นักศึกษา</th><th>กลุ่ม</th><th>รายบุคคล</th><th>ส่ง/มอบหมาย</th><th>ตัวคูณ (M)</th><th>รวม</th><th>หมายเหตุ</th></tr></thead><tbody>
           {output.students.map(s => <tr key={s.id}><td>{s.displayName}</td><td>{show(s.groupComponent)}</td>
             <td>{show(s.individualComponent)}</td><td>{s.answered}/{s.assigned}</td><td>{s.M.toFixed(3)}</td>
             <td>{show(s.total)}</td><td>{s.flags.map(scoreFlag).join(", ")}</td></tr>)}
         </tbody></table></div>}
-        {tab === "coverage" && <div className="table-wrap"><table><thead><tr><th>ด้าน</th><th>เกณฑ์</th><th>คู่ A / B</th><th>ส่ง/มอบหมาย</th><th>ตัดออก</th><th>ค่าเฉลี่ยของ A</th></tr></thead><tbody>
+        {tab === "coverage" && <div className="table-wrap" tabIndex={0} role="region" aria-label="ตารางความครอบคลุมคู่"><table><thead><tr><th>ด้าน</th><th>เกณฑ์</th><th>คู่ A / B</th><th>ส่ง/มอบหมาย</th><th>ตัดออก</th><th>ค่าเฉลี่ยของ A</th></tr></thead><tbody>
           {output.pairSummary?.map(p => <tr key={`${p.side}:${p.criterionId}:${p.aId}:${p.bId}`}><td>{sideName(p.side)}</td>
             <td>{chartCriteria.find(c=>c[0] === p.criterionId)?.[1] ?? "เกณฑ์เดิม"}</td><td>{output.groups.find(g=>g.id === p.aId)?.name ?? output.students.find(s=>s.id === p.aId)?.displayName ?? "รายการ A"} / {output.groups.find(g=>g.id === p.bId)?.name ?? output.students.find(s=>s.id === p.bId)?.displayName ?? "รายการ B"}</td>
             <td>{p.answered}/{p.assigned}</td><td>{p.excluded ?? 0}</td><td>{show(p.meanForA)}</td></tr>)}
@@ -212,7 +228,7 @@ export default function ReportsPage({ params }: { params: Promise<{ id: string }
           {output.quality ? <>
             <p className="fine-print">รหัสผู้ประเมินใช้เฉพาะ คะแนนฉบับนี้ QS-02/03 แยกตามด้านและใช้คำตอบที่ส่งล่าสุด;
               QS-04 แยกตามเกณฑ์และนับเฉพาะชุดสามรายการที่ตอบครบ สัญญาณจากคำตอบจำนวนน้อยต้องทบทวนด้วยความระมัดระวัง</p>
-            <div className="table-wrap"><table><caption>{output.quality.version === "qs-02-04-v1" ? "สัญญาณคุณภาพ QS-02–04" : "สัญญาณคุณภาพ QS-02–07"}</caption><thead><tr>
+            <div className="table-wrap" tabIndex={0} role="region" aria-label="ตารางสัญญาณคุณภาพ"><table><caption>{output.quality.version === "qs-02-04-v1" ? "สัญญาณคุณภาพ QS-02–04" : "สัญญาณคุณภาพ QS-02–07"}</caption><thead><tr>
               <th>สัญญาณ</th><th>รหัสผู้ประเมิน</th><th>ด้าน / เกณฑ์</th><th>พบ / ตรวจได้</th><th>สัดส่วน</th><th>เกณฑ์</th><th>ผล</th>
             </tr></thead><tbody>{output.quality.measures.map(row => <tr
               key={`${row.id}:${row.evaluatorCode}:${row.side}:${row.criterionId}`}>
@@ -303,7 +319,7 @@ export default function ReportsPage({ params }: { params: Promise<{ id: string }
       </section>
       <details className="form-panel fs-disclosure"><summary>ประวัติการทำรายการของห้องเรียน</summary><div className="fs-disclosure-body">
         <p className="fine-print">ใช้ตรวจสอบย้อนหลัง โดยไม่แสดงชื่อผู้ประเมิน</p>
-        <div className="table-wrap"><table><thead><tr><th>เวลา UTC</th><th>เหตุการณ์</th><th>รายการอ้างอิง</th><th>รหัสอ้างอิง</th></tr></thead><tbody>
+        <div className="table-wrap" tabIndex={0} role="region" aria-label="ตารางประวัติการทำรายการ"><table><thead><tr><th>เวลา UTC</th><th>เหตุการณ์</th><th>รายการอ้างอิง</th><th>รหัสอ้างอิง</th></tr></thead><tbody>
           {auditRows.map(row => <tr key={`${row.requestId}:${row.action}`}>
             <td>{row.occurredAt}</td><td>{row.action}</td>
             <td>{row.resourceType} {row.resourceId.slice(0, 8)}</td>

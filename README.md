@@ -6,7 +6,7 @@
 
 ## เพื่อนเริ่มตรงนี้
 
-**เพื่อนที่เคยติดตั้งแล้ว:** ใช้ [รายการลองรอบที่ 2](docs/PEER_RETEST.md) เพื่ออัปเดต main และตรวจสองปัญหาเดิมโดยเก็บข้อมูลไว้
+**เพื่อนที่เคยติดตั้งแล้ว:** ใช้ [รายการตรวจซ้ำรุ่นล่าสุด](docs/PEER_RETEST.md) เพื่ออัปเดต main และลองจุดที่แก้จากการตรวจ UI 98 กรณี โดยเก็บข้อมูลไว้
 
 เพิ่มฟอร์ม **ทีมผู้สอน** แล้ว: Owner เปิดรายชื่อและกลุ่มเพื่อเพิ่ม–ถอด Co-teacher/TA ด้วยอีเมลบัญชีที่มีอยู่ ดู [วิธีลองและผลตรวจ](docs/full-system/staff-management-2026-10-17.md)
 
@@ -28,6 +28,7 @@ npm run build
 |---|---|
 | ติดตั้ง เปิด–ปิด แก้ปัญหา และอัปเดตรุ่น | [คู่มือเริ่มใช้งาน](docs/GETTING_STARTED.md) |
 | ลองเส้นทางอาจารย์–นักศึกษา และแจ้งปัญหา | [รายการทดสอบสำหรับเพื่อน](docs/TRY_IT.md) |
+| ทดสอบด้วยมือผ่าน UI ทั้งระบบ และกรอกผลรายกรณี | [คู่มือ Manual UI](docs/MANUAL_UI_TEST.md) และ [แบบบันทึกผล](docs/testing/MANUAL_UI_RESULTS_TEMPLATE.md) |
 | ให้ AI ช่วยเปิดและทดสอบในเครื่อง | [คำสั่งเริ่มงานสำหรับ AI](docs/AI_HANDOFF.md) และ [AGENTS.md](AGENTS.md) |
 | ดูฟีเจอร์ที่มี หลักฐาน และข้อจำกัด | [สถานะโครงงาน](docs/PROJECT_STATUS.md) |
 | หาเอกสารออกแบบ/ผลตรวจย้อนหลัง | [สารบัญเอกสาร](docs/README.md) |
@@ -56,7 +57,7 @@ npx playwright install chromium
 npm run test:demo-ui
 ```
 
-ผลตรวจซ้ำล่าสุด: unit tests 94/94, typecheck/lint/build, GUI/Axe 22 หน้าจอ/สถานะ และ regression จาก feedback 10 checks ผ่าน อ่านขอบเขตใน [ผลตรวจรอบที่ 2](docs/full-system/peer-retest-2026-10-17.md) ยังรอเพื่อนตรวจบนเครื่องของตนเอง
+ผลตรวจ local ล่าสุด: **UI ตามคู่มือ 98/98 ผ่านหลังแก้และตรวจซ้ำ**, unit tests 107/107, typecheck/lint/build; มีผลรายข้อ ภาพจอเล็ก/ซูม และข้อจำกัดใน [รายงาน UI 98 กรณี](docs/testing/MANUAL_UI_98_RESULTS_2026-10-17.md) ส่วนสูตร/CSV/XLSX อิสระ 16 คนและ audit/restore ดู [รายงาน Backend](docs/testing/FULL_SYSTEM_BACKEND_UI_2026-10-17.md) ยังรอเพื่อนตรวจซ้ำบนเครื่องของตนเอง
 
 ไม่ใส่ `.env.local`, ฐานข้อมูล, session, backup/key, `.verification`, `node_modules` หรือ `.next` ลง Git ใช้เฉพาะข้อมูลสมมติ เครื่องอื่นจะได้ฐานและบัญชีจำลองของตนเอง
 

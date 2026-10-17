@@ -93,7 +93,7 @@ export default function Archive() {
                   : "ชั่วคราว — อาจเปลี่ยนแปลงได้"}
               </p>
               {a.students.length > 0 && (
-                <div className="table-wrap">
+                <div className="table-wrap" tabIndex={0} role="region" aria-label="ตารางคะแนนห้องเรียนที่เก็บแล้ว">
                   <table>
                     <thead>
                       <tr>
