@@ -34,6 +34,7 @@ const reportUrl=origin+`/full-system/assignments/${state.assignment}/reports`;
 try{
  await page.goto(origin+'/full-system');await expect(page.getByRole('heading',{name:'เข้าสู่ระบบ PairEval',exact:true})).toBeVisible();await scan('sign-in');
  await enter('อาจารย์เจ้าของห้อง');await scan('owner-dashboard');
+ await page.getByRole('button',{name:/^การแจ้งเตือน/}).click();await expect(page.locator('#notification-panel')).toBeVisible();await expect(page.locator('#notification-panel').getByText('กำลังโหลดการแจ้งเตือน…',{exact:true})).toHaveCount(0);await scan('owner-notification-panel');await page.keyboard.press('Escape');
  if(final){const response=await page.request.get(origin+`/api/full-system/assignments/${final.assignmentId}/score-runs`);assert.ok(response.ok(),'Prepared Final fixture must be readable');const payload=await response.json();finalReady=payload.data?.assignmentStatus==='FINALIZED';}
  if(!finalReady)skip('final-report-and-final-score','No finalized synthetic assignment; follow docs/TRY_IT.md section D, then rerun. Main-score screens will still be checked.');
  await page.goto(assignmentUrl);await expect(page.getByRole('button').filter({hasText:'ประเมินผลงานโครงงาน — ข้อมูลจำลอง'})).toBeVisible();
@@ -51,7 +52,9 @@ try{
  await expect(page.getByRole('button',{name:'ยืนยันผลคะแนน',exact:true})).toHaveCount(0);await expect(page.getByText('เปิดทบทวนคะแนนที่ยืนยันแล้ว',{exact:true})).toHaveCount(0);await scan('co-teacher-report');
  await enter('ผู้ช่วยสอน');await page.locator(`a[href="/full-system/classrooms/${state.room}/roster"]`).click();await expect(page.getByRole('cell',{name:'นักศึกษาคนที่ 1',exact:true})).toBeVisible();
  await page.getByRole('searchbox',{name:'ค้นหานักศึกษา',exact:true}).fill('S001');await expect(page.locator('tbody tr')).toHaveCount(1);await page.getByRole('searchbox',{name:'ค้นหานักศึกษา',exact:true}).fill('');await scan('ta-roster');
- await enter('นักศึกษาคนที่ 1');await scan('student-dashboard');await page.goto(workUrl);await expect(page.getByRole('heading',{name:'ประเมินผลงานโครงงาน — ข้อมูลจำลอง',exact:true})).toBeVisible();
+ await enter('นักศึกษาคนที่ 1');await scan('student-dashboard');
+ await page.getByRole('button',{name:/^การแจ้งเตือน/}).click();await expect(page.locator('#notification-panel')).toBeVisible();await expect(page.locator('#notification-panel').getByText('กำลังโหลดการแจ้งเตือน…',{exact:true})).toHaveCount(0);await scan('student-notification-panel');await page.keyboard.press('Escape');
+ await page.goto(workUrl);await expect(page.getByRole('heading',{name:'ประเมินผลงานโครงงาน — ข้อมูลจำลอง',exact:true})).toBeVisible();
  await page.getByRole('searchbox',{name:'ค้นหางานประเมิน',exact:true}).fill('ไม่พบคำนี้');await expect(page.getByRole('heading',{name:'ไม่พบงานที่ตรงกับการค้นหา',exact:true})).toBeVisible();await page.getByRole('button',{name:'ดูงานทั้งหมด',exact:true}).click();await scan('student-work');
  await page.goto(origin+`/full-system/assignments/${state.assignment}/evaluate/group?classroom=${state.room}`);await expect(page.getByRole('radio').first()).toBeVisible();await scan('student-group');
  const submit=page.locator('.fs-submit-actions').getByRole('button',{name:/^(ส่งฉบับแก้ไข|ยืนยันส่งคำตอบ)$/});

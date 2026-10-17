@@ -8,12 +8,10 @@ import { NOTICE_VERSION } from "@/lib/full-system-notice-version";
 
 type Session = { email: string; displayName?: string; platformRole: string; canCreateClassroom: boolean; privacyAccepted: boolean };
 type Classroom = { id: string; name: string; role: string; status: string; rosterVersion: number };
-type Notice = { id: string; event: string; message: string; deepLink: string; createdAt: string; readAt: string | null };
 
 export default function FullSystemHome() {
   const [session, setSession] = useState<Session | null>(null);
   const [classrooms, setClassrooms] = useState<Classroom[]>([]);
-  const [notices, setNotices] = useState<Notice[]>([]);
   const [loading, setLoading] = useState(true);
   const [sessionError, setSessionError] = useState("");
   const [message, setMessage] = useState("");
@@ -86,8 +84,6 @@ export default function FullSystemHome() {
           if (!rooms.ok) throw new Error("CLASSROOMS_UNAVAILABLE");
           const data = (await rooms.json()).data as Classroom[];
           if (active) setClassrooms(data);
-          const notifications = await fetch("/api/full-system/notifications", { cache: "no-store" });
-          if (notifications.ok && active) setNotices((await notifications.json()).data as Notice[]);
         }
       } catch (error) {
         if (active) {
@@ -190,16 +186,6 @@ export default function FullSystemHome() {
           </details>}
         </section>
         <aside className="fs-side-column">
-          <section className="fs-side-card" aria-labelledby="notifications-title"><div className="fs-section-heading compact">
-            <div><span className="eyebrow">อัปเดตล่าสุด</span><h2 id="notifications-title">การแจ้งเตือน</h2></div>
-            <span className="fs-notification-count">{notices.filter(notice => !notice.readAt).length}</span></div>
-            {notices.length ? <ul className="fs-notification-list">{notices.map(notice => <li key={notice.id}>
-              <span className={`fs-notification-dot ${notice.readAt ? "is-read" : ""}`} aria-hidden="true" />
-              <div><a href={notice.deepLink}>{notice.message}</a><small>{new Date(notice.createdAt).toLocaleString("th-TH", { timeZone: "Asia/Bangkok" })}
-                {!notice.readAt && <b>ใหม่</b>}</small></div>
-            </li>)}</ul> : <p className="fs-muted-copy">ยังไม่มีการแจ้งเตือน</p>}
-          </section>
-
           <section className="fs-help-card"><span aria-hidden="true">?</span><div><h3>เริ่มต้นใช้งาน</h3>
             <p>อาจารย์จัดการงานจากการ์ดห้องเรียน ส่วนนักศึกษาเข้าไปทำแบบประเมินและดูคะแนนของตนเอง</p></div></section>
           <p className="fs-footer-note">ข้อมูลตัวอย่างสำหรับการสาธิต</p>

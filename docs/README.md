@@ -7,9 +7,10 @@
 | [README โครงงาน](../README.md) | เปิด repo ครั้งแรก |
 | [GETTING_STARTED](GETTING_STARTED.md) | ติดตั้ง/เปิด–ปิด/อัปเดต local |
 | [TRY_IT](TRY_IT.md) | เพื่อนลองใช้งานและรายงานปัญหา |
-| [MANUAL_UI_TEST](MANUAL_UI_TEST.md) | คู่มือคลิกทดสอบครบฟีเจอร์ปัจจุบัน 98 กรณี แยกข้อมูลและบทบาท |
+| [MANUAL_UI_TEST](MANUAL_UI_TEST.md) | คู่มือคลิกทดสอบปัจจุบัน 100 กรณี รวมอ่านแจ้งเตือน/อ่านทั้งหมด แยกข้อมูลและบทบาท |
 | [แบบบันทึก Manual UI](testing/MANUAL_UI_RESULTS_TEMPLATE.md) | คัดลอกไปกรอก PASS/FAIL/BLOCKED/NOT RUN พร้อมหลักฐานและ bug report |
 | [ผล UI ครบ 98 กรณี](testing/MANUAL_UI_98_RESULTS_2026-10-17.md) | 98/98 หลังแก้และตรวจซ้ำ พร้อมผลรายข้อ ภาพจอเล็ก/ซูม และ JSON สำหรับ AI |
+| [รูประฆังบน navbar](testing/NOTIFICATION_BELL_2026-10-17.md) | พฤติกรรม API และผลตรวจเฉพาะการแจ้งเตือนรุ่นใหม่ |
 | [ผล Backend และ GUI 17 ต.ค.](testing/FULL_SYSTEM_BACKEND_UI_2026-10-17.md) | ผลทดสอบจริง การแก้ 3 จุด สูตรคะแนน/ไฟล์ส่งออก audit/recovery และกรณีที่ยังไม่ได้ตรวจ |
 | [PEER_RETEST](PEER_RETEST.md) | อัปเดตและตรวจสองปัญหาเดิมรอบที่ 2 |
 | [AI_HANDOFF](AI_HANDOFF.md) | ให้ AI ช่วยติดตั้งและตรวจ |

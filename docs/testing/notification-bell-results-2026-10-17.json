@@ -1,0 +1,37 @@
+{
+  "checks": [
+    "latest 100 with exact counts/context; stale generation and unfinalized score hidden",
+    "cross-account, hidden ID, malformed body, origin, privacy and anonymous guards",
+    "idempotent single read; bulk read includes older than 100 and preserves hidden/other recipients",
+    "existing teacher event deep link and empty TA/Co/outsider feeds",
+    "withdrawn membership affects listing, counts and mutations",
+    "archived room affects listing, counts and mutations",
+    "email domain restriction affects listing, counts and mutations",
+    "badge 99+, keyboard open/close/focus, bulk read and persistence through GUI",
+    "account menu mutual exclusion and outside click",
+    "single click marks read and navigates correctly; available beyond home",
+    "server failure and retry recover with same session",
+    "network failure and retry recover with same session",
+    "rate failure and retry recover with same session",
+    "failed read does not decrement badge and still allows target navigation",
+    "visible 60-second refresh and navigation/open cooldown",
+    "role switch clears prior feed; privacy-required and logout hide bell",
+    "real browser zoom 200%"
+  ],
+  "scans": [
+    "student-desktop",
+    "student-390",
+    "student-320",
+    "student-work-page",
+    "error-server",
+    "error-network",
+    "error-rate",
+    "owner-feed",
+    "ta-feed",
+    "co-feed",
+    "browser-zoom-200"
+  ],
+  "pageErrors": [],
+  "fixtureRoomsRemaining": 0,
+  "complete": true
+}

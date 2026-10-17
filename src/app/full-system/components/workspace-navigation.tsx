@@ -3,17 +3,20 @@ import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { usePathname } from "next/navigation";
 import { BookOpen, ChevronDown, Download, LogOut, UserRound } from "lucide-react";
+import NotificationBell from "./notification-bell";
 
 type Profile = { email: string; displayName?: string; privacyAccepted: boolean };
 export default function WorkspaceNavigation() {
   const path = usePathname();
   const [profile, setProfile] = useState<Profile | null>(null);
+  const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [exporting, setExporting] = useState(false), [message, setMessage] = useState("");
   const account = useRef<HTMLDetailsElement>(null);
   useEffect(() => {
     let active = true;
     void fetch("/api/auth/session", { cache: "no-store" }).then(async response => {
       if (response.ok) { const data = (await response.json()).data; if (active) setProfile(data); }
+      else if (active && (response.status === 401 || response.status === 428)) setProfile(null);
     }).catch(() => {});
     return () => { active = false; };
   }, [path]);
@@ -39,15 +42,19 @@ export default function WorkspaceNavigation() {
       <Link href="/full-system" className="fs-wordmark" aria-label="PairEval หน้าหลัก"><span><BookOpen size={20} aria-hidden="true" /></span>PairEval</Link>
       <nav aria-label="เมนูหลัก"><Link href="/full-system" aria-current={!path.startsWith("/full-system/archive") ? "page" : undefined}>ห้องเรียน</Link>
         <Link href="/full-system/archive" aria-current={path.startsWith("/full-system/archive") ? "page" : undefined}>ห้องเรียนที่เก็บแล้ว</Link></nav>
-      <details ref={account} className="fs-account-menu" onKeyDown={event => {
+      <div className="fs-nav-actions"><NotificationBell key={profile.email} open={notificationsOpen} onOpenChange={value => {
+        setNotificationsOpen(value); if (value) account.current?.removeAttribute("open");
+      }} />
+      <details ref={account} className="fs-account-menu" onToggle={event => { if (event.currentTarget.open) setNotificationsOpen(false); }} onKeyDown={event => {
         if (event.key === "Escape") { account.current?.removeAttribute("open"); account.current?.querySelector("summary")?.focus(); }
-      }}><summary><UserRound size={18} aria-hidden="true" /><span>{profile.displayName || "บัญชีของฉัน"}</span><ChevronDown size={14} aria-hidden="true" /></summary>
+      }}><summary aria-label={profile.displayName || "บัญชีของฉัน"}><UserRound size={18} aria-hidden="true" /><span>{profile.displayName || "บัญชีของฉัน"}</span><ChevronDown size={14} aria-hidden="true" /></summary>
         <div className="fs-account-popover"><strong>{profile.displayName || "บัญชีของฉัน"}</strong><p>{profile.email}</p>
           <button onClick={exportData} disabled={exporting}><Download size={16} aria-hidden="true" />{exporting ? "กำลังดาวน์โหลด…" : "ขอสำเนาข้อมูลของฉัน"}</button>
           <form action="/api/auth/logout" method="post"><button type="submit"><LogOut size={16} aria-hidden="true" />ออกจากระบบ</button></form>
           {message && <p role="status">{message}</p>}
         </div>
       </details>
+      </div>
     </div></header>
   </>;
 }
