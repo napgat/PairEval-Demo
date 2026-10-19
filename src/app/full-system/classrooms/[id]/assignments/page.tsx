@@ -178,6 +178,7 @@ export default function AssignmentsPage({ params }: { params: Promise<{ id: stri
   const change = <K extends keyof Input>(key: K, value: Input[K]) => { setForm(current => ({ ...current, [key]: value })); setPlan(null); };
   const groups = [...new Map(roster.map(person => [person.groupId, person.groupName])).entries()];
   const rosterLocked = rows.some(row => !["DRAFT", "ARCHIVED"].includes(row.status));
+  const withdrawReasonLength = withdrawReason.trim().length;
   const deadlinesChanged = selected && (form.groupMaxScore > 0 && form.groupDeadline !== selected.groupDeadline ||
     form.individualMaxScore > 0 && form.individualDeadline !== selected.individualDeadline);
   if (loading || loadFailed) return <main className="fs-page fs-instructor-page">
@@ -221,8 +222,16 @@ export default function AssignmentsPage({ params }: { params: Promise<{ id: stri
         <label className="field">นักศึกษาที่จะถอน<select value={withdrawUser} onChange={e => setWithdrawUser(e.target.value)}>
           <option value="">เลือกนักศึกษา</option>{roster.map(student => <option key={student.id} value={student.id}>{student.displayName} · {student.groupName}</option>)}
         </select></label>
-        <label className="field">เหตุผลถอน<textarea value={withdrawReason} onChange={e => setWithdrawReason(e.target.value)} /></label>
-        <button className="secondary-button" disabled={busy || !withdrawUser || withdrawReason.trim().length < 10}
+        <label className="field">เหตุผลถอน<textarea value={withdrawReason} minLength={10} maxLength={1000}
+          aria-describedby="withdraw-reason-help withdraw-readiness" onChange={e => setWithdrawReason(e.target.value)} /></label>
+        <p id="withdraw-reason-help" className="field-help">กรอกเหตุผลอย่างน้อย 10 ตัวอักษร โดยไม่นับช่องว่างหัวท้าย</p>
+        <p id="withdraw-readiness" className="field-help" role="status" aria-live="polite">
+          เหตุผล {withdrawReasonLength} ตัวอักษร · {withdrawReasonLength < 10
+            ? `ยังขาดอีก ${10 - withdrawReasonLength} ตัวอักษร`
+            : "ครบขั้นต่ำแล้ว"}{!withdrawUser ? " · กรุณาเลือกนักศึกษาที่จะถอนด้วย" : ""}
+        </p>
+        <button className="secondary-button" disabled={busy || !withdrawUser || withdrawReasonLength < 10}
+          aria-describedby="withdraw-readiness"
           onClick={() => action(async () => {
             if (!window.confirm("ยืนยันถอนสมาชิกข้อมูลตัวอย่างและจัดสรรงานปัจจุบันใหม่? ประวัติเดิมยังอยู่")) return;
             await request(`/api/full-system/classrooms/${classroomId}/members/${withdrawUser}/withdraw`, "POST",
