@@ -6,6 +6,7 @@ import { assignmentStatus, sideName, appealStatus, scoreFlag, friendlyError } fr
 import { use, useCallback, useEffect, useState } from "react";
 import type { ScoreRun } from "@/lib/full-system-score-runs";
 import type { ComparisonReview } from "@/lib/full-system-comparison-review";
+import { formatClassroomDateTime } from "@/lib/full-system-timezone";
 
 type Snapshot = { id: string; snapshotNo: number; kind: "INTERIM" | "FINAL"; assignmentStatus: string;
   inputHash: string; createdAt: string; output: ScoreRun };
@@ -47,6 +48,7 @@ export default function ReportsPage({ params }: { params: Promise<{ id: string }
   const [appeals, setAppeals] = useState<Appeal[]>([]);
   const [qualityFeedback, setQualityFeedback] = useState<Array<{criterion:string;side:string;assignments:number}>>([]);
   const [auditRows, setAuditRows] = useState<AuditRow[]>([]);
+  const [classroomTimezone, setClassroomTimezone] = useState<string | null>(null);
   const [appealId, setAppealId] = useState("");
   const [resolution, setResolution] = useState("");
   const [reviews, setReviews] = useState<ComparisonReview[]>([]);
@@ -68,7 +70,10 @@ export default function ReportsPage({ params }: { params: Promise<{ id: string }
     setCanManageFinalScores(payload.meta?.canManageFinalScores === true);
     setQualityFeedback(payload.meta?.qualityFeedback ?? []);
     if (appealResponse.ok) setAppeals((await appealResponse.json()).data.appeals);
-    if (auditResponse.ok) setAuditRows((await auditResponse.json()).data);
+    if (auditResponse.ok) {
+      const audit = await auditResponse.json();
+      setAuditRows(audit.data); setClassroomTimezone(audit.meta?.timezone ?? null);
+    } else { setAuditRows([]); setClassroomTimezone(null); }
     if (reviewResponse.ok) {
       const reviewData = (await reviewResponse.json()).data;
       setReviews(reviewData.items); setReviewCursor(reviewData.nextCursor);
@@ -182,7 +187,7 @@ export default function ReportsPage({ params }: { params: Promise<{ id: string }
     <section className="form-panel fs-snapshot-panel">
       <div className="fs-section-heading"><div><span className="eyebrow">สถานะคะแนน</span><h2>ผลคำนวณล่าสุด</h2></div>
         {snapshot && <span className={`fs-status-badge ${snapshot.assignmentStatus === "FINALIZED" ? "is-open" : ""}`}>{snapshot.assignmentStatus === "FINALIZED" ? "ยืนยันแล้ว" : snapshot.kind === "FINAL" ? "กำลังทบทวนคะแนน" : "คะแนนชั่วคราว"}</span>}</div>
-      <p>{snapshot ? `คะแนนฉบับที่ ${snapshot.snapshotNo} · ${assignmentStatus(snapshot.assignmentStatus)} · อัปเดต ${new Date(snapshot.createdAt).toLocaleString("th-TH", { timeZone: "Asia/Bangkok" })}` :
+      <p>{snapshot ? `คะแนนฉบับที่ ${snapshot.snapshotNo} · ${assignmentStatus(snapshot.assignmentStatus)} · อัปเดต ${classroomTimezone ? `${formatClassroomDateTime(snapshot.createdAt, classroomTimezone)} (${classroomTimezone})` : "ยังโหลดเขตเวลาห้องเรียนไม่ได้"}` :
         "ยังไม่มีผลคำนวณ — เริ่มจากคำนวณผลระหว่างดำเนินงาน"}</p>
       {snapshot?.assignmentStatus !== "FINALIZED" && <div className="actions">
         <button className="secondary-button" disabled={busy} onClick={() => run("INTERIM")}>คำนวณผลระหว่างดำเนินงานใหม่</button>
@@ -318,10 +323,10 @@ export default function ReportsPage({ params }: { params: Promise<{ id: string }
         </>}
       </section>
       <details className="form-panel fs-disclosure"><summary>ประวัติการทำรายการของห้องเรียน</summary><div className="fs-disclosure-body">
-        <p className="fine-print">ใช้ตรวจสอบย้อนหลัง โดยไม่แสดงชื่อผู้ประเมิน</p>
-        <div className="table-wrap" tabIndex={0} role="region" aria-label="ตารางประวัติการทำรายการ"><table><thead><tr><th>เวลา UTC</th><th>เหตุการณ์</th><th>รายการอ้างอิง</th><th>รหัสอ้างอิง</th></tr></thead><tbody>
+        <p className="fine-print">ใช้ตรวจสอบย้อนหลัง โดยไม่แสดงชื่อผู้ประเมิน · {classroomTimezone ? `เวลาแสดงตามเขตเวลาห้องเรียน ${classroomTimezone}` : "ยังโหลดเขตเวลาห้องเรียนไม่ได้ กรุณาลองโหลดหน้าใหม่"}</p>
+        <div className="table-wrap" tabIndex={0} role="region" aria-label="ตารางประวัติการทำรายการ"><table><thead><tr><th>เวลา{classroomTimezone ? ` (${classroomTimezone})` : ""}</th><th>เหตุการณ์</th><th>รายการอ้างอิง</th><th>รหัสอ้างอิง</th></tr></thead><tbody>
           {auditRows.map(row => <tr key={`${row.requestId}:${row.action}`}>
-            <td>{row.occurredAt}</td><td>{row.action}</td>
+            <td>{classroomTimezone ? <time dateTime={row.occurredAt}>{formatClassroomDateTime(row.occurredAt, classroomTimezone)}</time> : "—"}</td><td>{row.action}</td>
             <td>{row.resourceType} {row.resourceId.slice(0, 8)}</td>
             <td>{row.requestId.slice(0, 8)}</td></tr>)}
         </tbody></table></div>

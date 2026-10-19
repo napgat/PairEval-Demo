@@ -14,8 +14,8 @@ async function GETHandler(request: NextRequest, context: { params: Promise<{ id:
     if (!/^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/i.test(id)) {
       throw new AssignmentInputError("Invalid assignment ID");
     }
-    const result = await databasePool().query<{ classroom_id: string; allowed_email_domains: string[] }>(
-      `SELECT a.classroom_id,c.allowed_email_domains FROM assignment a
+    const result = await databasePool().query<{ classroom_id: string; allowed_email_domains: string[]; timezone: string }>(
+      `SELECT a.classroom_id,c.allowed_email_domains,c.timezone FROM assignment a
        JOIN classroom c ON c.id=a.classroom_id JOIN classroom_member m ON m.classroom_id=c.id
        WHERE a.id=$1 AND c.status='ACTIVE' AND m.user_id=$2
          AND m.role IN ('OWNER','CO_TEACHER') AND m.membership_status='ACTIVE'`,
@@ -24,7 +24,7 @@ async function GETHandler(request: NextRequest, context: { params: Promise<{ id:
     if (!row || !domainAllowed(auth.actor.hostedDomain, row.allowed_email_domains)) {
       throw new AssignmentNotFoundError("Audit not found");
     }
-    return NextResponse.json({ data: await readAuditTimeline(row.classroom_id) });
+    return NextResponse.json({ data: await readAuditTimeline(row.classroom_id), meta: { timezone: row.timezone } });
   } catch (error) { return assignmentError(error); }
 }
 

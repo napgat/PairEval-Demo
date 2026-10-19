@@ -4,6 +4,11 @@ const parts = (date: Date, timeZone: string) => {
   const get = (name: string) => Number(values.find(part => part.type === name)?.value);
   return { year: get("year"), month: get("month"), day: get("day"), hour: get("hour"), minute: get("minute") };
 };
+export function formatClassroomDateTime(value: string, timeZone: string): string {
+  const date = new Date(value);
+  if (!Number.isFinite(date.getTime())) return "—";
+  return date.toLocaleString("th-TH", { timeZone, hourCycle: "h23" });
+}
 export function utcToClassroomInput(value: string | null, timeZone: string): string {
   if (!value) return "";
   const p = parts(new Date(value), timeZone);
