@@ -177,6 +177,7 @@ export default function AssignmentsPage({ params }: { params: Promise<{ id: stri
   });
   const change = <K extends keyof Input>(key: K, value: Input[K]) => { setForm(current => ({ ...current, [key]: value })); setPlan(null); };
   const groups = [...new Map(roster.map(person => [person.groupId, person.groupName])).entries()];
+  const rosterLocked = rows.some(row => !["DRAFT", "ARCHIVED"].includes(row.status));
   const deadlinesChanged = selected && (form.groupMaxScore > 0 && form.groupDeadline !== selected.groupDeadline ||
     form.individualMaxScore > 0 && form.individualDeadline !== selected.individualDeadline);
   if (loading || loadFailed) return <main className="fs-page fs-instructor-page">
@@ -207,10 +208,11 @@ export default function AssignmentsPage({ params }: { params: Promise<{ id: stri
     <details className="fs-roster-tools"><summary><span><strong>จัดการรายชื่อนักศึกษาและกลุ่ม</strong><small>{roster.length} คน · รุ่นรายชื่อ {rosterVersion}</small></span><span aria-hidden="true">⌄</span></summary>
       <section className="form-panel"><h2>นำเข้ารายชื่อหรือปรับกลุ่ม</h2>
         <p className="fine-print">ต้องยกเลิกเผยแพร่งานที่ยังใช้งานอยู่ก่อน · คู่และคำตอบรุ่นเดิมจะยังอยู่ในประวัติ</p>
+        {rosterLocked && <p className="notice" role="status">ยังนำเข้ารายชื่อไม่ได้ เพราะห้องนี้มีงานที่เผยแพร่อยู่ กรุณาตรวจและยกเลิกเผยแพร่งานที่ยังใช้งานทั้งหมดก่อน</p>}
         <label className="field">CSV รายชื่อ<textarea value={rosterCsv} placeholder="email,group_name,student_id,display_name"
           onChange={e => { setRosterCsv(e.target.value); setRosterPreview(null); }} /></label>
         <div className="actions"><button className="secondary-button" disabled={busy || !rosterCsv.trim()} onClick={previewCsv}>ตรวจข้อมูลและดูการเปลี่ยนกลุ่ม</button>
-          <button className="primary-button" disabled={busy || !rosterPreview || selected?.status !== "DRAFT"} onClick={importCsv}>ยืนยันนำเข้ารายชื่อ</button></div>
+          <button className="primary-button" disabled={busy || !rosterPreview || rosterLocked} onClick={importCsv}>ยืนยันนำเข้ารายชื่อ</button></div>
         {rosterPreview && <p role="status" className="notice">เพิ่ม {rosterPreview.diff.added} · ย้ายกลุ่ม {rosterPreview.diff.moved} · คงเดิม {rosterPreview.diff.unchanged}
           {rosterPreview.warnings.length ? ` · ${rosterPreview.warnings.join("; ")}` : ""}</p>}
       </section>
